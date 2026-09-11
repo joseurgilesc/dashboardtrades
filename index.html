@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Diario de trading estático: registro de operaciones, métricas y gráficos. Los datos se guardan localmente en el navegador.">
+  <title>Diario de Trading</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h1>Diario de Trading</h1>
+      <p class="subtitle">Registro de operaciones, métricas y análisis</p>
+    </div>
+    <div class="balances" aria-label="Saldos de cuentas">
+      <div class="chip">
+        <span class="chip-label">Sim</span>
+        <span class="chip-value" id="chipSim">$0.00</span>
+      </div>
+      <div class="chip">
+        <span class="chip-label">Real</span>
+        <span class="chip-value" id="chipReal">$0.00</span>
+      </div>
+      <div class="chip">
+        <span class="chip-label">Fondeo</span>
+        <span class="chip-value" id="chipFondeo">$0.00</span>
+      </div>
+      <div class="chip chip-total">
+        <span class="chip-label">Total</span>
+        <span class="chip-value" id="chipTotal">$0.00</span>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Secciones">
+    <button type="button" class="tab-button active" role="tab" data-tab="registro" aria-selected="true" aria-controls="tab-registro">Registro</button>
+    <button type="button" class="tab-button" role="tab" data-tab="dashboard" aria-selected="false" aria-controls="tab-dashboard">Dashboard</button>
+    <button type="button" class="tab-button" role="tab" data-tab="ajustes" aria-selected="false" aria-controls="tab-ajustes">Ajustes</button>
+  </nav>
+
+  <p id="appStatus" class="app-status" role="status" aria-live="polite" hidden></p>
+
+  <div class="filters" id="filtersBar" aria-label="Filtros">
+    <div class="filter-field">
+      <label for="filterAccount">Cuenta</label>
+      <select id="filterAccount"></select>
+    </div>
+    <div class="filter-field">
+      <label for="filterInstrument">Instrumento</label>
+      <select id="filterInstrument"></select>
+    </div>
+    <div class="filter-field">
+      <label for="filterStrategy">Estrategia</label>
+      <select id="filterStrategy"></select>
+    </div>
+    <div class="filter-field">
+      <label for="filterEmotion">Emoción</label>
+      <select id="filterEmotion"></select>
+    </div>
+    <div class="filter-field">
+      <label for="filterDateFrom">Desde</label>
+      <input type="date" id="filterDateFrom">
+    </div>
+    <div class="filter-field">
+      <label for="filterDateTo">Hasta</label>
+      <input type="date" id="filterDateTo">
+    </div>
+    <div class="filter-field filter-actions">
+      <button type="button" class="btn btn-ghost" id="btnClearFilters">Limpiar filtros</button>
+    </div>
+  </div>
+
+  <main class="app-main">
+    <!-- ============================ REGISTRO ============================ -->
+    <section id="tab-registro" role="tabpanel" aria-labelledby="tab-registro">
+      <div class="card">
+        <div class="card-header">
+          <h2 id="formTitle">Nuevo trade</h2>
+        </div>
+
+        <div id="formErrors" class="form-errors" role="alert" hidden></div>
+
+        <form id="tradeForm" class="trade-form" novalidate>
+          <div class="form-grid">
+            <div class="field">
+              <label for="tradeNumber">N.º de trade</label>
+              <input type="number" id="tradeNumber" min="1" step="1" inputmode="numeric">
+            </div>
+            <div class="field">
+              <label for="account">Cuenta</label>
+              <select id="account"></select>
+            </div>
+            <div class="field">
+              <label for="instrument">Instrumento</label>
+              <select id="instrument"></select>
+            </div>
+            <div class="field">
+              <label for="contracts">Contratos</label>
+              <input type="number" id="contracts" min="0" step="1" inputmode="decimal" value="1">
+            </div>
+            <div class="field">
+              <label for="strategy">Estrategia</label>
+              <select id="strategy"></select>
+            </div>
+            <div class="field">
+              <label for="direction">Dirección</label>
+              <select id="direction"></select>
+            </div>
+            <div class="field">
+              <label for="entryDate">Fecha de entrada</label>
+              <input type="date" id="entryDate">
+            </div>
+            <div class="field">
+              <label for="entryTime">Hora de entrada</label>
+              <input type="time" id="entryTime">
+            </div>
+            <div class="field">
+              <label for="entryPrice">Precio de entrada</label>
+              <input type="number" id="entryPrice" step="any" inputmode="decimal">
+            </div>
+            <div class="field">
+              <label for="exitDate">Fecha de salida</label>
+              <input type="date" id="exitDate">
+            </div>
+            <div class="field">
+              <label for="exitTime">Hora de salida</label>
+              <input type="time" id="exitTime">
+            </div>
+            <div class="field">
+              <label for="exitPrice">Precio de salida</label>
+              <input type="number" id="exitPrice" step="any" inputmode="decimal">
+            </div>
+            <div class="field">
+              <label for="exitType">Tipo de salida</label>
+              <select id="exitType"></select>
+            </div>
+            <div class="field">
+              <label for="emotion">Emoción</label>
+              <select id="emotion"></select>
+            </div>
+            <div class="field field-wide">
+              <label for="notes">Notas</label>
+              <textarea id="notes" rows="2" placeholder="Observaciones de la operación (opcional)"></textarea>
+            </div>
+          </div>
+
+          <div class="preview" aria-live="polite">
+            <div class="preview-item">
+              <span class="preview-label">Valor del punto</span>
+              <span class="preview-value" id="previewPointValue">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Puntos</span>
+              <span class="preview-value" id="previewPoints">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Bruto</span>
+              <span class="preview-value" id="previewGross">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Comisión</span>
+              <span class="preview-value" id="previewCommission">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Neto</span>
+              <span class="preview-value" id="previewNet">—</span>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btnSave">Guardar trade</button>
+            <button type="button" class="btn btn-ghost" id="btnCancel" hidden>Cancelar edición</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-header card-header-row">
+          <h2>Trades</h2>
+          <div class="table-tools">
+            <label class="sr-only" for="tableSearch">Buscar trades</label>
+            <input type="search" id="tableSearch" placeholder="Buscar...">
+            <span class="table-summary" id="tableSummary"></span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="trades-table">
+            <thead id="tradesHead"></thead>
+            <tbody id="tradesBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ DASHBOARD =========================== -->
+    <section id="tab-dashboard" role="tabpanel" aria-labelledby="tab-dashboard" hidden>
+      <div class="kpi-grid">
+        <div class="kpi-card"><span class="kpi-label">Total trades</span><span class="kpi-value" id="kpiTotalTrades">0</span></div>
+        <div class="kpi-card"><span class="kpi-label">Win rate</span><span class="kpi-value" id="kpiWinRate">0 %</span></div>
+        <div class="kpi-card"><span class="kpi-label">Neto total</span><span class="kpi-value" id="kpiNetTotal">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Profit factor</span><span class="kpi-value" id="kpiProfitFactor">0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Expectancy</span><span class="kpi-value" id="kpiExpectancy">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Ganancia media</span><span class="kpi-value" id="kpiAvgWin">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Pérdida media</span><span class="kpi-value" id="kpiAvgLoss">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Máx. drawdown</span><span class="kpi-value" id="kpiMaxDrawdown">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Mejor trade</span><span class="kpi-value" id="kpiBestTrade">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Peor trade</span><span class="kpi-value" id="kpiWorstTrade">$0.00</span></div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="card chart-card chart-wide">
+          <h3>Curva de equity</h3>
+          <div class="chart-body"><canvas id="chartEquity"></canvas></div>
+        </div>
+        <div class="card chart-card">
+          <h3>Neto por instrumento</h3>
+          <div class="chart-body"><canvas id="chartInstrument"></canvas></div>
+        </div>
+        <div class="card chart-card">
+          <h3>Neto por estrategia</h3>
+          <div class="chart-body"><canvas id="chartStrategy"></canvas></div>
+        </div>
+        <div class="card chart-card">
+          <h3>Neto por emoción</h3>
+          <div class="chart-body"><canvas id="chartEmotion"></canvas></div>
+        </div>
+        <div class="card chart-card">
+          <h3>Neto por tipo de salida</h3>
+          <div class="chart-body"><canvas id="chartExitType"></canvas></div>
+        </div>
+        <div class="card chart-card">
+          <h3>Distribución ganadoras / perdedoras</h3>
+          <div class="chart-body"><canvas id="chartWinLoss"></canvas></div>
+        </div>
+        <div class="card chart-card chart-wide">
+          <h3>Neto por día de la semana</h3>
+          <div class="chart-body"><canvas id="chartDayOfWeek"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================= AJUSTES ============================ -->
+    <section id="tab-ajustes" role="tabpanel" aria-labelledby="tab-ajustes" hidden>
+      <div class="card">
+        <div class="card-header">
+          <h2>Saldos iniciales</h2>
+        </div>
+        <p class="hint">El saldo actual de cada cuenta se calcula como el saldo inicial más la suma del neto de sus trades.</p>
+        <div class="form-grid form-grid-narrow">
+          <div class="field">
+            <label for="balanceSim">Sim</label>
+            <input type="number" id="balanceSim" step="any" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="balanceReal">Real</label>
+            <input type="number" id="balanceReal" step="any" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="balanceFondeo">Fondeo</label>
+            <input type="number" id="balanceFondeo" step="any" inputmode="decimal">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="btnSaveBalances">Guardar saldos</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Datos</h2>
+        </div>
+        <p class="hint">Los datos se guardan únicamente en este navegador (localStorage). Exporta una copia de seguridad con regularidad.</p>
+        <div class="button-row">
+          <button type="button" class="btn" id="btnSeed">Cargar datos de ejemplo</button>
+          <button type="button" class="btn" id="btnExportJSON">Exportar JSON</button>
+          <button type="button" class="btn" id="btnImportJSON">Importar JSON</button>
+          <button type="button" class="btn" id="btnExportCSV">Exportar CSV</button>
+          <button type="button" class="btn btn-danger" id="btnClearAll">Borrar todo</button>
+        </div>
+        <input type="file" id="importJSONFile" accept=".json,application/json" hidden>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Diario de Trading — aplicación estática. Los datos permanecen en tu navegador.</p>
+  </footer>
+
+  <script src="vendor/chart.umd.js" defer></script>
+  <script src="js/instruments.js" defer></script>
+  <script src="js/store.js" defer></script>
+  <script src="js/charts.js" defer></script>
+  <script src="js/app.js" defer></script>
+</body>
+</html>
