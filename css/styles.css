@@ -797,6 +797,11 @@ textarea {
   white-space: nowrap;
 }
 
+/* Daily scaling-plan table reuses the trades table look but is static. */
+.scaling-table thead th {
+  cursor: default;
+}
+
 .cell-main {
   font-weight: 500;
 }

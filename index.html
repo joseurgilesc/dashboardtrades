@@ -314,6 +314,51 @@
         <div class="kpi-card"><span class="kpi-label">Peor trade</span><span class="kpi-value" id="kpiWorstTrade">$0.00</span></div>
       </div>
 
+      <div class="card">
+        <div class="card-header card-header-row">
+          <h2>Plan de escalado diario</h2>
+          <span class="risk-account-hint" id="scalingHint"></span>
+        </div>
+        <p class="hint">Proyección de interés compuesto proporcional: cada día se arriesga el % indicado del capital acumulado y la ganancia se reinvierte según el R/B. Es una simulación, no una recomendación de inversión.</p>
+        <div class="form-grid form-grid-narrow">
+          <div class="field">
+            <label for="scalingCapital">Capital inicial (USD)</label>
+            <input type="number" id="scalingCapital" min="0" step="any" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="scalingRiskPct">% de riesgo diario</label>
+            <input type="number" id="scalingRiskPct" min="0" step="0.1" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="scalingRR">R/B (expectativa)</label>
+            <input type="number" id="scalingRR" min="0" step="0.1" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="scalingDays">Nº de días</label>
+            <input type="number" id="scalingDays" min="1" step="1" inputmode="numeric">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="btnScalingCalc">Calcular</button>
+        </div>
+        <p class="risk-warning" id="scalingWarning" role="alert" hidden></p>
+        <div class="table-wrap" id="scalingTableWrap" hidden>
+          <table class="trades-table scaling-table">
+            <thead>
+              <tr>
+                <th scope="col">Día</th>
+                <th scope="col" class="num">Capital inicial</th>
+                <th scope="col" class="num">Riesgo</th>
+                <th scope="col" class="num">Ganancia</th>
+                <th scope="col" class="num">Capital final</th>
+              </tr>
+            </thead>
+            <tbody id="scalingBody"></tbody>
+          </table>
+        </div>
+        <p class="table-discipline" id="scalingSummary"></p>
+      </div>
+
       <div class="charts-grid">
         <div class="card chart-card chart-wide">
           <h3>Curva de equity</h3>

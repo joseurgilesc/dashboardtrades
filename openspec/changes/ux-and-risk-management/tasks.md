@@ -60,3 +60,8 @@ Chain strategy: stacked-to-main
 - [ ] 3.6 Verify risk %: 1.5 ok; 4→3 + warning; <0.5 clamps; R/R 100/300 ok, 100/150 warns; expectancy shown.
 - [ ] 3.7 Verify recovery 0.5→100%, 0→0%; stop flagged/present; BE/trailing counts.
 - [ ] 3.8 Verify ≥5% drawdown + 3-loss warn, save not blocked; scaling 10000+2000→240.
+
+## Phase 4: Daily scaling plan (`daily-scaling-plan`, new slice)
+
+- [x] 4.1 `js/instruments.js` + `js/store.js`: add pure `dailyScalingPlan({capital,riskPct,rr,days})` → `{valid,reason,days,rr,clampedDays,rows:[{day,startCapital,risk,gain,endCapital}],finalCapital}`, compounding `capital_d = capital_{d-1} + (riskPct/100)*capital_{d-1}*rr`; defaults `rr=2`, `days=20`, horizon capped at `SCALING_DAYS_MAX=365`; export from `Store`.
+- [x] 4.2 `index.html` + `js/app.js` + `css/styles.css`: add the "Plan de escalado diario" Dashboard card — inputs (capital, % riesgo diario, R/B, nº de días), a "Calcular" action, and a `Día | Capital inicial | Riesgo | Ganancia | Capital final` table reusing the dark tokens; defaults seeded from the selected account's current balance and risk %.

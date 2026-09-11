@@ -5,7 +5,8 @@
  * STRATEGY_IDS, STRATEGY_GROUPS, MICRO_PAIRS, EXIT_TYPES, EMOTIONS,
  * DEFAULT_BALANCES, DEFAULT_RISK_PCT, DEFAULT_DAILY_TRADE_LIMIT,
  * RISK_PCT_MIN, RISK_PCT_MAX, RISK_PCT_HARD_MAX, DEFAULT_MIN_RR,
- * DAILY_DD_WARN_PCT, STREAK_WARN.
+ * DAILY_DD_WARN_PCT, STREAK_WARN, DEFAULT_SCALING_RR, DEFAULT_SCALING_DAYS,
+ * SCALING_DAYS_MAX.
  *
  * Instrument hours follow the exchange timezone: CME Globex uses ET,
  * Eurex uses CET/CEST. Items still pending confirmation are marked
@@ -203,3 +204,11 @@ const RISK_PCT_HARD_MAX = 3;
 const DEFAULT_MIN_RR = 2;
 const DAILY_DD_WARN_PCT = 5;
 const STREAK_WARN = 3;
+
+/* Daily scaling-plan defaults (proportional compounding projection).
+ * `DEFAULT_SCALING_RR` is the R/B expectancy (2 means 2:1) and
+ * `DEFAULT_SCALING_DAYS` the projection horizon. `SCALING_DAYS_MAX` caps the
+ * horizon so a mistyped day count cannot freeze the UI. */
+const DEFAULT_SCALING_RR = 2;
+const DEFAULT_SCALING_DAYS = 20;
+const SCALING_DAYS_MAX = 365;

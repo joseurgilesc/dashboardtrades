@@ -7,12 +7,14 @@
 - PR 1 — `sha256:c88ce505…`
 - PR 2 — `sha256:763a47618ef6ced5c237750c7c690118bf2a172d8bdef357a38202434f26b3f9`
 - PR 3 — `sha256:414f8ef3aa924adaa78ebb1e760331b08920cd02327628009d33e7fbd0ae0258`
-- PR 4 (this batch) — `sha256:3e7954e01bfbea1cb8b0fe413c7994caa409187f28df451f7a56038d2c7ff58b`
+- PR 4 — `sha256:3e7954e01bfbea1cb8b0fe413c7994caa409187f28df451f7a56038d2c7ff58b`
+- PR 5 (this batch) — `sha256:d079a8b292f282c5a7d973b74379d4759b461e946c6c3973e6564a08438b722e`
 **Batches**:
 - **PR 1** — Phase 1 Foundation (tasks 1.1–1.6) + instrument-info (1.10).
 - **PR 2** — risk bounds/R-R/recovery/discipline pure logic (1.7–1.9) + Ajustes risk settings UI (2.5, 2.13) + Registro risk calculator panel (2.4, 2.10).
 - **PR 3** — entry now-defaults (2.1) + balances visibility (2.6, 2.8) + daily-limit warn-only (2.7) + stop/drawdown banners (2.11, 2.12).
-- **PR 4** (this batch) — Registro target/stop/planned-risk inputs + persistence + live risk-panel feed (2.9); 2.2/2.3 confirmed complete.
+- **PR 4** — Registro target/stop/planned-risk inputs + persistence + live risk-panel feed (2.9); 2.2/2.3 confirmed complete.
+- **PR 5** (this batch) — new `daily-scaling-plan`: pure `Store.dailyScalingPlan` compounding projection (4.1) + "Plan de escalado diario" Dashboard panel (4.2).
 
 ## Completed Tasks (cumulative)
 
@@ -53,21 +55,34 @@ Catalog-coherence call sites (PR 1): `js/charts.js` strategy chart keyed/ordered
 - [x] 2.3 `js/charts.js`: confirmed complete from PR 1 — the strategy chart keys by `t.strategy` and orders via `STRATEGY_IDS` (`charts.js` ~L349–350), labels via `Store.strategyLabel` (~L68). Marked `[x]`.
 - [x] 2.9 `index.html` + `js/app.js` + `js/store.js`: added three optional trade-form fields — `stop` (precio), `target` (USD reward), `plannedRisk` (USD). `readForm` reads them, `handleEdit` populates them, `resetForm` clears them, and `wireEvents` re-renders the panel live. `sanitizeTrade` now normalizes `trade.target` / `trade.plannedRisk` (missing → 0) alongside the existing `trade.stop`, so the values persist through `addTrade`/`updateTrade`/JSON import and reach Firestore via the unchanged `tradeData` copy. The risk panel derives the stop distance from `|entry − stop|` when a stop price is recorded, and uses the recorded `plannedRisk` / `target` for R/R in place of the computed total risk and the calculator's own target input. The `Sin stop` badge (reading `trade.stop > 0`) clears automatically for trades that record a stop.
 
+### PR 5 batch (this slice)
+
+- [x] 4.1 `js/instruments.js` + `js/store.js`: added the scaling-plan defaults (`DEFAULT_SCALING_RR=2`, `DEFAULT_SCALING_DAYS=20`, `SCALING_DAYS_MAX=365`) and the pure `dailyScalingPlan({capital,riskPct,rr,days})`. It compounds proportionally (`risk_d = (riskPct/100)*capital_{d-1}`, `gain_d = risk_d*rr`, `capital_d = capital_{d-1}+gain_d`) and returns `{valid,reason,days,rr,clampedDays,rows:[{day,startCapital,risk,gain,endCapital}],finalCapital}`. `rr` defaults to 2, `days` to 20 and is capped at 365; `valid:false` (empty rows) when `capital` is missing/negative or `riskPct` is missing/`<=0`. Exported as `Store.dailyScalingPlan`.
+- [x] 4.2 `index.html` + `js/app.js` + `css/styles.css`: added the **Plan de escalado diario** card to the Dashboard (inputs: capital, % riesgo diario, R/B, nº de días; a **Calcular** action; and a `Día | Capital inicial | Riesgo | Ganancia | Capital final` table). `loadScalingDefaults` seeds capital/risk % from the entry form's selected account (current balance + configured `riskPct`) and R/B/days from the new defaults; `renderScalingPlan` calls `Store.dailyScalingPlan` and renders the rows plus a final-capital/growth summary. Reuses `.card`, `.form-grid-narrow`, `.field`, `.btn`, `.risk-warning`, `.table-wrap`/`.trades-table` and the amber `.warn` tokens; one small `.scaling-table thead th { cursor: default; }` rule marks the table as static.
+
 ## Files Changed (cumulative)
 
 | File | Action | What Was Done |
 |------|--------|---------------|
-| `js/instruments.js` | Modified | PR 1 catalog/metadata/MICRO_PAIRS/defaults; PR 2 risk-discipline constants. (Untouched in PR 3/PR 4.) |
-| `js/store.js` | Modified | PR 1 strategy helpers, settings, `computeRisk`; PR 2 `clampRiskPct`/`clampDailyLimit`/`getMinRR`/`computeRR`/`recoveryPct`/`stopDiscipline`/`intradayDrawdown`/`losingStreak`, `trade.stop` normalization, exports; PR 3 `countTradesToday`/`dailyLimitStatus` + exports; **PR 4 `sanitizeTrade` now also normalizes `trade.target` / `trade.plannedRisk` (2 fields, no new exports).** |
-| `js/app.js` | Modified | PR 1 selects/labels/info panel; PR 2 `renderRiskPanel`/`setRiskItem`, `loadRiskSettingsIntoForm`, `handleSaveRiskSettings`, event wiring, `renderAll`/`updatePreview` hooks; PR 3 `nowTime`, `resetForm` now-defaults, `renderBalances` chip sublabels, `missingStopBadge`, `renderDisciplineSummary`, `renderTable` row flag + summary call, `renderEntryWarnings`, 2 hook calls; **PR 4 `readForm` stop/target/plannedRisk, `renderRiskPanel` recorded-stop distance + recorded R/R inputs, `handleEdit` population, `resetForm` clearing, `wireEvents` live listeners.** |
-| `index.html` | Modified | PR 1 instrument Info button/panel; PR 2 Registro risk calculator card + Ajustes Riesgo y límites card; PR 3 four chip sublabels, `dailyLimitWarning`, `disciplineWarning`, `disciplineSummary`; **PR 4 `#stop` / `#target` / `#plannedRisk` trade-form fields + calculator hint note.** |
-| `css/styles.css` | Modified | PR 1 instrument-info styles; PR 2 `.risk-account-hint`, `.risk-warning`, `.warn`; PR 3 `.app-status.warn`, `.app-status-inline`, `.chip-sub`, `.badge-warn`, `.table-discipline`. (Untouched in PR 4 — new fields reuse `.field`/`.form-grid`.) |
+| `js/instruments.js` | Modified | PR 1 catalog/metadata/MICRO_PAIRS/defaults; PR 2 risk-discipline constants; **PR 5 scaling-plan defaults (`DEFAULT_SCALING_RR`, `DEFAULT_SCALING_DAYS`, `SCALING_DAYS_MAX`).** |
+| `js/store.js` | Modified | PR 1 strategy helpers, settings, `computeRisk`; PR 2 `clampRiskPct`/`clampDailyLimit`/`getMinRR`/`computeRR`/`recoveryPct`/`stopDiscipline`/`intradayDrawdown`/`losingStreak`, `trade.stop` normalization, exports; PR 3 `countTradesToday`/`dailyLimitStatus` + exports; **PR 4 `sanitizeTrade` now also normalizes `trade.target` / `trade.plannedRisk` (2 fields, no new exports); PR 5 pure `dailyScalingPlan` + export + local scaling defaults.** |
+| `js/app.js` | Modified | PR 1 selects/labels/info panel; PR 2 `renderRiskPanel`/`setRiskItem`, `loadRiskSettingsIntoForm`, `handleSaveRiskSettings`, event wiring, `renderAll`/`updatePreview` hooks; PR 3 `nowTime`, `resetForm` now-defaults, `renderBalances` chip sublabels, `missingStopBadge`, `renderDisciplineSummary`, `renderTable` row flag + summary call, `renderEntryWarnings`, 2 hook calls; **PR 4 `readForm` stop/target/plannedRisk, `renderRiskPanel` recorded-stop distance + recorded R/R inputs, `handleEdit` population, `resetForm` clearing, `wireEvents` live listeners; PR 5 `loadScalingDefaults` + `renderScalingPlan`, `btnScalingCalc` wiring, `enterApp` initial call.** |
+| `index.html` | Modified | PR 1 instrument Info button/panel; PR 2 Registro risk calculator card + Ajustes Riesgo y límites card; PR 3 four chip sublabels, `dailyLimitWarning`, `disciplineWarning`, `disciplineSummary`; **PR 4 `#stop` / `#target` / `#plannedRisk` trade-form fields + calculator hint note; PR 5 "Plan de escalado diario" Dashboard card (4 inputs + Calcular + 5-column table + summary).** |
+| `css/styles.css` | Modified | PR 1 instrument-info styles; PR 2 `.risk-account-hint`, `.risk-warning`, `.warn`; PR 3 `.app-status.warn`, `.app-status-inline`, `.chip-sub`, `.badge-warn`, `.table-discipline`; **PR 5 `.scaling-table thead th { cursor: default; }` (static, not sortable).** |
 | `js/charts.js` | Modified | PR 1 strategy chart by id/order/label. (Untouched in PR 2/3/4.) |
-| `openspec/changes/ux-and-risk-management/tasks.md` | Modified | Marked 1.1–1.6, 1.10 (PR 1); 1.7–1.9, 2.4, 2.5, 2.10, 2.13 (PR 2); 2.1, 2.6, 2.7, 2.8, 2.11, 2.12 (PR 3); **2.2, 2.3, 2.9 (PR 4)** `[x]`. |
+| `openspec/changes/ux-and-risk-management/tasks.md` | Modified | Marked 1.1–1.6, 1.10 (PR 1); 1.7–1.9, 2.4, 2.5, 2.10, 2.13 (PR 2); 2.1, 2.6, 2.7, 2.8, 2.11, 2.12 (PR 3); **2.2, 2.3, 2.9 (PR 4)** `[x]`; **PR 5 tasks 4.1–4.2 `[x]`.** |
 
 ## Work Unit Evidence
 
-### PR 4 (this batch)
+### PR 5 (this batch)
+
+| Evidence | Required value |
+|---|---|
+| Focused test command and exact result | `node --check js/store.js` → **exit 0 (store.js OK)**; `node --check js/app.js` → **exit 0 (app.js OK)**; `node --check js/instruments.js` → **exit 0 (instruments.js OK)**. VM harness `node C:\Users\user\AppData\Local\Temp\opencode\scaling-check.js` (loads the real `js/instruments.js` + `js/store.js` into one shared `vm` context, then evaluates `js/app.js` in memory with a DOM stub and an export hook — no file on disk is modified) → **PASSED: 73 / 73 — ALL CHECKS PASSED**. Coverage: known numbers 5000 / 2 % / rr 2 / 3 days → rows `100/200/5200`, `104/208/5408`, `108.16/216.32/5624.32`, `finalCapital 5624.32` (18); per-row formula invariants (1); defaults `rr=2`/`days=20` and final equals the closed form `1000*1.02^20` (5); `days=1000` clamps to 365 + `clampedDays` (3); `rr=0` stays flat (2); invalid `capital`/negative/`riskPct=0`/`days=0` handling (8); `capital=0` valid (2); `Store.dailyScalingPlan` is a function (1); the real `renderScalingPlan` renders 3 rows with `$5,000.00`/`$100.00`/`$200.00`/`$5,624.32` and the summary `Capital final tras 3 días: $5,624.32 … 12.5 %`, then hides the table + warns on `riskPct=0` and negative capital (13); `loadScalingDefaults` seeds `10000`/`1.5`/`2`/`20` from Sim and follows the account switch to Fondeo `50000` (6); structural checks for 7 HTML ids, the Spanish header row, the `btnScalingCalc` binding, the `enterApp` calls, the `Store` export and the 3 new `instruments.js` constants (13). |
+| Runtime harness command/scenario and exact result | `node C:\Users\user\AppData\Local\Temp\opencode\scaling-check.js` → **PASSED: 73 / 73**, driving the real production `renderScalingPlan` + `loadScalingDefaults` against a DOM stub with the real `Store`, so the values execute through the real `Store.dailyScalingPlan` path. The full browser path (`serve → login → Dashboard → Plan de escalado diario → Calcular`) is **N/A**: the app is a static page gated behind Firebase email/Google auth and no headless runner or test credentials exist. DOM wiring verified structurally: `#scalingCapital`, `#scalingRiskPct`, `#scalingRR`, `#scalingDays`, `#btnScalingCalc`, `#scalingBody`, `#scalingSummary` all present in `index.html`; `btnScalingCalc` bound in `wireEvents`. |
+| Rollback boundary | Revert exactly the PR 5 edits in 5 app files — `js/instruments.js` (3 constants + header doc, ~11 lines), `js/store.js` (3 local constants, the `dailyScalingPlan` function, 1 export), `js/app.js` (`loadScalingDefaults` + `renderScalingPlan`, 1 `wireEvents` line, 2 `enterApp` calls), `index.html` (the Dashboard card), `css/styles.css` (1 rule) — back to the PR 4 state. Purely additive display/logic: no persisted shape changes and no existing function is modified, so no migration is required. The existing risk calculator (contracts from stop) is untouched. |
+
+### PR 4 batch (retained)
 
 | Evidence | Required value |
 |---|---|
@@ -113,13 +128,18 @@ Focused: `node --check` on 4 JS files OK; harness → **PASSED: 63 / ALL CHECKS 
 14. **PR 4 — the recorded stop drives the stop distance without mutating the calculator input.** `renderRiskPanel` uses `|entry − stop|` when both are present and otherwise falls back to `#riskStopDistance`; it does not overwrite the input, so a manual calculator distance remains usable and no stale value survives a cleared stop. Documented in the panel hint.
 15. **PR 4 — recorded `plannedRisk`/`target` override the calculator's computed total risk / own target input**, while the recovery display stays based on the computed `totalRisk` (keeps it consistent with the "Riesgo total" item). The calculator inputs remain the fallback when no trade values are recorded.
 16. **PR 4 — `trade.stop`/`target`/`plannedRisk` are not added to the CSV export** (the existing CSV already omits `stop`). JSON export includes every trade field automatically, and the harness proves the JSON round-trip. Keeping CSV unchanged avoids widening the slice.
+17. **PR 5 — `dailyScalingPlan` returns an object with a `rows` array plus `finalCapital`** (not a bare array). The task wording ("returning an array ... and the final capital") is satisfied by a wrapper: `rows` feeds the table and `finalCapital` feeds the summary without a second call.
+18. **PR 5 — the panel lives in the Dashboard, not Ajustes.** Ajustes holds persisted settings and data management; the scaling plan is a read-only projection that complements the KPIs/charts, so the Dashboard is the better fit.
+19. **PR 5 — `rr`/`days` default inside the pure function and `days` is capped at 365 (`SCALING_DAYS_MAX`).** The cap is a safety guard against a mistyped day count freezing the UI; `clampedDays` reports it so the summary can say so. Only the fallbacks are constants — the model numbers are always the configurable inputs.
+20. **PR 5 — the panel seeds capital/risk % from the entry form's selected account but never auto-overwrites user edits.** Changing the account does not clobber custom scaling inputs; the user edits the fields directly.
 
 ## Issues Found
 
 - **PR 1 slice over budget (retained):** 597 insertions + 32 deletions = **629 authored lines**.
 - **PR 2 slice over budget (retained):** **547 authored changed lines**. Requires `size:exception` or the two-way split noted previously.
 - **PR 3 slice well under budget (retained):** ~**150 authored added lines**. No `size:exception` needed.
-- **PR 4 slice well under budget (new):** ~**50 authored added lines** (store.js +2, app.js ~+36, index.html +12 + 1 hint line). No `size:exception` needed.
+- **PR 4 slice well under budget (retained):** ~**50 authored added lines**. No `size:exception` needed.
+- **PR 5 slice well under budget (new):** **235 insertions + 1 deletion = 236 authored changed lines** (store.js +77, app.js +98, index.html +45, instruments.js +10, css +5). No `size:exception` needed.
 - **Task 2.2 / 2.3 are now confirmed and marked `[x]`** — they were functionally complete in PR 1 and only held open for the PR 1 boundary; PR 4 re-read `app.js`/`charts.js` and verified every acceptance clause.
 - No prior Engram `apply-progress` beyond the PR 1 record (id 21); this artifact is the cumulative merge (obs id 21 updated in place).
 
@@ -130,10 +150,10 @@ Focused: `node --check` on 4 JS files OK; harness → **PASSED: 63 / ALL CHECKS 
 ## Workload / PR Boundary
 
 - **Mode**: chained PR slice (stacked-to-main).
-- **Current work unit**: PR 4 — Registro target/stop/planned-risk inputs, persistence, and live risk-panel feed.
-- **Boundary**: starts from the PR 3 state; ends at the last Phase 2 task (2.9) plus confirmation of 2.2/2.3. Nothing from Phase 3 verification is included.
-- **Estimated review budget impact**: ~**50 authored added lines — well under the 400 default.** No `size:exception` required for this slice.
+- **Current work unit**: PR 5 — `daily-scaling-plan` (pure `Store.dailyScalingPlan` + Dashboard "Plan de escalado diario" panel).
+- **Boundary**: starts from the PR 4 state; ends at tasks 4.1–4.2. Nothing from Phase 3 verification is included, and the existing risk calculator (contracts from stop) is untouched.
+- **Estimated review budget impact**: **235 insertions + 1 deletion = 236 authored changed lines — under the 400 default.** No `size:exception` required for this slice.
 
 ## Status
 
-**23/23 Phase 1+2 tasks complete** (PR 1: 1.1–1.6 + 1.10; PR 2: 1.7–1.9, 2.4, 2.5, 2.10, 2.13; PR 3: 2.1, 2.6, 2.7, 2.8, 2.11, 2.12; PR 4: 2.2, 2.3, 2.9). Only Phase 3 manual verification (3.1–3.8) remains. Ready for independent SDD verification of the PR 4 slice. PR 2's over-budget decision (`size:exception` vs split) is still pending before PR creation; PR 3 and PR 4 need no exception.
+**25/25 Phase 1+2+4 tasks complete** (PR 1: 1.1–1.6 + 1.10; PR 2: 1.7–1.9, 2.4, 2.5, 2.10, 2.13; PR 3: 2.1, 2.6, 2.7, 2.8, 2.11, 2.12; PR 4: 2.2, 2.3, 2.9; PR 5: 4.1–4.2). Only Phase 3 manual verification (3.1–3.8) remains. Ready for independent SDD verification of the PR 5 slice. PR 2's over-budget decision (`size:exception` vs split) is still pending before PR creation; PR 3, PR 4 and PR 5 need no exception.
