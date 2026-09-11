@@ -1,0 +1,8 @@
+# Local agent cache (skill registry, generated indexes)
+.atl/
+
+# Dev-only tooling for the Firestore Security Rules tests (the app stays build-free)
+node_modules/
+package-lock.json
+firebase-debug.log
+firestore-debug.log

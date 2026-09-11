@@ -2,9 +2,11 @@
  * Persistence, calculations and import/export for the trading journal.
  * Exposes the global `Store`. Plain script (no modules).
  *
- * Persistence key: "bpt.journal.v1"
- * Persisted shape: { version: 1, trades: [], balances: {Sim,Real,Fondeo}, settings: {} }
- * Auto-saves on every mutation.
+ * Persistence: Firestore via the FirebaseService adapter, bound per user by
+ * attach(uid). Reads and calculations stay synchronous against in-memory
+ * state; mutations update state optimistically and persist asynchronously.
+ * The legacy localStorage key "bpt.journal.v1" is retained only as a
+ * one-time migration source (handled in a later phase).
  */
 
 const Store = (function () {
@@ -69,7 +71,7 @@ const Store = (function () {
   }
 
   /* ------------------------------------------------------------------ */
-  /* Persistence                                                         */
+  /* Persistence (Firestore adapter)                                     */
   /* ------------------------------------------------------------------ */
 
   function canPersist() {
@@ -80,25 +82,154 @@ const Store = (function () {
     }
   }
 
-  function load() {
-    if (!canPersist()) return;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      state = normalize(JSON.parse(raw));
-    } catch (err) {
-      /* Corrupted payload: keep defaults, do not crash. */
-      state = emptyState();
+  function firebaseAdapter() {
+    return (typeof FirebaseService !== 'undefined' && FirebaseService.adapter)
+      ? FirebaseService.adapter
+      : null;
+  }
+
+  function reportPersistError(err) {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[Store] Firestore write failed:', err && err.code ? err.code : err);
     }
   }
 
-  function save() {
-    if (!canPersist()) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (err) {
-      /* Quota or private mode: ignore, the app keeps working in memory. */
+  function persistTrade(trade) {
+    const adapter = firebaseAdapter();
+    if (!attachedUid || !adapter) return;
+    adapter.setTrade(attachedUid, trade).catch(reportPersistError);
+  }
+
+  function persistTradeDeletion(tradeId) {
+    const adapter = firebaseAdapter();
+    if (!attachedUid || !adapter) return;
+    adapter.deleteTrade(attachedUid, tradeId).catch(reportPersistError);
+  }
+
+  function persistBalances() {
+    const adapter = firebaseAdapter();
+    if (!attachedUid || !adapter) return;
+    adapter.setBalances(attachedUid, state.balances).catch(reportPersistError);
+  }
+
+  /**
+   * Writes the whole in-memory state and removes documents for trades that
+   * existed before the state was replaced. Used by import/seed/clear.
+   */
+  function persistAll(previousIds) {
+    const adapter = firebaseAdapter();
+    if (!attachedUid || !adapter) return;
+    const currentIds = {};
+    state.trades.forEach(function (trade) {
+      currentIds[trade.id] = true;
+      adapter.setTrade(attachedUid, trade).catch(reportPersistError);
+    });
+    (previousIds || []).forEach(function (id) {
+      if (!currentIds[id]) adapter.deleteTrade(attachedUid, id).catch(reportPersistError);
+    });
+    adapter.setBalances(attachedUid, state.balances).catch(reportPersistError);
+    adapter.setSettings(attachedUid, state.settings).catch(reportPersistError);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Attachment + change subscription                                    */
+  /* ------------------------------------------------------------------ */
+
+  let attachedUid = null;
+  let unsubscribeSnapshots = null;
+  let subscribers = [];
+
+  function notifySubscribers() {
+    subscribers.slice().forEach(function (fn) {
+      try {
+        fn();
+      } catch (err) {
+        /* A broken subscriber must not stop the others. */
+      }
+    });
+  }
+
+  /** Registers a re-render callback; returns an unsubscribe function. */
+  function subscribe(fn) {
+    if (typeof fn !== 'function') return function () {};
+    subscribers.push(fn);
+    return function () {
+      subscribers = subscribers.filter(function (existing) { return existing !== fn; });
+    };
+  }
+
+  function applyBalances(raw) {
+    const base = Object.assign({}, BALANCES);
+    if (raw && typeof raw === 'object') {
+      ACCOUNT_LIST.forEach(function (account) {
+        if (raw[account] !== undefined) base[account] = numOr(raw[account], base[account]);
+      });
     }
+    state.balances = base;
+  }
+
+  function applySettings(raw) {
+    state.settings = (raw && typeof raw === 'object') ? raw : {};
+  }
+
+  /**
+   * Binds the store to a user's Firestore documents: hydrates the in-memory
+   * state, then keeps it in sync via snapshots. Read/compute methods stay
+   * synchronous. Resolves `true` when attached; rejects if hydration fails.
+   */
+  function attach(uid) {
+    detach();
+    if (!uid) return Promise.resolve(false);
+    const adapter = firebaseAdapter();
+    if (!adapter) return Promise.resolve(false);
+    attachedUid = uid;
+
+    return adapter.fetchAll(uid).then(function (data) {
+      if (attachedUid !== uid) return false;
+      state.trades = (data.trades || []).map(sanitizeTrade).filter(Boolean);
+      applyBalances(data.balances);
+      applySettings(data.settings);
+
+      unsubscribeSnapshots = adapter.subscribe(uid, {
+        onTrades: function (trades) {
+          if (attachedUid !== uid) return;
+          state.trades = (trades || []).map(sanitizeTrade).filter(Boolean);
+          notifySubscribers();
+        },
+        onBalances: function (raw) {
+          if (attachedUid !== uid) return;
+          applyBalances(raw);
+          notifySubscribers();
+        },
+        onSettings: function (raw) {
+          if (attachedUid !== uid) return;
+          applySettings(raw);
+          notifySubscribers();
+        },
+        onError: reportPersistError
+      });
+
+      notifySubscribers();
+      return true;
+    }).catch(function (err) {
+      if (attachedUid === uid) attachedUid = null;
+      throw err;
+    });
+  }
+
+  /** Unbinds the user and clears in-memory data so nothing leaks across users. */
+  function detach() {
+    if (typeof unsubscribeSnapshots === 'function') {
+      try {
+        unsubscribeSnapshots();
+      } catch (err) {
+        /* Ignore: the listener may already be gone. */
+      }
+    }
+    unsubscribeSnapshots = null;
+    attachedUid = null;
+    state = emptyState();
+    notifySubscribers();
   }
 
   /* ------------------------------------------------------------------ */
@@ -202,7 +333,7 @@ const Store = (function () {
         state.balances[account] = numOr(obj[account], state.balances[account]);
       }
     });
-    save();
+    persistBalances();
     return getBalances();
   }
 
@@ -221,7 +352,7 @@ const Store = (function () {
     if (!record.id) record.id = uid();
     if (!record.tradeNumber || record.tradeNumber <= 0) record.tradeNumber = nextTradeNumber();
     state.trades.push(record);
-    save();
+    persistTrade(record);
     return Object.assign({}, record);
   }
 
@@ -230,20 +361,21 @@ const Store = (function () {
     if (index === -1) return null;
     const merged = Object.assign({}, state.trades[index], patch || {});
     state.trades[index] = sanitizeTrade(merged);
-    save();
+    persistTrade(state.trades[index]);
     return Object.assign({}, state.trades[index]);
   }
 
   function deleteTrade(id) {
     const before = state.trades.length;
     state.trades = state.trades.filter(function (t) { return t.id !== id; });
-    save();
+    if (state.trades.length < before) persistTradeDeletion(id);
     return state.trades.length < before;
   }
 
   function clearAll() {
+    const previousIds = state.trades.map(function (t) { return t.id; });
     state = emptyState();
-    save();
+    persistAll(previousIds);
   }
 
   /* ------------------------------------------------------------------ */
@@ -459,12 +591,13 @@ const Store = (function () {
    */
   function importJSON(text) {
     const parsed = JSON.parse(text);
+    const previousIds = state.trades.map(function (t) { return t.id; });
     if (Array.isArray(parsed)) {
       state.trades = parsed.map(sanitizeTrade).filter(Boolean);
     } else {
       state = normalize(parsed);
     }
-    save();
+    persistAll(previousIds);
     return true;
   }
 
@@ -580,10 +713,11 @@ const Store = (function () {
         exitType: 'Cierre manual', emotion: 'Impaciencia', notes: 'Cierre anticipado por noticia.' }
     ];
 
+    const previousIds = state.trades.map(function (t) { return t.id; });
     state.trades = samples.map(function (s) {
       return sanitizeTrade(Object.assign({ id: uid() }, s));
     });
-    save();
+    persistAll(previousIds);
     return getTrades();
   }
 
@@ -591,11 +725,15 @@ const Store = (function () {
   /* Initialization                                                      */
   /* ------------------------------------------------------------------ */
 
-  load();
+  /* No auto-load: state is hydrated per user by attach(uid) after auth. */
 
   return {
     STORAGE_KEY: STORAGE_KEY,
     canPersist: canPersist,
+
+    attach: attach,
+    detach: detach,
+    subscribe: subscribe,
 
     getTrades: getTrades,
     getBalances: getBalances,
@@ -618,6 +756,10 @@ const Store = (function () {
     exportJSON: exportJSON,
     exportCSV: exportCSV,
     parseCSV: parseCSV,
-    seedSample: seedSample
+    seedSample: seedSample,
+
+    /* Exposed so the Phase 3 localStorage migration can reuse the exact
+     * normalization rules instead of duplicating them. */
+    normalize: normalize
   };
 })();

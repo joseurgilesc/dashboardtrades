@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function allowlisted() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/allowlist/$(request.auth.token.email));
+    }
+    match /allowlist/{email} {
+      allow get: if request.auth != null && request.auth.token.email == email;
+      allow read, write: if false;
+    }
+    match /users/{userId} {
+      allow read, write: if allowlisted() && request.auth.uid == userId;
+      match /{document=**} {
+        allow read, write: if allowlisted() && request.auth.uid == userId;
+      }
+    }
+  }
+}

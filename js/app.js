@@ -27,6 +27,14 @@
     chartsDirty: true
   };
 
+  /* Auth/session state (module scope, outside the UI `state` object). */
+  let currentUid = null;
+  let currentUser = null;
+  let authMode = 'signin';
+
+  /* Top-level regions hidden until authentication resolves. */
+  const APP_REGIONS = ['.tabs', '#filtersBar', '.app-main', '.app-footer'];
+
   const moneyFmt = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -660,6 +668,107 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Account deletion                                                    */
+  /* ------------------------------------------------------------------ */
+
+  /* Non-sensitive, user-facing messages. Never echo raw Firebase errors. */
+  function deleteAccountErrorMessage(err) {
+    const code = err && err.code ? err.code : '';
+    switch (code) {
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential':
+        return 'Contraseña incorrecta. Vuelve a intentarlo.';
+      case 'auth/popup-closed-by-user':
+      case 'auth/cancelled-popup-request':
+        return 'Se canceló la confirmación. La cuenta no fue eliminada.';
+      case 'auth/popup-blocked':
+        return 'El navegador bloqueó la ventana de confirmación.';
+      case 'auth/too-many-requests':
+        return 'Demasiados intentos. Inténtalo de nuevo más tarde.';
+      case 'auth/network-request-failed':
+        return 'Sin conexión. Revisa tu red e inténtalo de nuevo.';
+      case 'firestore-unavailable':
+        return 'El servicio de datos no está disponible. Inténtalo más tarde.';
+      default:
+        return 'No se pudo eliminar la cuenta. Inténtalo de nuevo.';
+    }
+  }
+
+  function handleDeleteAccount() {
+    if (!currentUser) return;
+    if (!window.confirm(
+      '¿Eliminar tu cuenta y TODOS tus datos guardados? Esta acción no se puede deshacer.'
+    )) return;
+
+    const passwordEl = $('deletePassword');
+    const button = $('btnDeleteAccount');
+    if (button) button.disabled = true;
+    setStatus('Eliminando tu cuenta…');
+
+    FirebaseService.deleteAccount(currentUser, {
+      password: passwordEl ? passwordEl.value : ''
+    }).then(function () {
+      if (passwordEl) passwordEl.value = '';
+      setStatus('Tu cuenta y tus datos fueron eliminados.', 'ok');
+    }).catch(function (err) {
+      if (button) button.disabled = false;
+      setStatus(deleteAccountErrorMessage(err), 'error');
+    });
+  }
+
+  /**
+   * Builds the "danger zone" card in the settings tab. Kept in JS so the
+   * PR 3 slice touches only `firebase.js`/`app.js`; it reuses the existing
+   * card, field and button styles.
+   */
+  function buildDangerZone() {
+    const tab = $('tab-ajustes');
+    if (!tab || $('btnDeleteAccount')) return;
+
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    const heading = document.createElement('h2');
+    heading.textContent = 'Zona de peligro';
+    header.appendChild(heading);
+
+    const hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.textContent = 'Eliminar la cuenta borra todos tus trades y datos guardados. Esta acción no se puede deshacer.';
+
+    const field = document.createElement('div');
+    field.className = 'field';
+    const label = document.createElement('label');
+    label.setAttribute('for', 'deletePassword');
+    label.textContent = 'Contraseña (solo si iniciaste sesión con correo)';
+    const input = document.createElement('input');
+    input.type = 'password';
+    input.id = 'deletePassword';
+    input.setAttribute('autocomplete', 'current-password');
+    field.appendChild(label);
+    field.appendChild(input);
+
+    const actions = document.createElement('div');
+    actions.className = 'form-actions';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-danger';
+    button.id = 'btnDeleteAccount';
+    button.textContent = 'Eliminar mi cuenta';
+    actions.appendChild(button);
+
+    card.appendChild(header);
+    card.appendChild(hint);
+    card.appendChild(field);
+    card.appendChild(actions);
+    tab.appendChild(card);
+
+    button.addEventListener('click', handleDeleteAccount);
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Event wiring                                                        */
   /* ------------------------------------------------------------------ */
 
@@ -730,22 +839,378 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Auth gate                                                           */
+  /* ------------------------------------------------------------------ */
+
+  function setAppVisible(visible) {
+    APP_REGIONS.forEach(function (selector) {
+      const el = document.querySelector(selector);
+      if (el) el.hidden = !visible;
+    });
+  }
+
+  function showAuthError(message) {
+    const el = $('authError');
+    if (!el) return;
+    el.textContent = message || '';
+    el.hidden = !message;
+  }
+
+  function setAuthBusy(busy) {
+    ['btnEmailAuth', 'btnGoogle', 'btnToggleAuthMode'].forEach(function (id) {
+      const el = $(id);
+      if (el) el.disabled = !!busy;
+    });
+  }
+
+  function setAuthMode(mode) {
+    authMode = mode === 'signup' ? 'signup' : 'signin';
+    const title = $('authTitle');
+    const submit = $('btnEmailAuth');
+    const toggle = $('btnToggleAuthMode');
+    if (title) title.textContent = authMode === 'signup' ? 'Crear cuenta' : 'Iniciar sesión';
+    if (submit) submit.textContent = authMode === 'signup' ? 'Crear cuenta' : 'Iniciar sesión';
+    if (toggle) toggle.textContent = authMode === 'signup' ? 'Ya tengo cuenta' : 'Crear cuenta';
+    const password = $('authPassword');
+    if (password) {
+      password.setAttribute('autocomplete', authMode === 'signup' ? 'new-password' : 'current-password');
+    }
+  }
+
+  /* Non-sensitive, user-facing messages. Never echo raw Firebase errors. */
+  function authErrorMessage(err) {
+    const code = err && err.code ? err.code : '';
+    switch (code) {
+      case 'auth/invalid-email':
+        return 'El correo no es válido.';
+      case 'auth/user-disabled':
+        return 'Esta cuenta está deshabilitada.';
+      case 'auth/user-not-found':
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential':
+        return 'Correo o contraseña incorrectos.';
+      case 'auth/email-already-in-use':
+        return 'Ese correo ya tiene una cuenta. Inicia sesión.';
+      case 'auth/weak-password':
+        return 'La contraseña debe tener al menos 6 caracteres.';
+      case 'auth/too-many-requests':
+        return 'Demasiados intentos. Inténtalo de nuevo más tarde.';
+      case 'auth/popup-blocked':
+        return 'El navegador bloqueó la ventana emergente. Se intentará con redirección.';
+      case 'auth/operation-not-supported-in-this-environment':
+        return 'Este entorno no admite el inicio de sesión con Google.';
+      case 'auth/network-request-failed':
+        return 'Sin conexión. Revisa tu red e inténtalo de nuevo.';
+      default:
+        return 'No se pudo completar la autenticación. Inténtalo de nuevo.';
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Email verification UI (sign-up / resend / re-check)                 */
+  /* ------------------------------------------------------------------ */
+
+  /* Non-sensitive messages for the verification actions. */
+  function verificationErrorMessage(err) {
+    const code = err && err.code ? err.code : '';
+    switch (code) {
+      case 'auth/too-many-requests':
+        return 'Demasiados intentos. Espera unos minutos antes de pedir otro correo.';
+      case 'auth/network-request-failed':
+        return 'Sin conexión. Revisa tu red e inténtalo de nuevo.';
+      case 'not-authenticated':
+        return 'Tu sesión expiró. Inicia sesión de nuevo.';
+      case 'already-verified':
+        return 'Tu correo ya está verificado. Vuelve a intentar el acceso.';
+      default:
+        return 'No se pudo completar la acción. Inténtalo de nuevo.';
+    }
+  }
+
+  function showVerificationStatus(message, kind) {
+    const el = $('verificationStatus');
+    if (!el) return;
+    el.textContent = message || '';
+    el.className = kind === 'ok' ? 'auth-hint' : 'auth-error';
+    el.hidden = !message;
+  }
+
+  function setVerificationVisible(visible) {
+    const el = $('verificationActions');
+    if (el) el.hidden = !visible;
+  }
+
+  function setVerificationBusy(busy) {
+    ['btnResendVerification', 'btnRecheckVerification'].forEach(function (id) {
+      const el = $(id);
+      if (el) el.disabled = !!busy;
+    });
+  }
+
+  function handleResendVerification() {
+    setVerificationBusy(true);
+    FirebaseService.resendVerification().then(function () {
+      setVerificationBusy(false);
+      showVerificationStatus('Te enviamos un nuevo correo de verificación. Revisa la bandeja de entrada y la carpeta de spam.', 'ok');
+    }, function (err) {
+      setVerificationBusy(false);
+      showVerificationStatus(verificationErrorMessage(err), 'error');
+    });
+  }
+
+  function handleRecheckVerification() {
+    setVerificationBusy(true);
+    FirebaseService.reloadCurrentUser().then(function (result) {
+      if (!result.user) {
+        setVerificationBusy(false);
+        showVerificationStatus('Tu sesión expiró. Inicia sesión de nuevo.', 'error');
+        return null;
+      }
+      return FirebaseService.checkAccess(result.user).then(function (access) {
+        setVerificationBusy(false);
+        if (access.allowed) {
+          showVerificationStatus('');
+          enterApp(result.user);
+          return;
+        }
+        if (access.reason === 'email-unverified') {
+          showVerificationStatus(result.reloaded
+            ? 'Tu correo todavía no está verificado. Abre el enlace del correo y vuelve a intentarlo.'
+            : 'No se pudo comprobar tu correo. Revisa tu conexión e inténtalo de nuevo.', 'error');
+          return;
+        }
+        handleAuthState(result.user, access);
+      });
+    }).catch(function () {
+      setVerificationBusy(false);
+      showVerificationStatus('No se pudo completar la acción. Inténtalo de nuevo.', 'error');
+    });
+  }
+
+  /**
+   * Builds the verification panel inside the auth card. Kept in JS so the
+   * task-3.4 slice touches only `firebase.js`/`app.js`; it reuses the
+   * existing hint, button and error styles. The panel is revealed only when
+   * access is denied with reason `email-unverified`.
+   */
+  function buildVerificationActions() {
+    const card = document.querySelector('#authGate .auth-card');
+    if (!card || $('verificationActions')) return;
+
+    const panel = document.createElement('div');
+    panel.className = 'verification-actions';
+    panel.id = 'verificationActions';
+    panel.hidden = true;
+
+    const hint = document.createElement('p');
+    hint.className = 'auth-hint';
+    hint.textContent = 'Confirma tu correo para acceder. Revisa la bandeja de entrada y la carpeta de spam.';
+
+    const actions = document.createElement('div');
+    actions.className = 'form-actions';
+
+    const resend = document.createElement('button');
+    resend.type = 'button';
+    resend.className = 'btn btn-ghost';
+    resend.id = 'btnResendVerification';
+    resend.textContent = 'Reenviar verificación';
+
+    const recheck = document.createElement('button');
+    recheck.type = 'button';
+    recheck.className = 'btn';
+    recheck.id = 'btnRecheckVerification';
+    recheck.textContent = 'Ya verifiqué mi correo';
+
+    actions.appendChild(resend);
+    actions.appendChild(recheck);
+
+    const status = document.createElement('p');
+    status.className = 'auth-error';
+    status.id = 'verificationStatus';
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    status.hidden = true;
+
+    panel.appendChild(hint);
+    panel.appendChild(actions);
+    panel.appendChild(status);
+    card.appendChild(panel);
+
+    resend.addEventListener('click', handleResendVerification);
+    recheck.addEventListener('click', handleRecheckVerification);
+  }
+
+  function handleAuthSubmit(event) {
+    event.preventDefault();
+    const email = $('authEmail').value.trim();
+    const password = $('authPassword').value;
+    if (!email || !password) {
+      showAuthError('Introduce tu correo y tu contraseña.');
+      return;
+    }
+    showAuthError('');
+    setAuthBusy(true);
+    const mode = authMode;
+    const operation = mode === 'signup'
+      ? FirebaseService.signUpWithEmail(email, password)
+      : FirebaseService.signInWithEmail(email, password);
+    operation.then(function (result) {
+      setAuthBusy(false);
+      if (mode !== 'signup') return;
+      if (result && result.verificationSent) {
+        showVerificationStatus('Te enviamos un correo de verificación. Ábrelo antes de acceder.', 'ok');
+      } else {
+        showVerificationStatus('Tu cuenta fue creada, pero no se pudo enviar el correo de verificación. Usa "Reenviar verificación".', 'error');
+      }
+    }, function (err) {
+      setAuthBusy(false);
+      showAuthError(authErrorMessage(err));
+    });
+  }
+
+  function handleGoogle() {
+    showAuthError('');
+    setAuthBusy(true);
+    FirebaseService.signInWithGoogle().then(function () {
+      setAuthBusy(false);
+    }, function (err) {
+      setAuthBusy(false);
+      showAuthError(authErrorMessage(err));
+    });
+  }
+
+  function handleLogout() {
+    FirebaseService.logout().catch(function () {
+      setStatus('No se pudo cerrar la sesión. Inténtalo de nuevo.', 'error');
+    });
+  }
+
+  function wireAuthEvents() {
+    const form = $('authForm');
+    if (form) form.addEventListener('submit', handleAuthSubmit);
+
+    const google = $('btnGoogle');
+    if (google) google.addEventListener('click', handleGoogle);
+
+    const toggle = $('btnToggleAuthMode');
+    if (toggle) toggle.addEventListener('click', function () {
+      setAuthMode(authMode === 'signin' ? 'signup' : 'signin');
+    });
+
+    const logout = $('btnLogout');
+    if (logout) logout.addEventListener('click', handleLogout);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Session lifecycle                                                   */
+  /* ------------------------------------------------------------------ */
+
+  function enterApp(user) {
+    if (currentUid === user.uid) return;
+    currentUid = user.uid;
+    currentUser = user;
+    showAuthError('');
+    setVerificationVisible(false);
+    showVerificationStatus('');
+
+    const emailEl = $('userEmail');
+    if (emailEl) emailEl.textContent = user.email || '';
+
+    /* Migrate the legacy localStorage journal on first login, then hydrate.
+     * A migration failure is logged and never blocks login. */
+    FirebaseService.migrateLocalData(user.uid).catch(function (err) {
+      console.warn('[app] localStorage migration failed:', err && err.code ? err.code : err);
+      return false;
+    }).then(function () {
+      if (currentUid !== user.uid) return null;
+      return Store.attach(user.uid);
+    }).then(function (attached) {
+      if (currentUid !== user.uid || attached === null) return;
+      loadBalancesIntoForm();
+      resetForm();
+      const gate = $('authGate');
+      if (gate) gate.hidden = true;
+      const userBox = $('userBox');
+      if (userBox) userBox.hidden = false;
+      setAppVisible(true);
+      switchTab('registro');
+      renderAll();
+    }).catch(function () {
+      if (currentUid !== user.uid) return;
+      showAuthError('No se pudieron cargar tus datos. Inténtalo de nuevo.');
+      FirebaseService.logout().catch(function () {});
+    });
+  }
+
+  function leaveApp() {
+    currentUid = null;
+    currentUser = null;
+    Store.detach();
+    setAppVisible(false);
+    const userBox = $('userBox');
+    if (userBox) userBox.hidden = true;
+    const gate = $('authGate');
+    if (gate) gate.hidden = false;
+  }
+
+  function handleAuthState(user, access) {
+    if (user && access && access.allowed) {
+      setVerificationVisible(false);
+      showVerificationStatus('');
+      enterApp(user);
+      return;
+    }
+
+    leaveApp();
+    const reason = access ? access.reason : '';
+    const unverified = reason === 'email-unverified';
+    setVerificationVisible(unverified);
+    if (!unverified) showVerificationStatus('');
+    if (reason === 'not-allowlisted') {
+      showAuthError('Tu cuenta no está autorizada. Solicita acceso al administrador.');
+    } else if (unverified) {
+      showAuthError('Verifica tu correo electrónico antes de acceder.');
+    } else if (reason === 'allowlist-error') {
+      showAuthError('No se pudo verificar tu acceso. Inténtalo de nuevo.');
+    } else if (reason === 'db-unavailable') {
+      showAuthError('El servicio de datos no está disponible. Inténtalo más tarde.');
+    } else {
+      showAuthError('');
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Boot                                                                */
   /* ------------------------------------------------------------------ */
 
-  function init() {
+  /**
+   * One-time setup: DOM wiring and the auth listener. The app stays hidden
+   * and no journal data is rendered until authentication state resolves.
+   */
+  function boot() {
     initSelects();
     wireEvents();
-    loadBalancesIntoForm();
-    resetForm();
+    wireAuthEvents();
+    buildDangerZone();
+    buildVerificationActions();
+    setAuthMode('signin');
+    setAppVisible(false);
+    showAuthError('');
 
-    if (!Store.canPersist()) {
-      setStatus('Aviso: el navegador no permite guardar datos. Los cambios no se conservarán al cerrar.', 'error');
-    }
+    /* Re-render whenever the store's in-memory state changes. */
+    Store.subscribe(function () { renderAll(); });
 
-    switchTab('registro');
-    renderAll();
+    FirebaseService.init().then(function () {
+      if (!FirebaseService.getAuth()) {
+        showAuthError('No se pudo cargar Firebase. Revisa tu conexión e inténtalo de nuevo.');
+        return;
+      }
+      return FirebaseService.completeGoogleRedirect().catch(function () {});
+    }).then(function () {
+      if (!FirebaseService.getAuth()) return;
+      FirebaseService.onAuthStateChanged(handleAuthState);
+    });
   }
 
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', boot);
 })();

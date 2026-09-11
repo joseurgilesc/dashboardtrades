@@ -1,0 +1,77 @@
+# openspec/changes/firebase-multiuser/state.yaml
+# Pre-proposal state + DAG state for the firebase-multiuser change.
+schema: gentle-ai.sdd-preproposal/v1
+revision: 2
+change: firebase-multiuser
+phase: verify
+artifact_store: hybrid
+last_updated: "2026-09-11"
+
+exploration:
+  outcome: done
+  reference: openspec/changes/firebase-multiuser/exploration.md
+
+research_request:
+  selected: true
+  question: >-
+    Source-backed evidence de-risking the migration of the static vanilla-JS trading
+    journal to Firebase Auth + Cloud Firestore on GitHub Pages with no build step.
+  classes:
+    - documentation
+    - open-web
+
+admission:
+  status: admitted
+  capability_schema: gentle-ai.sdd-research-capability/v1
+  grants_observed:
+    documentation:
+      - "https://firebase.google.com/docs/**"
+      - "https://firebase.google.com/support/**"
+    open_web:
+      - "https://firebase.google.com/**"
+      - "https://www.gstatic.com/**"
+      - "https://github.com/firebase/**"
+
+research:
+  outcome: done
+  revision: 2
+  closure:
+    U1: closed
+    U2: closed
+    U5: recorded_secondary_source_non_blocking
+
+evidence_references:
+  openspec:
+    research: openspec/changes/firebase-multiuser/research.md
+  engram: null
+
+product_decisions: confirmed
+proposal_ready: true
+
+delivery:
+  strategy: ask-on-risk
+  resolved: chained-pr
+  chain_strategy: stacked-to-main
+
+apply_progress:
+  work_units_complete:
+    - "PR1 rules + SDK init (tasks 1.1-1.5)"
+    - "PR2 adapter + auth boot (tasks 2.1-2.6)"
+    - "PR3 migration + deletion + export UI (tasks 3.1-3.3)"
+    - "PR4+PR5 verification + docs (tasks 4.1, 5.1)"
+    - "PR6 email verification fix (task 3.4)"
+  attempt_state: complete
+  tasks_complete: 19
+  tasks_total: 19
+  manual_verification: "4.2/4.3 user-confirmed (login/session/logout + core flows); residual checks documented in manual-verification.md"
+  size_exception:
+    pr2: "accepted by maintainer (417 changed lines over the 400 budget)"
+
+artifacts:
+  exploration: true
+  research: true
+  proposal: true
+  spec: true
+  design: true
+  tasks: true
+  applyProgress: true

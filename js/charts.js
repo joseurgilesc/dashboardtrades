@@ -7,14 +7,21 @@
 const DashboardCharts = (function () {
   'use strict';
 
+  /* Terminal palette: neutral greys carry the structure, color is signal.
+   * Auxiliary series use accent/cyan/purple/amber; pos/neg are reserved for
+   * profit and loss. */
   const PALETTE = [
-    '#4f9cf9', '#22c55e', '#f59e0b', '#a855f7', '#14b8a6',
-    '#ec4899', '#eab308', '#6366f1', '#f97316', '#38bdf8'
+    '#3B82F6', '#22D3EE', '#8B5CF6', '#F59E0B', '#22C55E', '#EF4444'
   ];
-  const POSITIVE = '#22c55e';
-  const NEGATIVE = '#ef4444';
-  const GRID_COLOR = 'rgba(148, 163, 184, 0.15)';
-  const TEXT_COLOR = '#cbd5e1';
+  const POSITIVE = '#22C55E';
+  const NEGATIVE = '#EF4444';
+  const ACCENT = '#3B82F6';
+  const GRID_COLOR = '#1C2632';
+  const TEXT_COLOR = '#7F8B99';
+  const PANEL_COLOR = '#111827';
+  const TOOLTIP_BG = '#111827';
+  const TOOLTIP_BORDER = '#263241';
+  const FONT_STACK = "'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif";
 
   const DAY_ORDER = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
@@ -109,7 +116,17 @@ const DashboardCharts = (function () {
     if (!hasChartJs()) return;
     Chart.defaults.color = TEXT_COLOR;
     Chart.defaults.borderColor = GRID_COLOR;
-    Chart.defaults.font.family = "'Segoe UI', system-ui, -apple-system, sans-serif";
+    Chart.defaults.font.family = FONT_STACK;
+    Chart.defaults.font.size = 11;
+    /* Dark tooltip surface so it matches the panel language. */
+    const tooltip = Chart.defaults.plugins && Chart.defaults.plugins.tooltip;
+    if (tooltip) {
+      tooltip.backgroundColor = TOOLTIP_BG;
+      tooltip.borderColor = TOOLTIP_BORDER;
+      tooltip.borderWidth = 1;
+      tooltip.titleColor = '#E6EDF3';
+      tooltip.bodyColor = '#8B98A5';
+    }
   }
 
   /**
@@ -162,8 +179,8 @@ const DashboardCharts = (function () {
         datasets: [{
           label: 'Equity acumulada',
           data: data,
-          borderColor: PALETTE[0],
-          backgroundColor: 'rgba(79, 156, 249, 0.18)',
+          borderColor: ACCENT,
+          backgroundColor: 'rgba(59, 130, 246, 0.14)',
           fill: true,
           tension: 0.25,
           pointRadius: 2,
@@ -228,7 +245,7 @@ const DashboardCharts = (function () {
         datasets: [{
           data: values,
           backgroundColor: colors,
-          borderColor: '#0f172a',
+          borderColor: PANEL_COLOR,
           borderWidth: 2
         }]
       },

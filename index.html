@@ -3,15 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Diario de trading estático: registro de operaciones, métricas y gráficos. Los datos se guardan localmente en el navegador.">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0B0F14">
+  <meta name="description" content="Diario de trading estático: registro de operaciones, métricas y gráficos. Tus datos se guardan en tu cuenta y se sincronizan entre dispositivos.">
   <title>Diario de Trading</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
   <header class="app-header">
     <div class="brand">
-      <h1>Diario de Trading</h1>
-      <p class="subtitle">Registro de operaciones, métricas y análisis</p>
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div class="brand-text">
+        <h1>Diario de Trading</h1>
+        <p class="subtitle">Registro de operaciones, métricas y análisis</p>
+      </div>
     </div>
     <div class="balances" aria-label="Saldos de cuentas">
       <div class="chip">
@@ -31,7 +39,35 @@
         <span class="chip-value" id="chipTotal">$0.00</span>
       </div>
     </div>
+    <div class="user-box" id="userBox" hidden>
+      <span class="user-email" id="userEmail"></span>
+      <button type="button" class="btn btn-ghost" id="btnLogout">Cerrar sesión</button>
+    </div>
   </header>
+
+  <section id="authGate" class="auth-gate" hidden>
+    <div class="auth-card">
+      <h2 id="authTitle">Iniciar sesión</h2>
+      <p class="auth-hint">Accede con tu cuenta autorizada para ver tu diario.</p>
+      <form id="authForm" novalidate>
+        <div class="field">
+          <label for="authEmail">Correo electrónico</label>
+          <input type="email" id="authEmail" autocomplete="email" required>
+        </div>
+        <div class="field">
+          <label for="authPassword">Contraseña</label>
+          <input type="password" id="authPassword" autocomplete="current-password" required>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="btnEmailAuth">Iniciar sesión</button>
+          <button type="button" class="btn btn-ghost" id="btnToggleAuthMode">Crear cuenta</button>
+        </div>
+      </form>
+      <div class="auth-divider"><span>o</span></div>
+      <button type="button" class="btn" id="btnGoogle">Continuar con Google</button>
+      <p id="authError" class="auth-error" role="alert" hidden></p>
+    </div>
+  </section>
 
   <nav class="tabs" role="tablist" aria-label="Secciones">
     <button type="button" class="tab-button active" role="tab" data-tab="registro" aria-selected="true" aria-controls="tab-registro">Registro</button>
@@ -270,7 +306,7 @@
         <div class="card-header">
           <h2>Datos</h2>
         </div>
-        <p class="hint">Los datos se guardan únicamente en este navegador (localStorage). Exporta una copia de seguridad con regularidad.</p>
+        <p class="hint">Los datos se guardan en tu cuenta y se sincronizan entre dispositivos. Exporta una copia de seguridad con regularidad.</p>
         <div class="button-row">
           <button type="button" class="btn" id="btnSeed">Cargar datos de ejemplo</button>
           <button type="button" class="btn" id="btnExportJSON">Exportar JSON</button>
@@ -284,13 +320,17 @@
   </main>
 
   <footer class="app-footer">
-    <p>Diario de Trading — aplicación estática. Los datos permanecen en tu navegador.</p>
+    <p>Diario de Trading — aplicación estática. Tus datos se guardan en tu cuenta.</p>
   </footer>
 
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore-compat.js" defer></script>
   <script src="vendor/chart.umd.js" defer></script>
   <script src="js/instruments.js" defer></script>
   <script src="js/store.js" defer></script>
   <script src="js/charts.js" defer></script>
+  <script src="js/firebase.js" defer></script>
   <script src="js/app.js" defer></script>
 </body>
 </html>
