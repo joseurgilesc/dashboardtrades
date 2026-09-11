@@ -179,14 +179,6 @@
               <input type="number" id="stop" step="any" inputmode="decimal">
             </div>
             <div class="field">
-              <label for="target">Objetivo (USD, opcional)</label>
-              <input type="number" id="target" min="0" step="any" inputmode="decimal">
-            </div>
-            <div class="field">
-              <label for="plannedRisk">Riesgo planeado (USD, opcional)</label>
-              <input type="number" id="plannedRisk" min="0" step="any" inputmode="decimal">
-            </div>
-            <div class="field">
               <label for="exitType">Tipo de salida</label>
               <select id="exitType"></select>
             </div>
@@ -194,11 +186,25 @@
               <label for="emotion">Emoción</label>
               <select id="emotion"></select>
             </div>
-            <div class="field field-wide">
-              <label for="notes">Notas</label>
-              <textarea id="notes" rows="2" placeholder="Observaciones de la operación (opcional)"></textarea>
-            </div>
           </div>
+
+          <details class="advanced-options" id="advancedOptions">
+            <summary>Más opciones</summary>
+            <div class="form-grid">
+              <div class="field">
+                <label for="target">Objetivo (USD, opcional)</label>
+                <input type="number" id="target" min="0" step="any" inputmode="decimal">
+              </div>
+              <div class="field">
+                <label for="plannedRisk">Riesgo planeado (USD, opcional)</label>
+                <input type="number" id="plannedRisk" min="0" step="any" inputmode="decimal">
+              </div>
+              <div class="field field-wide">
+                <label for="notes">Notas</label>
+                <textarea id="notes" rows="2" placeholder="Observaciones de la operación (opcional)"></textarea>
+              </div>
+            </div>
+          </details>
 
           <div class="instrument-info" id="instrumentInfo" hidden></div>
 
@@ -230,6 +236,7 @@
           <div class="form-actions">
             <button type="submit" class="btn btn-primary" id="btnSave">Guardar trade</button>
             <button type="button" class="btn btn-ghost" id="btnCancel" hidden>Cancelar edición</button>
+            <button type="button" class="btn btn-ghost" id="btnDuplicateLast">Duplicar último trade</button>
           </div>
         </form>
       </div>
@@ -239,11 +246,11 @@
           <h2>Calculadora de riesgo</h2>
           <span class="risk-account-hint" id="riskAccountHint"></span>
         </div>
-        <p class="hint">Usa la cuenta e instrumento del formulario. Introduce la distancia del stop en puntos y, si quieres, el objetivo en dólares para ver el R/R. Si registras un stop y un objetivo en el formulario, se usan automáticamente.</p>
+        <p class="hint">Usa la cuenta e instrumento del formulario. Introduce el stop en ticks; el valor del tick se toma del instrumento. El % de riesgo diario y el número de operaciones al día salen de Ajustes. Si registras un stop y un objetivo en el formulario, se usan automáticamente.</p>
         <div class="form-grid form-grid-narrow">
           <div class="field">
-            <label for="riskStopDistance">Distancia del stop (puntos)</label>
-            <input type="number" id="riskStopDistance" min="0" step="any" inputmode="decimal" value="10">
+            <label for="riskStopTicks">Stop (ticks)</label>
+            <input type="number" id="riskStopTicks" min="0" step="any" inputmode="decimal" value="8">
           </div>
           <div class="field">
             <label for="riskTarget">Objetivo (USD, opcional)</label>
@@ -252,19 +259,43 @@
         </div>
         <div class="preview" id="riskResults" aria-live="polite">
           <div class="preview-item">
-            <span class="preview-label">Presupuesto</span>
+            <span class="preview-label">Capital</span>
+            <span class="preview-value" id="riskCapital">—</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">% Riesgo diario</span>
+            <span class="preview-value" id="riskDailyPct">—</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Operaciones al día</span>
+            <span class="preview-value" id="riskTradesPerDay">—</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Presupuesto diario</span>
             <span class="preview-value" id="riskBudget">—</span>
           </div>
           <div class="preview-item">
-            <span class="preview-label">Riesgo por contrato</span>
+            <span class="preview-label">Valor del tick</span>
+            <span class="preview-value" id="riskTickValue">—</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">P_m (pérdida máx./contrato)</span>
             <span class="preview-value" id="riskPerContract">—</span>
           </div>
           <div class="preview-item">
-            <span class="preview-label">Contratos sugeridos</span>
+            <span class="preview-label">Riesgo por operación</span>
+            <span class="preview-value" id="riskPerTrade">—</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Contratos</span>
             <span class="preview-value" id="riskContracts">—</span>
           </div>
           <div class="preview-item">
-            <span class="preview-label">Riesgo total</span>
+            <span class="preview-label">Comisión (ida y vuelta)</span>
+            <span class="preview-value" id="riskCommission">—</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Riesgo de la posición</span>
             <span class="preview-value" id="riskTotal">—</span>
           </div>
           <div class="preview-item">

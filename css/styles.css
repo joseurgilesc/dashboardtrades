@@ -484,6 +484,46 @@ textarea {
   gap: 10px;
 }
 
+/* Advanced options disclosure (Registro form) — collapsed by default. */
+.advanced-options {
+  margin-top: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.advanced-options > summary {
+  padding: 8px 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+
+.advanced-options > summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-options > summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 0.12s ease;
+}
+
+.advanced-options[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.advanced-options > summary:hover {
+  color: var(--text);
+}
+
+.advanced-options > .form-grid {
+  padding: 0 12px 12px;
+}
+
 /* ------------------------------------------------------------------ */
 /* Buttons                                                             */
 /* ------------------------------------------------------------------ */

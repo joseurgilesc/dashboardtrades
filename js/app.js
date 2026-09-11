@@ -32,6 +32,10 @@
   let currentUser = null;
   let authMode = 'signin';
 
+  /* True once the user edits the contracts field by hand, so the risk
+   * calculator stops prefilling it for the current trade. Reset on reset. */
+  let contractsTouched = false;
+
   /* Top-level regions hidden until authentication resolves. */
   const APP_REGIONS = ['.tabs', '#filtersBar', '.app-main', '.app-footer'];
 
@@ -425,10 +429,17 @@
   /* Orchestration                                                       */
   /* ------------------------------------------------------------------ */
 
+  /** Disables the duplicate action while there is no saved trade to copy. */
+  function updateDuplicateButton() {
+    const button = $('btnDuplicateLast');
+    if (button) button.disabled = Store.getTrades().length === 0;
+  }
+
   function renderAll() {
     renderBalances();
     renderRiskPanel();
     renderEntryWarnings();
+    updateDuplicateButton();
     const filtered = getFilteredTrades();
     renderTable(filtered);
     renderKpis(filtered);
@@ -571,14 +582,22 @@
   }
 
   /**
-   * Renders the risk calculator for the form's selected account and
-   * instrument. Uses the account's current balance and configured risk
-   * percentage; shows budget, risk per contract, suggested contracts, total
-   * risk, R/R (warned below the minimum) and the non-linear recovery needed.
-   * When even one contract exceeds the budget it shows a viability warning.
-   * A recorded stop price sets the stop distance (|entry - stop|), and a
-   * recorded planned risk / target feed the R/R in place of the computed
-   * total risk and the calculator's own target input.
+   * Renders the BPT risk calculator for the form's selected account and
+   * instrument. Uses the account's current balance (capital), its configured
+   * DAILY risk percentage and its daily trade limit (the per-trade divisor).
+   *
+   *   tickValue    = tick * pointValue            (from the instrument)
+   *   P_m          = stopTicks * tickValue
+   *   dailyBudget  = dailyRiskPct% * capital
+   *   perTradeRisk = (dailyRiskPct / tradesPerDay)% * capital
+   *   contracts    = floor(perTradeRisk / P_m)
+   *
+   * Commission is shown separately and is never folded into P_m. R/R (warned
+   * below the minimum) and the non-linear recovery are kept from the previous
+   * panel. When even one contract exceeds the per-trade budget a viability
+   * warning is shown. A recorded stop price yields the stop in ticks
+   * (|entry - stop| / tick) and takes precedence over the tick input; a
+   * recorded planned risk / target feed the R/R.
    */
   function renderRiskPanel() {
     const accountEl = $('account');
@@ -586,65 +605,88 @@
 
     const account = accountEl.value || ACCOUNTS[0];
     const instrument = $('instrument') ? $('instrument').value : '';
-    const stopEl = $('riskStopDistance');
+    const stopEl = $('riskStopTicks');
     const targetEl = $('riskTarget');
     const formStopEl = $('stop');
     const formTargetEl = $('target');
     const formPlannedRiskEl = $('plannedRisk');
     const entryPriceEl = $('entryPrice');
 
-    const manualStopDistance = stopEl ? parseFloat(stopEl.value) : NaN;
+    const spec = instrumentMeta(instrument);
+    const tick = spec ? Number(spec.tick) : NaN;
+    const tickValue = (spec && Number.isFinite(tick)) ? tick * Number(spec.pointValue) : NaN;
+
+    const manualStopTicks = stopEl ? parseFloat(stopEl.value) : NaN;
     const manualTarget = targetEl ? parseFloat(targetEl.value) : NaN;
     const formStop = formStopEl ? parseFloat(formStopEl.value) : NaN;
     const formTarget = formTargetEl ? parseFloat(formTargetEl.value) : NaN;
     const formPlannedRisk = formPlannedRiskEl ? parseFloat(formPlannedRiskEl.value) : NaN;
     const entryPrice = entryPriceEl ? parseFloat(entryPriceEl.value) : NaN;
 
-    /* A recorded stop price yields the stop distance in points and takes
-     * precedence over the calculator's own distance input. */
-    const derivedStopDistance = (Number.isFinite(formStop) && Number.isFinite(entryPrice) && formStop !== entryPrice)
-      ? Number(Math.abs(entryPrice - formStop).toFixed(4))
+    /* A recorded stop price yields the stop in ticks and takes precedence
+     * over the calculator's own tick input. */
+    const derivedStopPoints = (Number.isFinite(formStop) && Number.isFinite(entryPrice) && formStop !== entryPrice)
+      ? Math.abs(entryPrice - formStop)
       : NaN;
-    const stopDistance = derivedStopDistance > 0 ? derivedStopDistance : manualStopDistance;
+    const derivedStopTicks = (Number.isFinite(derivedStopPoints) && tick > 0)
+      ? Number((derivedStopPoints / tick).toFixed(4))
+      : NaN;
+    const stopTicks = derivedStopTicks > 0 ? derivedStopTicks : manualStopTicks;
 
     const balance = Store.getAccountBalances()[account];
     const settings = Store.getRiskSettings()[account] || {};
     const riskPct = Number.isFinite(settings.riskPct) ? settings.riskPct : DEFAULT_RISK_PCT;
+    const tradesPerDay = Number.isFinite(settings.dailyTradeLimit)
+      ? settings.dailyTradeLimit
+      : DEFAULT_DAILY_TRADE_LIMIT;
     const minRR = Store.getMinRR();
 
     const hint = $('riskAccountHint');
     if (hint) {
-      hint.textContent = account + ' · riesgo ' + formatNumber(riskPct, 1) + ' % · saldo ' + formatMoney(balance);
+      hint.textContent = account + ' · riesgo diario ' + formatNumber(riskPct, 1) + ' % · ' +
+        tradesPerDay + ' op/día · saldo ' + formatMoney(balance);
     }
+
+    setRiskItem('riskCapital', formatMoney(balance));
+    setRiskItem('riskDailyPct', formatNumber(riskPct, 1) + ' %');
+    setRiskItem('riskTradesPerDay', String(tradesPerDay));
 
     const risk = Store.computeRisk({
       balance: balance,
       riskPct: riskPct,
+      tradesPerDay: tradesPerDay,
       instrument: instrument,
-      stopDistance: stopDistance
+      stopTicks: stopTicks
     });
 
     const warnEl = $('riskViabilityWarning');
+    const resultIds = ['riskBudget', 'riskTickValue', 'riskPerContract', 'riskPerTrade',
+      'riskContracts', 'riskCommission', 'riskTotal', 'riskRR', 'riskRecovery'];
 
     if (!risk.valid) {
-      setRiskItem('riskBudget', '—');
-      setRiskItem('riskPerContract', '—');
-      setRiskItem('riskContracts', '—');
-      setRiskItem('riskTotal', '—');
-      setRiskItem('riskRR', '—');
-      setRiskItem('riskRecovery', '—');
+      resultIds.forEach(function (id) { setRiskItem(id, '—'); });
       if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
       return;
     }
 
-    const totalRisk = risk.riskPerContract * risk.contracts;
-    setRiskItem('riskBudget', formatMoney(risk.budget));
-    setRiskItem('riskPerContract', formatMoney(risk.riskPerContract));
+    /* Default the contracts field to the calculator's suggestion while the
+     * user has not edited it by hand. A zero suggestion is left blank. */
+    const contractsEl = $('contracts');
+    if (contractsEl && !contractsTouched && risk.contracts > 0) {
+      contractsEl.value = String(risk.contracts);
+    }
+
+    const totalRisk = risk.pm * risk.contracts;
+    setRiskItem('riskBudget', formatMoney(risk.dailyBudget));
+    setRiskItem('riskTickValue', formatMoney(risk.tickValue));
+    setRiskItem('riskPerContract', formatMoney(risk.pm));
+    setRiskItem('riskPerTrade', formatMoney(risk.perTradeRisk));
     setRiskItem('riskContracts', String(risk.contracts));
+    setRiskItem('riskCommission', formatMoney(risk.commission));
     setRiskItem('riskTotal', formatMoney(totalRisk));
 
     /* A recorded planned risk / target takes precedence over the computed
-     * total risk and the calculator's own target input. */
+     * position risk and the calculator's own target input. */
     const plannedRisk = (Number.isFinite(formPlannedRisk) && formPlannedRisk > 0)
       ? formPlannedRisk
       : totalRisk;
@@ -668,9 +710,9 @@
 
     if (warnEl) {
       if (risk.contracts === 0) {
-        warnEl.textContent = 'Con un riesgo del ' + formatNumber(riskPct, 1) + ' % (' +
-          formatMoney(risk.budget) + '), un solo contrato de ' + instrument + ' arriesga ' +
-          formatMoney(risk.riskPerContract) +
+        warnEl.textContent = 'Con un riesgo diario del ' + formatNumber(riskPct, 1) + ' % repartido en ' +
+          tradesPerDay + ' operaciones (' + formatMoney(risk.perTradeRisk) + ' por operación), un solo contrato de ' +
+          instrument + ' arriesga ' + formatMoney(risk.pm) +
           '. El instrumento no es viable para esta cuenta con el riesgo configurado.';
         warnEl.hidden = false;
       } else {
@@ -860,17 +902,35 @@
     box.hidden = false;
   }
 
+  /**
+   * Prefills the primary entry selects from the last-used selections persisted
+   * in settings. Called on reset so a new trade starts from the user's usual
+   * setup; it never runs while the user is editing.
+   */
+  function applyLastEntry() {
+    const last = (typeof Store !== 'undefined' && Store.getLastEntry)
+      ? Store.getLastEntry()
+      : null;
+    if (!last) return;
+    if ($('account')) $('account').value = last.account;
+    if ($('instrument')) $('instrument').value = last.instrument;
+    if ($('strategy')) $('strategy').value = last.strategy;
+    if ($('direction')) $('direction').value = last.direction;
+    if ($('emotion')) $('emotion').value = last.emotion;
+  }
+
   function resetForm() {
     state.editingId = null;
     const form = $('tradeForm');
     if (form) form.reset();
     $('tradeNumber').value = String(Store.nextTradeNumber());
-    $('account').value = ACCOUNTS[0];
-    $('instrument').value = Object.keys(INSTRUMENTS)[0];
-    $('strategy').value = STRATEGY_IDS[0];
-    $('direction').value = DIRECTIONS[0];
+    /* Primary selects come from the last-used entry preferences. */
+    applyLastEntry();
     $('exitType').value = EXIT_TYPES[0];
-    $('emotion').value = EMOTIONS[0];
+    /* Contracts start empty and are prefilled by the risk calculator until
+     * the user edits the field by hand. */
+    contractsTouched = false;
+    $('contracts').value = '';
     $('entryDate').value = todayISO();
     $('exitDate').value = todayISO();
     /* Both times default to the current moment; the exit time is re-read on
@@ -882,6 +942,9 @@
     $('stop').value = '';
     $('target').value = '';
     $('plannedRisk').value = '';
+    /* Optional fields live behind the "Más opciones" disclosure. */
+    const advanced = $('advancedOptions');
+    if (advanced) advanced.open = false;
     $('formTitle').textContent = 'Nuevo trade';
     $('btnSave').textContent = 'Guardar trade';
     $('btnCancel').hidden = true;
@@ -913,6 +976,16 @@
       setStatus('Trade guardado correctamente.', 'ok');
     }
 
+    /* Remember the setup the user just used so the next new trade starts
+     * from it. Invalid catalog values are ignored by the store. */
+    Store.saveLastEntry({
+      account: trade.account,
+      instrument: trade.instrument,
+      strategy: trade.strategy,
+      direction: trade.direction,
+      emotion: trade.emotion
+    });
+
     resetForm();
     renderAll();
   }
@@ -942,6 +1015,63 @@
     $('notes').value = trade.notes;
     $('formTitle').textContent = 'Editar trade #' + trade.tradeNumber;
     $('btnSave').textContent = 'Guardar cambios';
+    $('btnCancel').hidden = false;
+    /* Editing owns the contracts value; the calculator must not overwrite it. */
+    contractsTouched = true;
+    /* Reveal the optional fields when the trade actually uses them. */
+    const advanced = $('advancedOptions');
+    if (advanced) advanced.open = trade.target > 0 || trade.plannedRisk > 0 || !!trade.notes;
+    showFormErrors([]);
+    updatePreview();
+    switchTab('registro');
+    const form = $('tradeForm');
+    if (form && form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /**
+   * Loads the last saved trade's setup into the form as a NEW trade: the
+   * setup fields (account, instrument, strategy, direction, emotion,
+   * contracts, target/stop) are copied, while the id, trade number and exit
+   * data are left empty so the user completes and saves a fresh record.
+   */
+  function duplicateLastTrade() {
+    const last = (typeof Store !== 'undefined' && Store.getLastTrade)
+      ? Store.getLastTrade()
+      : null;
+    if (!last) {
+      setStatus('Todavía no hay trades para duplicar.', 'error');
+      return;
+    }
+
+    state.editingId = null;
+    /* New trade: no copied trade number, no copied id. */
+    $('tradeNumber').value = '';
+    $('account').value = last.account;
+    $('instrument').value = last.instrument;
+    $('contracts').value = last.contracts > 0 ? String(last.contracts) : '';
+    ensureStrategyOption($('strategy'), last.strategy);
+    $('strategy').value = last.strategy;
+    $('direction').value = last.direction;
+    $('emotion').value = last.emotion;
+    $('stop').value = last.stop > 0 ? last.stop : '';
+    $('target').value = last.target > 0 ? last.target : '';
+    $('plannedRisk').value = '';
+    $('notes').value = '';
+    /* No exit data is copied: entry/exit default to the current moment. */
+    $('entryPrice').value = '';
+    $('exitPrice').value = '';
+    $('exitType').value = EXIT_TYPES[0];
+    $('entryDate').value = todayISO();
+    $('exitDate').value = todayISO();
+    const now = nowTime();
+    $('entryTime').value = now;
+    $('exitTime').value = now;
+    /* The copied contracts value belongs to the user now. */
+    contractsTouched = true;
+    const advanced = $('advancedOptions');
+    if (advanced) advanced.open = last.target > 0;
+    $('formTitle').textContent = 'Nuevo trade (duplicado)';
+    $('btnSave').textContent = 'Guardar trade';
     $('btnCancel').hidden = false;
     showFormErrors([]);
     updatePreview();
@@ -1321,10 +1451,20 @@
       resetForm();
     });
 
+    /* Mark the contracts field as user-owned as soon as it is edited, so the
+     * risk calculator stops prefilling it. Registered before the live-update
+     * loop below so the flag is set before the panel re-renders. */
+    const contractsField = $('contracts');
+    if (contractsField) {
+      const markContractsTouched = function () { contractsTouched = true; };
+      contractsField.addEventListener('input', markContractsTouched);
+      contractsField.addEventListener('change', markContractsTouched);
+    }
+
     ['account', 'instrument', 'contracts', 'direction', 'entryPrice', 'exitPrice',
       'stop', 'target', 'plannedRisk',
       'entryDate', 'entryTime', 'exitDate', 'exitTime',
-      'riskStopDistance', 'riskTarget'].forEach(function (id) {
+      'riskStopTicks', 'riskTarget'].forEach(function (id) {
       const el = $(id);
       if (el) el.addEventListener('input', updatePreview);
       if (el) el.addEventListener('change', updatePreview);
@@ -1378,6 +1518,8 @@
     if (saveRiskButton) saveRiskButton.addEventListener('click', handleSaveRiskSettings);
     const scalingButton = $('btnScalingCalc');
     if (scalingButton) scalingButton.addEventListener('click', renderScalingPlan);
+    const duplicateButton = $('btnDuplicateLast');
+    if (duplicateButton) duplicateButton.addEventListener('click', duplicateLastTrade);
     $('btnSeed').addEventListener('click', handleSeed);
     $('btnExportJSON').addEventListener('click', handleExportJSON);
     $('btnExportCSV').addEventListener('click', handleExportCSV);

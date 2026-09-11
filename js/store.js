@@ -359,6 +359,19 @@ const Store = (function () {
     return Object.assign({}, state.settings);
   }
 
+  /**
+   * Returns a copy of the most recently saved trade, or null when the journal
+   * is empty. "Most recent" is the highest tradeNumber, with later array
+   * positions winning ties.
+   */
+  function getLastTrade() {
+    let best = null;
+    state.trades.forEach(function (trade) {
+      if (!best || intOr(trade.tradeNumber, 0) >= intOr(best.tradeNumber, 0)) best = trade;
+    });
+    return best ? Object.assign({}, best) : null;
+  }
+
   /* ------------------------------------------------------------------ */
   /* Strategy catalog helpers                                            */
   /* ------------------------------------------------------------------ */
@@ -396,6 +409,82 @@ const Store = (function () {
     return STRATEGY_LIST.map(function (strategy) {
       return { id: strategy.id, name: strategy.name, group: strategy.group };
     });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Last-used entry preferences (pure)                                  */
+  /* ------------------------------------------------------------------ */
+
+  /* The primary form selections remembered across sessions. */
+  const LAST_ENTRY_FIELDS = ['account', 'instrument', 'strategy', 'direction', 'emotion'];
+
+  function listOrDefault(value, fallback) {
+    return (Array.isArray(value) && value.length) ? value : fallback;
+  }
+
+  /** Allowed catalog values for each remembered field (first value = default). */
+  function allowedLastEntryValues() {
+    const instruments = (typeof INSTRUMENTS !== 'undefined' && INSTRUMENTS)
+      ? Object.keys(INSTRUMENTS)
+      : [];
+    const strategies = STRATEGY_LIST.map(function (strategy) { return strategy.id; });
+    const directions = listOrDefault(
+      (typeof DIRECTIONS !== 'undefined') ? DIRECTIONS : null,
+      ['Largo', 'Corto']
+    );
+    const emotions = listOrDefault(
+      (typeof EMOTIONS !== 'undefined') ? EMOTIONS : null,
+      []
+    );
+    return {
+      account: ACCOUNT_LIST,
+      instrument: instruments,
+      strategy: strategies,
+      direction: directions,
+      emotion: emotions
+    };
+  }
+
+  /**
+   * Normalizes a raw last-entry object: every field MUST be one of its
+   * catalog values, otherwise it falls back to the first catalog value so a
+   * stale or unknown stored selection never reaches a select.
+   */
+  function sanitizeLastEntry(raw) {
+    const source = (raw && typeof raw === 'object') ? raw : {};
+    const allowed = allowedLastEntryValues();
+    const out = {};
+    LAST_ENTRY_FIELDS.forEach(function (field) {
+      const list = allowed[field] || [];
+      const key = strOr(source[field], '');
+      out[field] = (list.length && list.indexOf(key) !== -1) ? key : (list[0] || '');
+    });
+    return out;
+  }
+
+  /** Returns the normalized last-used entry selections (always complete). */
+  function getLastEntry() {
+    const settings = (state.settings && typeof state.settings === 'object') ? state.settings : {};
+    return sanitizeLastEntry(settings.lastEntry);
+  }
+
+  /**
+   * Merges valid last-used entry selections into `settings.lastEntry` and
+   * persists them. Invalid or unknown values are ignored (the previous valid
+   * value is kept), so a caller can never persist junk.
+   */
+  function saveLastEntry(patch) {
+    const incoming = (patch && typeof patch === 'object') ? patch : {};
+    const allowed = allowedLastEntryValues();
+    const next = getLastEntry();
+    LAST_ENTRY_FIELDS.forEach(function (field) {
+      if (incoming[field] === undefined || incoming[field] === null) return;
+      const list = allowed[field] || [];
+      const key = strOr(incoming[field], '');
+      if (list.indexOf(key) !== -1) next[field] = key;
+    });
+    setSettings({ lastEntry: next });
+    return next;
   }
 
   /* ------------------------------------------------------------------ */
@@ -705,29 +794,79 @@ const Store = (function () {
   }
 
   /**
-   * Pure risk calculation.
+   * Resolves a stop expressed in ticks from either an explicit `stopTicks`
+   * input or the legacy `stopDistance` (points), converted via the
+   * instrument's tick size. Returns NaN when neither yields a usable value.
+   */
+  function resolveStopTicks(opts, spec) {
+    const explicit = numOr(opts.stopTicks, NaN);
+    if (Number.isFinite(explicit)) return explicit;
+    const legacyPoints = numOr(opts.stopDistance, NaN);
+    const tick = spec ? numOr(spec.tick, 0) : 0;
+    if (Number.isFinite(legacyPoints) && tick > 0) return legacyPoints / tick;
+    return NaN;
+  }
+
+  /**
+   * Trades-per-day divisor. A missing/non-numeric value falls back to the
+   * per-account default (3); a numeric value below 1 (including 0) is guarded
+   * to 1 so the divisor can never be zero.
+   */
+  function resolveTradesPerDay(value) {
+    const n = numOr(value, NaN);
+    if (!Number.isFinite(n)) return DAILY_LIMIT_DEFAULT;
+    if (n < 1) return 1;
+    return n;
+  }
+
+  /**
+   * Pure BPT risk calculation (works in ticks, commission kept separate).
    *
-   *   budget          = (riskPct / 100) * balance
-   *   riskPerContract = stopDistance * pointValue + commission
-   *   contracts       = floor(budget / riskPerContract)
+   *   tickValue        = tick * pointValue
+   *   P_m              = stopTicks * tickValue
+   *   dailyBudget      = (riskPct / 100) * balance
+   *   perTradeRiskPct  = riskPct / tradesPerDay      (tradesPerDay guarded to >= 1)
+   *   perTradeRisk     = (perTradeRiskPct / 100) * balance
+   *   contracts        = floor(perTradeRisk / P_m)
    *
-   * Returns `{ valid, reason, budget, riskPerContract, contracts, viable,
-   * minBalanceForOneContract, size }`. `valid` is false (and `contracts` 0)
-   * when an input is missing/non-numeric or `stopDistance <= 0`; `reason`
-   * names the first failing input.
+   * `riskPct` is the DAILY risk percentage; `tradesPerDay` defaults to the
+   * per-account daily trade limit (3) and is never allowed to be 0. Commission
+   * is reported separately and is NOT folded into `P_m`.
+   *
+   * Returns `{ valid, reason, dailyBudget, budget, dailyRiskPct, tradesPerDay,
+   * perTradeRisk, perTradeRiskPct, tickValue, stopTicks, pm, riskPerContract,
+   * commission, contracts, viable, minBalanceForOneContract, size }`.
+   * `budget` and `riskPerContract` are backward-compatible aliases for
+   * `dailyBudget` and `pm`. `valid` is false (and `contracts` 0) when an input
+   * is missing/non-numeric or `stopTicks <= 0`; `reason` names the first
+   * failing input. The viability warning applies when even one contract
+   * exceeds the per-trade budget.
    */
   function computeRisk(inputs) {
     const opts = inputs || {};
     const balance = numOr(opts.balance, NaN);
     const riskPct = numOr(opts.riskPct, NaN);
-    const stopDistance = numOr(opts.stopDistance, NaN);
     const spec = instrumentSpec(opts.instrument);
+
+    const tick = spec ? numOr(spec.tick, 0) : 0;
+    const pointValue = spec ? numOr(spec.pointValue, 0) : 0;
+    const tickValue = tick * pointValue;
+    const stopTicks = resolveStopTicks(opts, spec);
 
     const result = {
       valid: false,
       reason: '',
+      dailyBudget: 0,
       budget: 0,
+      dailyRiskPct: 0,
+      tradesPerDay: DAILY_LIMIT_DEFAULT,
+      perTradeRisk: 0,
+      perTradeRiskPct: 0,
+      tickValue: tickValue,
+      stopTicks: 0,
+      pm: 0,
       riskPerContract: 0,
+      commission: spec ? numOr(spec.commission, 0) : 0,
       contracts: 0,
       viable: false,
       minBalanceForOneContract: null,
@@ -737,35 +876,54 @@ const Store = (function () {
     if (!spec) { result.reason = 'instrument'; return result; }
     if (!Number.isFinite(balance)) { result.reason = 'balance'; return result; }
     if (!Number.isFinite(riskPct) || riskPct <= 0) { result.reason = 'riskPct'; return result; }
-    if (!Number.isFinite(stopDistance) || stopDistance <= 0) { result.reason = 'stopDistance'; return result; }
+    if (!Number.isFinite(stopTicks) || stopTicks <= 0) { result.reason = 'stopTicks'; return result; }
+    if (!(tickValue > 0)) { result.reason = 'tickValue'; return result; }
 
-    const budget = (riskPct / 100) * balance;
-    const riskPerContract = stopDistance * spec.pointValue + spec.commission;
-    const contracts = riskPerContract > 0 ? Math.floor(budget / riskPerContract) : 0;
+    const tradesPerDay = resolveTradesPerDay(opts.tradesPerDay);
+    const dailyBudget = (riskPct / 100) * balance;
+    const perTradeRiskPct = riskPct / tradesPerDay;
+    const perTradeRisk = (perTradeRiskPct / 100) * balance;
+    const pm = stopTicks * tickValue;
+    const contracts = pm > 0 ? Math.floor(perTradeRisk / pm) : 0;
 
     result.valid = true;
-    result.budget = budget;
-    result.riskPerContract = riskPerContract;
+    result.dailyBudget = dailyBudget;
+    result.budget = dailyBudget;
+    result.dailyRiskPct = riskPct;
+    result.tradesPerDay = tradesPerDay;
+    result.perTradeRisk = perTradeRisk;
+    result.perTradeRiskPct = perTradeRiskPct;
+    result.stopTicks = stopTicks;
+    result.tickValue = tickValue;
+    result.pm = pm;
+    result.riskPerContract = pm;
     result.contracts = contracts;
     result.viable = contracts >= 1;
-    result.minBalanceForOneContract = riskPerContract / (riskPct / 100);
+    result.minBalanceForOneContract = perTradeRiskPct > 0 ? pm / (perTradeRiskPct / 100) : null;
     return result;
   }
 
   /**
-   * Smallest account balance that affords exactly one contract at `riskPct`.
-   * Returns null when the instrument or `riskPct` is invalid (riskPct <= 0).
+   * Smallest account balance that affords exactly one contract under the BPT
+   * method: `P_m / (perTradeRiskPct / 100)`. Returns null when the instrument,
+   * `riskPct` or stop is invalid. Accepts `stopTicks` (or legacy
+   * `stopDistance` in points) and the `tradesPerDay` divisor.
    */
   function minBalanceForOneContract(inputs) {
     const opts = inputs || {};
     const riskPct = numOr(opts.riskPct, NaN);
-    const stopDistance = numOr(opts.stopDistance, NaN);
     const spec = instrumentSpec(opts.instrument);
     if (!spec) return null;
     if (!Number.isFinite(riskPct) || riskPct <= 0) return null;
-    if (!Number.isFinite(stopDistance) || stopDistance <= 0) return null;
-    const riskPerContract = stopDistance * spec.pointValue + spec.commission;
-    return riskPerContract / (riskPct / 100);
+    const tick = numOr(spec.tick, 0);
+    const tickValue = tick * numOr(spec.pointValue, 0);
+    if (!(tickValue > 0)) return null;
+    const stopTicks = resolveStopTicks(opts, spec);
+    if (!Number.isFinite(stopTicks) || stopTicks <= 0) return null;
+    const perTradeRiskPct = riskPct / resolveTradesPerDay(opts.tradesPerDay);
+    if (!(perTradeRiskPct > 0)) return null;
+    const pm = stopTicks * tickValue;
+    return pm / (perTradeRiskPct / 100);
   }
 
   /* ------------------------------------------------------------------ */
@@ -1246,7 +1404,10 @@ const Store = (function () {
     getTrades: getTrades,
     getBalances: getBalances,
     getSettings: getSettings,
+    getLastTrade: getLastTrade,
     getRiskSettings: getRiskSettings,
+    getLastEntry: getLastEntry,
+    saveLastEntry: saveLastEntry,
     strategyLabel: strategyLabel,
     strategyGroup: strategyGroup,
     getStrategies: getStrategies,

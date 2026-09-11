@@ -56,7 +56,7 @@ Chain strategy: stacked-to-main
 - [ ] 3.2 Verify `risk-settings`: per-account independence, defaults 2/3, patch preserves keys, negative rejected, 0 limit stored.
 - [ ] 3.3 Verify `entry-form-defaults`: four fields now at open/reset; stale replaced; override kept; invalid rejected.
 - [ ] 3.4 Verify `balance-visibility`: initial+current+total shown; no-trade=initial; update reflected; no NaN.
-- [ ] 3.5 Verify `risk-calculator`: 10000/2/10pt/5/4→200/54/3; budget 40→0 + warning; missing input incomplete; size metadata present.
+- [ ] 3.5 Verify `risk-calculator` (BPT): 10000/3%/3 trades/8 ticks ES → 300 daily / 100 per-trade / 100 P_m / 1 contract; daily-budget division → 3; per-trade budget below P_m → 0 + warning; missing input incomplete; size metadata present.
 - [ ] 3.6 Verify risk %: 1.5 ok; 4→3 + warning; <0.5 clamps; R/R 100/300 ok, 100/150 warns; expectancy shown.
 - [ ] 3.7 Verify recovery 0.5→100%, 0→0%; stop flagged/present; BE/trailing counts.
 - [ ] 3.8 Verify ≥5% drawdown + 3-loss warn, save not blocked; scaling 10000+2000→240.
@@ -65,3 +65,15 @@ Chain strategy: stacked-to-main
 
 - [x] 4.1 `js/instruments.js` + `js/store.js`: add pure `dailyScalingPlan({capital,riskPct,rr,days})` → `{valid,reason,days,rr,clampedDays,rows:[{day,startCapital,risk,gain,endCapital}],finalCapital}`, compounding `capital_d = capital_{d-1} + (riskPct/100)*capital_{d-1}*rr`; defaults `rr=2`, `days=20`, horizon capped at `SCALING_DAYS_MAX=365`; export from `Store`.
 - [x] 4.2 `index.html` + `js/app.js` + `css/styles.css`: add the "Plan de escalado diario" Dashboard card — inputs (capital, % riesgo diario, R/B, nº de días), a "Calcular" action, and a `Día | Capital inicial | Riesgo | Ganancia | Capital final` table reusing the dark tokens; defaults seeded from the selected account's current balance and risk %.
+
+## Phase 5: BPT risk calculator (aligns `computeRisk` to the BPT method)
+
+- [x] 5.1 `js/store.js`: rework pure `computeRisk` to the BPT method — `tickValue = tick × pointValue`, `P_m = stopTicks × tickValue`, `perTradeRiskPct = dailyRiskPct / tradesPerDay` (missing → default 3, `0`/negative → guarded to 1), `perTradeRisk$ = perTradeRiskPct × capital`, `contracts = floor(perTradeRisk$ / P_m)`; commission kept separate and never folded into `P_m`; return shape additive (`dailyBudget`/`budget`, `perTradeRisk`, `perTradeRiskPct`, `tickValue`, `stopTicks`, `pm`/`riskPerContract`, `commission`) with the viability flag when one contract exceeds the per-trade budget; `minBalanceForOneContract` aligned to ticks; legacy `stopDistance` (points) converted via `tick`.
+- [x] 5.2 `index.html` + `js/app.js`: Registro risk panel works in ticks — stop-in-ticks input, plus `Capital`, `% Riesgo diario`, `Operaciones al día`, `Presupuesto diario`, `Valor del tick`, `P_m`, `Riesgo por operación`, `Contratos`, separate `Comisión` and `Riesgo de la posición`; labels/inputs updated in place reusing the dark tokens; a recorded stop price is converted to ticks (`|entry − stop| / tick`) and still wins over the tick input.
+
+## Phase 6: Fast entry (PR 7)
+
+- [x] 6.1 `js/store.js` + `js/app.js`: persist the last-used `account`/`instrument`/`strategy`/`direction`/`emotion` under `settings.lastEntry` (pure `getLastEntry`/`saveLastEntry`) and prefill them on open/reset; never clobber a value the user is editing.
+- [x] 6.2 `js/app.js`: default the `contracts` field to the risk calculator's suggested contracts for the selected account/instrument while the field is untouched; stop auto-filling once the user edits it.
+- [x] 6.3 `index.html` + `js/app.js` + `js/store.js`: add a "Duplicar último trade" action (`Store.getLastTrade`) that copies the last saved trade's setup fields (account, instrument, strategy, direction, emotion, contracts, target/stop) into the form as a NEW trade (new id, no tradeNumber/exit), ready to edit.
+- [x] 6.4 `index.html` + `css/styles.css`: move `notes`, `target` and `plannedRisk` behind a "Más opciones" disclosure, collapsed by default, keeping the primary fields visible.
