@@ -25,18 +25,22 @@
       <div class="chip">
         <span class="chip-label">Sim</span>
         <span class="chip-value" id="chipSim">$0.00</span>
+        <span class="chip-sub" id="chipSubSim"></span>
       </div>
       <div class="chip">
         <span class="chip-label">Real</span>
         <span class="chip-value" id="chipReal">$0.00</span>
+        <span class="chip-sub" id="chipSubReal"></span>
       </div>
       <div class="chip">
         <span class="chip-label">Fondeo</span>
         <span class="chip-value" id="chipFondeo">$0.00</span>
+        <span class="chip-sub" id="chipSubFondeo"></span>
       </div>
       <div class="chip chip-total">
         <span class="chip-label">Total</span>
         <span class="chip-value" id="chipTotal">$0.00</span>
+        <span class="chip-sub" id="chipSubTotal"></span>
       </div>
     </div>
     <div class="user-box" id="userBox" hidden>
@@ -129,7 +133,10 @@
             </div>
             <div class="field">
               <label for="instrument">Instrumento</label>
-              <select id="instrument"></select>
+              <div class="field-inline">
+                <select id="instrument"></select>
+                <button type="button" class="btn btn-ghost btn-info" id="btnInstrumentInfo" aria-expanded="false" aria-controls="instrumentInfo">Info</button>
+              </div>
             </div>
             <div class="field">
               <label for="contracts">Contratos</label>
@@ -168,6 +175,18 @@
               <input type="number" id="exitPrice" step="any" inputmode="decimal">
             </div>
             <div class="field">
+              <label for="stop">Stop (precio, opcional)</label>
+              <input type="number" id="stop" step="any" inputmode="decimal">
+            </div>
+            <div class="field">
+              <label for="target">Objetivo (USD, opcional)</label>
+              <input type="number" id="target" min="0" step="any" inputmode="decimal">
+            </div>
+            <div class="field">
+              <label for="plannedRisk">Riesgo planeado (USD, opcional)</label>
+              <input type="number" id="plannedRisk" min="0" step="any" inputmode="decimal">
+            </div>
+            <div class="field">
               <label for="exitType">Tipo de salida</label>
               <select id="exitType"></select>
             </div>
@@ -180,6 +199,8 @@
               <textarea id="notes" rows="2" placeholder="Observaciones de la operación (opcional)"></textarea>
             </div>
           </div>
+
+          <div class="instrument-info" id="instrumentInfo" hidden></div>
 
           <div class="preview" aria-live="polite">
             <div class="preview-item">
@@ -204,11 +225,59 @@
             </div>
           </div>
 
+          <p class="app-status warn app-status-inline" id="dailyLimitWarning" role="status" aria-live="polite" hidden></p>
+
           <div class="form-actions">
             <button type="submit" class="btn btn-primary" id="btnSave">Guardar trade</button>
             <button type="button" class="btn btn-ghost" id="btnCancel" hidden>Cancelar edición</button>
           </div>
         </form>
+      </div>
+
+      <div class="card">
+        <div class="card-header card-header-row">
+          <h2>Calculadora de riesgo</h2>
+          <span class="risk-account-hint" id="riskAccountHint"></span>
+        </div>
+        <p class="hint">Usa la cuenta e instrumento del formulario. Introduce la distancia del stop en puntos y, si quieres, el objetivo en dólares para ver el R/R. Si registras un stop y un objetivo en el formulario, se usan automáticamente.</p>
+        <div class="form-grid form-grid-narrow">
+          <div class="field">
+            <label for="riskStopDistance">Distancia del stop (puntos)</label>
+            <input type="number" id="riskStopDistance" min="0" step="any" inputmode="decimal" value="10">
+          </div>
+          <div class="field">
+            <label for="riskTarget">Objetivo (USD, opcional)</label>
+            <input type="number" id="riskTarget" min="0" step="any" inputmode="decimal">
+          </div>
+        </div>
+        <div class="preview" id="riskResults" aria-live="polite">
+          <div class="preview-item">
+            <span class="preview-label">Presupuesto</span>
+            <span class="preview-value" id="riskBudget">—</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Riesgo por contrato</span>
+            <span class="preview-value" id="riskPerContract">—</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Contratos sugeridos</span>
+            <span class="preview-value" id="riskContracts">—</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Riesgo total</span>
+            <span class="preview-value" id="riskTotal">—</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">R/R</span>
+            <span class="preview-value" id="riskRR">—</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Recuperación requerida</span>
+            <span class="preview-value" id="riskRecovery">—</span>
+          </div>
+        </div>
+        <p class="risk-warning" id="riskViabilityWarning" role="alert" hidden></p>
+        <p class="risk-warning" id="disciplineWarning" role="status" aria-live="polite" hidden></p>
       </div>
 
       <div class="card">
@@ -220,6 +289,7 @@
             <span class="table-summary" id="tableSummary"></span>
           </div>
         </div>
+        <p class="table-discipline" id="disciplineSummary"></p>
         <div class="table-wrap">
           <table class="trades-table">
             <thead id="tradesHead"></thead>
@@ -299,6 +369,47 @@
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-primary" id="btnSaveBalances">Guardar saldos</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Riesgo y límites</h2>
+        </div>
+        <p class="hint">Riesgo máximo por operación y límite diario de operaciones, por cuenta. Banda recomendada: 0,5 %–2 %; el 3 % es el máximo.</p>
+        <div class="form-grid form-grid-narrow">
+          <div class="field">
+            <label for="riskPctSim">Riesgo Sim (%)</label>
+            <input type="number" id="riskPctSim" min="0" step="0.1" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="riskPctReal">Riesgo Real (%)</label>
+            <input type="number" id="riskPctReal" min="0" step="0.1" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="riskPctFondeo">Riesgo Fondeo (%)</label>
+            <input type="number" id="riskPctFondeo" min="0" step="0.1" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="dailyLimitSim">Límite diario Sim</label>
+            <input type="number" id="dailyLimitSim" min="0" step="1" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="dailyLimitReal">Límite diario Real</label>
+            <input type="number" id="dailyLimitReal" min="0" step="1" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="dailyLimitFondeo">Límite diario Fondeo</label>
+            <input type="number" id="dailyLimitFondeo" min="0" step="1" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="minRR">R/R mínimo</label>
+            <input type="number" id="minRR" min="0" step="0.1" inputmode="decimal">
+          </div>
+        </div>
+        <p class="risk-warning" id="riskSettingsWarning" role="status" hidden></p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="btnSaveRiskSettings">Guardar riesgo</button>
         </div>
       </div>
 

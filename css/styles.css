@@ -219,6 +219,13 @@ textarea {
   color: var(--text);
 }
 
+/* Secondary chip line (e.g. the account's initial balance). */
+.chip-sub {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ------------------------------------------------------------------ */
 /* Primary nav — horizontal tab bar                                    */
 /* ------------------------------------------------------------------ */
@@ -287,6 +294,18 @@ textarea {
 .app-status.error {
   border-color: rgba(239, 68, 68, 0.5);
   color: var(--neg);
+}
+
+/* Amber, non-blocking warning variant (daily limit, risk guidance). */
+.app-status.warn {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--amber);
+}
+
+/* Inline status inside a card: drop the page-level horizontal margins. */
+.app-status-inline {
+  margin: 16px 0 0;
 }
 
 .filters {
@@ -568,6 +587,124 @@ textarea {
 }
 
 /* ------------------------------------------------------------------ */
+/* Risk calculator panel                                               */
+/* ------------------------------------------------------------------ */
+
+.risk-account-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.risk-warning {
+  margin: 14px 0 0;
+  padding: 9px 12px;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  background: rgba(245, 158, 11, 0.08);
+  border-radius: var(--radius-sm);
+  color: var(--amber);
+  font-size: 13px;
+}
+
+/* Amber signal for values that trip a warning threshold (e.g. R/R < min). */
+.warn {
+  color: var(--amber);
+}
+
+/* ------------------------------------------------------------------ */
+/* Instrument info panel                                               */
+/* ------------------------------------------------------------------ */
+
+.field-inline {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.field-inline select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.btn-info {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+}
+
+.instrument-info {
+  margin-top: 14px;
+  padding: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.instrument-info-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.instrument-info-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.badge {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.badge-micro {
+  color: var(--cyan);
+  border-color: rgba(34, 211, 238, 0.5);
+}
+
+.badge-warn {
+  color: var(--amber);
+  border-color: rgba(245, 158, 11, 0.5);
+}
+
+.instrument-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.instrument-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.instrument-info-label {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+
+.instrument-info-value {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.instrument-info-note {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------------ */
 /* Table                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -585,6 +722,17 @@ textarea {
   color: var(--text-muted);
   font-size: 12px;
   white-space: nowrap;
+}
+
+/* Stop-discipline line under the trades card header. */
+.table-discipline {
+  margin: -6px 0 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.table-discipline.warn {
+  color: var(--amber);
 }
 
 .table-wrap {

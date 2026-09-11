@@ -63,6 +63,12 @@ const DashboardCharts = (function () {
     return values.map(function (v) { return v >= 0 ? POSITIVE : NEGATIVE; });
   }
 
+  /** Resolves a stored strategy id to its display label, with raw fallback. */
+  function resolveStrategyLabel(id) {
+    if (typeof Store !== 'undefined' && Store.strategyLabel) return Store.strategyLabel(id);
+    return id;
+  }
+
   /* ------------------------------------------------------------------ */
   /* Empty-state handling                                                */
   /* ------------------------------------------------------------------ */
@@ -204,14 +210,17 @@ const DashboardCharts = (function () {
     });
   }
 
-  function renderBarByGroup(id, list, keyFn, order, label, horizontal) {
+  function renderBarByGroup(id, list, keyFn, order, label, horizontal, labelFn) {
     const map = groupNet(list, keyFn);
     const entries = orderedEntries(map, order);
     if (emptyGuard(id, entries.labels.length === 0)) return;
+    /* `order`/grouping stay keyed by the stored value; `labelFn` only maps the
+     * rendered axis labels (e.g. strategy id -> display name). */
+    const labels = labelFn ? entries.labels.map(labelFn) : entries.labels;
     create(id, {
       type: 'bar',
       data: {
-        labels: entries.labels,
+        labels: labels,
         datasets: [{
           label: label,
           data: entries.values,
@@ -338,8 +347,9 @@ const DashboardCharts = (function () {
     renderBarByGroup(
       'chartStrategy', list,
       function (t) { return t.strategy; },
-      (typeof STRATEGIES !== 'undefined') ? STRATEGIES : [],
-      'Neto', false
+      (typeof STRATEGY_IDS !== 'undefined') ? STRATEGY_IDS : [],
+      'Neto', false,
+      resolveStrategyLabel
     );
 
     renderBarByGroup(

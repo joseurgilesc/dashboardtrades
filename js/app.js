@@ -84,6 +84,13 @@
     return d.getFullYear() + '-' + mm + '-' + dd;
   }
 
+  function nowTime() {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return hh + ':' + mm;
+  }
+
   function parseLocalDateTime(date, time) {
     if (!date) return null;
     const d = String(date).split('-').map(Number);
@@ -129,17 +136,76 @@
     });
   }
 
+  function strategyGroupLabel(group) {
+    switch (group) {
+      case 'scalping': return 'Scalping';
+      case 'swing': return 'Swing';
+      case 'legacy': return 'Legacy (sin clasificar)';
+      default: return group;
+    }
+  }
+
+  function strategyLabelOf(id) {
+    return (typeof Store !== 'undefined' && Store.strategyLabel)
+      ? Store.strategyLabel(id)
+      : id;
+  }
+
+  /**
+   * Populates a strategy `<select>` with grouped `<optgroup>`s in catalog
+   * order (scalping, swing, legacy). `option.value` is the stable id; the
+   * visible text is the resolved label, so legacy/unknown ids still render.
+   */
+  function fillStrategySelect(select, placeholder) {
+    if (!select) return;
+    select.innerHTML = '';
+    if (placeholder !== undefined && placeholder !== null) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = placeholder;
+      select.appendChild(opt);
+    }
+    const strategies = (typeof Store !== 'undefined' && Store.getStrategies)
+      ? Store.getStrategies()
+      : [];
+    const groups = (typeof STRATEGY_GROUPS !== 'undefined') ? STRATEGY_GROUPS : ['scalping', 'swing', 'legacy'];
+    groups.forEach(function (group) {
+      const members = strategies.filter(function (strategy) { return strategy.group === group; });
+      if (!members.length) return;
+      const optgroup = document.createElement('optgroup');
+      optgroup.label = strategyGroupLabel(group);
+      members.forEach(function (strategy) {
+        const opt = document.createElement('option');
+        opt.value = strategy.id;
+        opt.textContent = strategyLabelOf(strategy.id);
+        optgroup.appendChild(opt);
+      });
+      select.appendChild(optgroup);
+    });
+  }
+
+  /** Keeps an unknown stored id selectable when editing a legacy trade. */
+  function ensureStrategyOption(select, id) {
+    if (!select || !id) return;
+    const exists = Array.prototype.some.call(select.options, function (opt) { return opt.value === id; });
+    if (exists) return;
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = strategyLabelOf(id);
+    select.appendChild(opt);
+  }
+
   function initSelects() {
     fillSelect($('account'), ACCOUNTS);
     fillSelect($('instrument'), Object.keys(INSTRUMENTS));
-    fillSelect($('strategy'), STRATEGIES);
+    fillStrategySelect($('strategy'));
     fillSelect($('direction'), DIRECTIONS);
     fillSelect($('exitType'), EXIT_TYPES);
     fillSelect($('emotion'), EMOTIONS);
 
     fillSelect($('filterAccount'), ACCOUNTS, 'Todas las cuentas');
     fillSelect($('filterInstrument'), Object.keys(INSTRUMENTS), 'Todos los instrumentos');
-    fillSelect($('filterStrategy'), STRATEGIES, 'Todas las estrategias');
+    fillStrategySelect($('filterStrategy'), 'Todas las estrategias');
     fillSelect($('filterEmotion'), EMOTIONS, 'Todas las emociones');
   }
 
@@ -164,7 +230,8 @@
     if (!state.search) return true;
     const haystack = [
       trade.tradeNumber, trade.account, trade.instrument, trade.direction,
-      trade.strategy, trade.exitType, trade.emotion, trade.entryDate, trade.notes
+      trade.strategy, strategyLabelOf(trade.strategy), trade.exitType,
+      trade.emotion, trade.entryDate, trade.notes
     ].join(' ').toLowerCase();
     return haystack.indexOf(state.search) !== -1;
   }
@@ -194,17 +261,28 @@
   /* ------------------------------------------------------------------ */
 
   function renderBalances() {
+    const initial = Store.getBalances();
     const balances = Store.getAccountBalances();
     ACCOUNTS.forEach(function (account) {
       const chip = $('chip' + account);
-      if (!chip) return;
-      const value = balances[account] || 0;
-      chip.textContent = formatMoney(value);
-      chip.className = 'chip-value ' + signClass(value - (Store.getBalances()[account] || 0));
+      if (chip) {
+        const value = balances[account] || 0;
+        chip.textContent = formatMoney(value);
+        chip.className = 'chip-value ' + signClass(value - (initial[account] || 0));
+      }
+      const sub = $('chipSub' + account);
+      if (sub) sub.textContent = 'Inicial ' + formatMoney(initial[account] || 0);
     });
     const total = Store.getTotalBalance();
     const totalEl = $('chipTotal');
     if (totalEl) totalEl.textContent = formatMoney(total);
+    const totalSub = $('chipSubTotal');
+    if (totalSub) {
+      const initialTotal = ACCOUNTS.reduce(function (sum, account) {
+        return sum + (initial[account] || 0);
+      }, 0);
+      totalSub.textContent = 'Inicial ' + formatMoney(initialTotal);
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -256,7 +334,7 @@
           '<td>' + escapeHtml(t.tradeNumber) + '</td>' +
           '<td><span class="cell-main">' + escapeHtml(t.entryDate) + '</span> <span class="muted">' + escapeHtml(t.entryTime) + '</span></td>' +
           '<td>' + escapeHtml(t.account) + '</td>' +
-          '<td>' + escapeHtml(t.instrument) + '</td>' +
+          '<td>' + escapeHtml(t.instrument) + missingStopBadge(t) + '</td>' +
           '<td>' + escapeHtml(t.direction) + '</td>' +
           '<td class="num">' + escapeHtml(t.contracts) + '</td>' +
           '<td class="num">' + escapeHtml(t.entryPrice) + '</td>' +
@@ -278,7 +356,27 @@
     if (summary) {
       summary.textContent = rows.length + (rows.length === 1 ? ' trade' : ' trades');
     }
+    renderDisciplineSummary(trades);
     renderTableHeaders();
+  }
+
+  /** Amber "Sin stop" flag for a row whose normalized stop is not positive. */
+  function missingStopBadge(trade) {
+    return Number(trade.stop) > 0 ? '' : ' <span class="badge badge-warn">Sin stop</span>';
+  }
+
+  /**
+   * Stop-discipline summary for the trades currently shown: missing stops,
+   * Break-Even and Trailing-Stop usage (from exit type). Missing stops turn
+   * the line amber; it never blocks anything.
+   */
+  function renderDisciplineSummary(trades) {
+    const el = $('disciplineSummary');
+    if (!el) return;
+    const discipline = Store.stopDiscipline(trades || []);
+    el.textContent = 'Sin stop: ' + discipline.missingStop + ' / ' + discipline.total +
+      ' · Break Even: ' + discipline.breakEven + ' · Trailing stop: ' + discipline.trailing;
+    el.className = 'table-discipline' + (discipline.missingStop > 0 ? ' warn' : '');
   }
 
   /* ------------------------------------------------------------------ */
@@ -329,6 +427,8 @@
 
   function renderAll() {
     renderBalances();
+    renderRiskPanel();
+    renderEntryWarnings();
     const filtered = getFilteredTrades();
     renderTable(filtered);
     renderKpis(filtered);
@@ -361,13 +461,74 @@
       exitDate: $('exitDate').value,
       exitTime: $('exitTime').value,
       exitPrice: parseFloat($('exitPrice').value),
+      stop: parseFloat($('stop').value),
+      target: parseFloat($('target').value),
+      plannedRisk: parseFloat($('plannedRisk').value),
       exitType: $('exitType').value,
       emotion: $('emotion').value,
       notes: $('notes').value.trim()
     };
   }
 
+  function instrumentMeta(id) {
+    if (typeof INSTRUMENTS === 'undefined' || !INSTRUMENTS) return null;
+    return INSTRUMENTS[id] || null;
+  }
+
+  function sizeLabel(size) {
+    return size === 'micro' ? 'Micro' : 'Full';
+  }
+
+  /** Renders the per-instrument reference panel (hidden until toggled). */
+  function renderInstrumentInfo() {
+    const panel = $('instrumentInfo');
+    if (!panel) return;
+    const select = $('instrument');
+    const id = select ? select.value : '';
+    const spec = instrumentMeta(id);
+    if (!spec) {
+      panel.innerHTML = '<p class="instrument-info-note">Sin información para este instrumento.</p>';
+      return;
+    }
+    const rows = [
+      { label: 'Producto', value: spec.name },
+      { label: 'Exchange', value: spec.exchange },
+      { label: 'Horario', value: spec.hours },
+      { label: 'Valor del punto', value: formatNumber(spec.pointValue, 2) },
+      { label: 'Tick', value: String(spec.tick) },
+      { label: 'Comisión (ida y vuelta)', value: formatMoney(spec.commission) },
+      { label: 'Tamaño', value: sizeLabel(spec.size) }
+    ].map(function (row) {
+      return '<div class="instrument-info-item">' +
+        '<span class="instrument-info-label">' + escapeHtml(row.label) + '</span>' +
+        '<span class="instrument-info-value">' + escapeHtml(row.value) + '</span>' +
+        '</div>';
+    }).join('');
+    const note = spec.note
+      ? '<p class="instrument-info-note">' + escapeHtml(spec.note) + '</p>'
+      : '';
+    panel.innerHTML =
+      '<div class="instrument-info-head">' +
+        '<span class="instrument-info-title">' + escapeHtml(id + ' · ' + spec.name) + '</span>' +
+        '<span class="badge badge-' + (spec.size === 'micro' ? 'micro' : 'full') + '">' + sizeLabel(spec.size) + '</span>' +
+      '</div>' +
+      '<div class="instrument-info-grid">' + rows + '</div>' + note;
+  }
+
+  function toggleInstrumentInfo() {
+    const panel = $('instrumentInfo');
+    if (!panel) return;
+    const show = panel.hidden;
+    panel.hidden = !show;
+    const button = $('btnInstrumentInfo');
+    if (button) button.setAttribute('aria-expanded', show ? 'true' : 'false');
+    if (show) renderInstrumentInfo();
+  }
+
   function updatePreview() {
+    renderInstrumentInfo();
+    renderRiskPanel();
+    renderEntryWarnings();
     const spec = INSTRUMENTS[$('instrument').value];
     const pointValueEl = $('previewPointValue');
     if (pointValueEl) pointValueEl.textContent = spec ? formatNumber(spec.pointValue, 2) : '—';
@@ -396,6 +557,172 @@
     if (grossEl) { grossEl.textContent = formatMoney(computed.gross); grossEl.className = 'preview-value ' + signClass(computed.gross); }
     if (commissionEl) { commissionEl.textContent = formatMoney(computed.commission); commissionEl.className = 'preview-value neg'; }
     if (netEl) { netEl.textContent = formatMoney(computed.net); netEl.className = 'preview-value ' + signClass(computed.net); }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Risk panel (Registro)                                               */
+  /* ------------------------------------------------------------------ */
+
+  function setRiskItem(id, text, cls) {
+    const el = $(id);
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'preview-value' + (cls ? ' ' + cls : '');
+  }
+
+  /**
+   * Renders the risk calculator for the form's selected account and
+   * instrument. Uses the account's current balance and configured risk
+   * percentage; shows budget, risk per contract, suggested contracts, total
+   * risk, R/R (warned below the minimum) and the non-linear recovery needed.
+   * When even one contract exceeds the budget it shows a viability warning.
+   * A recorded stop price sets the stop distance (|entry - stop|), and a
+   * recorded planned risk / target feed the R/R in place of the computed
+   * total risk and the calculator's own target input.
+   */
+  function renderRiskPanel() {
+    const accountEl = $('account');
+    if (!accountEl) return;
+
+    const account = accountEl.value || ACCOUNTS[0];
+    const instrument = $('instrument') ? $('instrument').value : '';
+    const stopEl = $('riskStopDistance');
+    const targetEl = $('riskTarget');
+    const formStopEl = $('stop');
+    const formTargetEl = $('target');
+    const formPlannedRiskEl = $('plannedRisk');
+    const entryPriceEl = $('entryPrice');
+
+    const manualStopDistance = stopEl ? parseFloat(stopEl.value) : NaN;
+    const manualTarget = targetEl ? parseFloat(targetEl.value) : NaN;
+    const formStop = formStopEl ? parseFloat(formStopEl.value) : NaN;
+    const formTarget = formTargetEl ? parseFloat(formTargetEl.value) : NaN;
+    const formPlannedRisk = formPlannedRiskEl ? parseFloat(formPlannedRiskEl.value) : NaN;
+    const entryPrice = entryPriceEl ? parseFloat(entryPriceEl.value) : NaN;
+
+    /* A recorded stop price yields the stop distance in points and takes
+     * precedence over the calculator's own distance input. */
+    const derivedStopDistance = (Number.isFinite(formStop) && Number.isFinite(entryPrice) && formStop !== entryPrice)
+      ? Number(Math.abs(entryPrice - formStop).toFixed(4))
+      : NaN;
+    const stopDistance = derivedStopDistance > 0 ? derivedStopDistance : manualStopDistance;
+
+    const balance = Store.getAccountBalances()[account];
+    const settings = Store.getRiskSettings()[account] || {};
+    const riskPct = Number.isFinite(settings.riskPct) ? settings.riskPct : DEFAULT_RISK_PCT;
+    const minRR = Store.getMinRR();
+
+    const hint = $('riskAccountHint');
+    if (hint) {
+      hint.textContent = account + ' · riesgo ' + formatNumber(riskPct, 1) + ' % · saldo ' + formatMoney(balance);
+    }
+
+    const risk = Store.computeRisk({
+      balance: balance,
+      riskPct: riskPct,
+      instrument: instrument,
+      stopDistance: stopDistance
+    });
+
+    const warnEl = $('riskViabilityWarning');
+
+    if (!risk.valid) {
+      setRiskItem('riskBudget', '—');
+      setRiskItem('riskPerContract', '—');
+      setRiskItem('riskContracts', '—');
+      setRiskItem('riskTotal', '—');
+      setRiskItem('riskRR', '—');
+      setRiskItem('riskRecovery', '—');
+      if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
+      return;
+    }
+
+    const totalRisk = risk.riskPerContract * risk.contracts;
+    setRiskItem('riskBudget', formatMoney(risk.budget));
+    setRiskItem('riskPerContract', formatMoney(risk.riskPerContract));
+    setRiskItem('riskContracts', String(risk.contracts));
+    setRiskItem('riskTotal', formatMoney(totalRisk));
+
+    /* A recorded planned risk / target takes precedence over the computed
+     * total risk and the calculator's own target input. */
+    const plannedRisk = (Number.isFinite(formPlannedRisk) && formPlannedRisk > 0)
+      ? formPlannedRisk
+      : totalRisk;
+    const rewardTarget = (Number.isFinite(formTarget) && formTarget > 0) ? formTarget : manualTarget;
+    const rr = Store.computeRR({ plannedRisk: plannedRisk, target: rewardTarget, minRR: minRR });
+    if (rr.valid) {
+      setRiskItem('riskRR', formatNumber(rr.ratio, 2) + ' : 1', rr.warned ? 'warn' : '');
+    } else {
+      setRiskItem('riskRR', '—');
+    }
+
+    const lossPct = (risk.contracts > 0 && balance > 0) ? totalRisk / balance : NaN;
+    const recovery = Number.isFinite(lossPct) ? Store.recoveryPct(lossPct) : NaN;
+    if (recovery === Infinity) {
+      setRiskItem('riskRecovery', '∞');
+    } else if (Number.isFinite(recovery)) {
+      setRiskItem('riskRecovery', formatNumber(recovery * 100, 1) + ' %');
+    } else {
+      setRiskItem('riskRecovery', '—');
+    }
+
+    if (warnEl) {
+      if (risk.contracts === 0) {
+        warnEl.textContent = 'Con un riesgo del ' + formatNumber(riskPct, 1) + ' % (' +
+          formatMoney(risk.budget) + '), un solo contrato de ' + instrument + ' arriesga ' +
+          formatMoney(risk.riskPerContract) +
+          '. El instrumento no es viable para esta cuenta con el riesgo configurado.';
+        warnEl.hidden = false;
+      } else {
+        warnEl.hidden = true;
+        warnEl.textContent = '';
+      }
+    }
+  }
+
+  /**
+   * Warn-only discipline banners for the entry form's selected account: the
+   * daily trade limit and the intraday drawdown / losing-streak thresholds.
+   * These are guidance only: submit is never disabled or blocked.
+   */
+  function renderEntryWarnings() {
+    const accountEl = $('account');
+    const account = accountEl && accountEl.value ? accountEl.value : ACCOUNTS[0];
+
+    const limitEl = $('dailyLimitWarning');
+    if (limitEl) {
+      const limit = Store.dailyLimitStatus(account);
+      if (limit.exceeded) {
+        limitEl.textContent = 'Llevas ' + limit.count + ' de ' + limit.limit +
+          ' operaciones hoy en ' + account + '. Es solo un aviso: puedes seguir registrando.';
+        limitEl.hidden = false;
+      } else {
+        limitEl.hidden = true;
+        limitEl.textContent = '';
+      }
+    }
+
+    const disciplineEl = $('disciplineWarning');
+    if (disciplineEl) {
+      const messages = [];
+      const drawdown = Store.intradayDrawdown(account);
+      if (drawdown.warned) {
+        messages.push('Drawdown intradía del ' + formatNumber(drawdown.pct, 1) + ' % en ' +
+          account + ' (≥ ' + formatNumber(DAILY_DD_WARN_PCT, 1) + ' %).');
+      }
+      const streak = Store.losingStreak(account);
+      if (streak.warned) {
+        messages.push('Racha de ' + streak.count + ' pérdidas consecutivas en ' + account +
+          ' (≥ ' + STREAK_WARN + ').');
+      }
+      if (messages.length) {
+        disciplineEl.textContent = messages.join(' ');
+        disciplineEl.hidden = false;
+      } else {
+        disciplineEl.hidden = true;
+        disciplineEl.textContent = '';
+      }
+    }
   }
 
   function validateForm() {
@@ -446,14 +773,21 @@
     $('tradeNumber').value = String(Store.nextTradeNumber());
     $('account').value = ACCOUNTS[0];
     $('instrument').value = Object.keys(INSTRUMENTS)[0];
-    $('strategy').value = STRATEGIES[0];
+    $('strategy').value = STRATEGY_IDS[0];
     $('direction').value = DIRECTIONS[0];
     $('exitType').value = EXIT_TYPES[0];
     $('emotion').value = EMOTIONS[0];
     $('entryDate').value = todayISO();
     $('exitDate').value = todayISO();
-    $('entryTime').value = '09:30';
-    $('exitTime').value = '09:45';
+    /* Both times default to the current moment; the exit time is re-read on
+     * every reset so a save never leaves a stale time behind. */
+    const now = nowTime();
+    $('entryTime').value = now;
+    $('exitTime').value = now;
+    /* Stop, target and planned risk are optional and start empty. */
+    $('stop').value = '';
+    $('target').value = '';
+    $('plannedRisk').value = '';
     $('formTitle').textContent = 'Nuevo trade';
     $('btnSave').textContent = 'Guardar trade';
     $('btnCancel').hidden = true;
@@ -497,6 +831,7 @@
     $('account').value = trade.account;
     $('instrument').value = trade.instrument;
     $('contracts').value = trade.contracts;
+    ensureStrategyOption($('strategy'), trade.strategy);
     $('strategy').value = trade.strategy;
     $('direction').value = trade.direction;
     $('entryDate').value = trade.entryDate;
@@ -505,6 +840,9 @@
     $('exitDate').value = trade.exitDate;
     $('exitTime').value = trade.exitTime;
     $('exitPrice').value = trade.exitPrice;
+    $('stop').value = trade.stop > 0 ? trade.stop : '';
+    $('target').value = trade.target > 0 ? trade.target : '';
+    $('plannedRisk').value = trade.plannedRisk > 0 ? trade.plannedRisk : '';
     $('exitType').value = trade.exitType;
     $('emotion').value = trade.emotion;
     $('notes').value = trade.notes;
@@ -602,6 +940,111 @@
     renderAll();
   }
 
+  /** Loads the persisted per-account risk settings into the Ajustes form. */
+  function loadRiskSettingsIntoForm() {
+    const settings = Store.getRiskSettings();
+    ACCOUNTS.forEach(function (account) {
+      const riskEl = $('riskPct' + account);
+      const limitEl = $('dailyLimit' + account);
+      if (riskEl) riskEl.value = String(settings[account].riskPct);
+      if (limitEl) limitEl.value = String(settings[account].dailyTradeLimit);
+    });
+    const minRREl = $('minRR');
+    if (minRREl) minRREl.value = String(Store.getMinRR());
+    const warnEl = $('riskSettingsWarning');
+    if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
+  }
+
+  /**
+   * Validates and persists the Ajustes risk settings. Risk percentages clamp
+   * to [0.5, 3] (warning above the 2% recommendation), daily limits accept 0,
+   * and empty/negative/non-numeric input keeps the stored value.
+   */
+  function handleSaveRiskSettings() {
+    const current = Store.getRiskSettings();
+    const risk = {};
+    const limits = {};
+    const warnings = [];
+    const errors = [];
+
+    ACCOUNTS.forEach(function (account) {
+      const riskEl = $('riskPct' + account);
+      const limitEl = $('dailyLimit' + account);
+      const stored = current[account] || {};
+
+      const rawRisk = riskEl ? riskEl.value.trim() : '';
+      if (rawRisk === '') {
+        risk[account] = stored.riskPct;
+      } else {
+        const clamped = Store.clampRiskPct(rawRisk);
+        if (!clamped.valid) {
+          risk[account] = stored.riskPct;
+          errors.push('El riesgo de ' + account + ' debe ser un número no negativo; se mantiene ' + stored.riskPct + ' %.');
+        } else {
+          risk[account] = clamped.value;
+          if (riskEl) riskEl.value = String(clamped.value);
+          if (clamped.reason === 'hard-max') {
+            warnings.push('El riesgo de ' + account + ' se limitó al 3 % máximo.');
+          } else if (clamped.reason === 'above-recommended') {
+            warnings.push('El riesgo de ' + account + ' supera el 2 % recomendado.');
+          } else if (clamped.reason === 'below-min') {
+            warnings.push('El riesgo de ' + account + ' se subió al 0,5 % mínimo.');
+          }
+        }
+      }
+
+      const rawLimit = limitEl ? limitEl.value.trim() : '';
+      if (rawLimit === '') {
+        limits[account] = stored.dailyTradeLimit;
+      } else {
+        const clampedLimit = Store.clampDailyLimit(rawLimit);
+        if (!clampedLimit.valid) {
+          limits[account] = stored.dailyTradeLimit;
+          errors.push('El límite diario de ' + account + ' debe ser un número no negativo; se mantiene ' + stored.dailyTradeLimit + '.');
+        } else {
+          limits[account] = clampedLimit.value;
+          if (limitEl) limitEl.value = String(clampedLimit.value);
+        }
+      }
+    });
+
+    let minRR = Store.getMinRR();
+    const minRREl = $('minRR');
+    if (minRREl) {
+      const rawMinRR = minRREl.value.trim();
+      if (rawMinRR !== '') {
+        const parsed = parseFloat(rawMinRR);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          minRR = parsed;
+          minRREl.value = String(parsed);
+        } else {
+          errors.push('El R/R mínimo debe ser un número mayor que 0.');
+        }
+      }
+    }
+
+    Store.setSettings({ riskPct: risk, dailyTradeLimit: limits, minRR: minRR });
+    loadRiskSettingsIntoForm();
+    renderRiskPanel();
+
+    if (errors.length) {
+      setStatus(errors.join(' '), 'error');
+      return;
+    }
+
+    const warnEl = $('riskSettingsWarning');
+    if (warnEl) {
+      if (warnings.length) {
+        warnEl.textContent = warnings.join(' ');
+        warnEl.hidden = false;
+      } else {
+        warnEl.hidden = true;
+        warnEl.textContent = '';
+      }
+    }
+    setStatus('Ajustes de riesgo guardados.', 'ok');
+  }
+
   function handleSeed() {
     if (Store.getTrades().length > 0) {
       if (!window.confirm('Esto reemplazará los trades actuales por 8 trades de ejemplo. ¿Continuar?')) return;
@@ -644,6 +1087,7 @@
         Store.importJSON(String(reader.result));
         resetForm();
         loadBalancesIntoForm();
+        loadRiskSettingsIntoForm();
         setStatus('Datos importados correctamente.', 'ok');
         renderAll();
       } catch (err) {
@@ -663,6 +1107,7 @@
     Store.clearAll();
     resetForm();
     loadBalancesIntoForm();
+    loadRiskSettingsIntoForm();
     setStatus('Todos los datos fueron borrados.', 'ok');
     renderAll();
   }
@@ -775,12 +1220,17 @@
   function wireEvents() {
     $('tradeForm').addEventListener('submit', handleSubmit);
 
+    const infoButton = $('btnInstrumentInfo');
+    if (infoButton) infoButton.addEventListener('click', toggleInstrumentInfo);
+
     $('btnCancel').addEventListener('click', function () {
       resetForm();
     });
 
-    ['instrument', 'contracts', 'direction', 'entryPrice', 'exitPrice',
-      'entryDate', 'entryTime', 'exitDate', 'exitTime'].forEach(function (id) {
+    ['account', 'instrument', 'contracts', 'direction', 'entryPrice', 'exitPrice',
+      'stop', 'target', 'plannedRisk',
+      'entryDate', 'entryTime', 'exitDate', 'exitTime',
+      'riskStopDistance', 'riskTarget'].forEach(function (id) {
       const el = $(id);
       if (el) el.addEventListener('input', updatePreview);
       if (el) el.addEventListener('change', updatePreview);
@@ -830,6 +1280,8 @@
     });
 
     $('btnSaveBalances').addEventListener('click', handleSaveBalances);
+    const saveRiskButton = $('btnSaveRiskSettings');
+    if (saveRiskButton) saveRiskButton.addEventListener('click', handleSaveRiskSettings);
     $('btnSeed').addEventListener('click', handleSeed);
     $('btnExportJSON').addEventListener('click', handleExportJSON);
     $('btnExportCSV').addEventListener('click', handleExportCSV);
@@ -1127,6 +1579,7 @@
     }).then(function (attached) {
       if (currentUid !== user.uid || attached === null) return;
       loadBalancesIntoForm();
+      loadRiskSettingsIntoForm();
       resetForm();
       const gate = $('authGate');
       if (gate) gate.hidden = true;
