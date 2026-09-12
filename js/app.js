@@ -583,18 +583,24 @@
 
   /**
    * Renders the BPT risk calculator for the form's selected account and
-   * instrument. Uses the account's current balance (capital), its configured
-   * DAILY risk percentage and its daily trade limit (the per-trade divisor).
+   * instrument. Uses the account's start-of-day capital and its configured
+   * DAILY risk percentage, then subtracts the day's realized losses so
+   * contracts are sized from the remaining daily budget.
    *
-   *   tickValue    = tick * pointValue            (from the instrument)
-   *   P_m          = stopTicks * tickValue
-   *   dailyBudget  = dailyRiskPct% * capital
-   *   perTradeRisk = (dailyRiskPct / tradesPerDay)% * capital
-   *   contracts    = floor(perTradeRisk / P_m)
+   *   tickValue   = tick * pointValue            (from the instrument)
+   *   P_m         = stopTicks * tickValue
+   *   dailyBudget = dailyRiskPct% * startOfDayBalance
+   *   used        = sum of |net| of today's losers for the account
+   *   available   = dailyBudget - used
+   *   perTradeCap = dailyBudget / tradesPerDay
+   *   effectiveRisk = min(perTradeCap, available)
+   *   contracts   = floor(effectiveRisk / P_m)
    *
    * Commission is shown separately and is never folded into P_m. R/R (warned
    * below the minimum) and the non-linear recovery are kept from the previous
-   * panel. When even one contract exceeds the per-trade budget a viability
+   * panel. When the remaining budget is exhausted (available <= 0) the panel
+   * shows 0 contracts and the "Sin presupuesto de riesgo disponible hoy"
+   * warning; when one contract still exceeds the available budget a viability
    * warning is shown. A recorded stop price yields the stop in ticks
    * (|entry - stop| / tick) and takes precedence over the tick input; a
    * recorded planned risk / target feed the R/R.
@@ -634,6 +640,10 @@
     const stopTicks = derivedStopTicks > 0 ? derivedStopTicks : manualStopTicks;
 
     const balance = Store.getAccountBalances()[account];
+    /* The daily budget is based on the start-of-day capital, so today's
+     * realized losses are subtracted once (via `used`) instead of twice (a
+     * shrinking base plus the loss). */
+    const budgetBase = Store.startOfDayBalance(account);
     const settings = Store.getRiskSettings()[account] || {};
     const riskPct = Number.isFinite(settings.riskPct) ? settings.riskPct : DEFAULT_RISK_PCT;
     const tradesPerDay = Number.isFinite(settings.dailyTradeLimit)
@@ -641,27 +651,33 @@
       : DEFAULT_DAILY_TRADE_LIMIT;
     const minRR = Store.getMinRR();
 
+    /* Remaining daily budget: the account's daily risk budget minus the sum of
+     * its realized losses for today. */
+    const usage = Store.dailyRiskUsage({ account: account, riskPct: riskPct, balance: budgetBase });
+
     const hint = $('riskAccountHint');
     if (hint) {
       hint.textContent = account + ' · riesgo diario ' + formatNumber(riskPct, 1) + ' % · ' +
-        tradesPerDay + ' op/día · saldo ' + formatMoney(balance);
+        tradesPerDay + ' op/día · capital inicio ' + formatMoney(budgetBase);
     }
 
-    setRiskItem('riskCapital', formatMoney(balance));
+    setRiskItem('riskCapital', formatMoney(budgetBase));
     setRiskItem('riskDailyPct', formatNumber(riskPct, 1) + ' %');
     setRiskItem('riskTradesPerDay', String(tradesPerDay));
 
     const risk = Store.computeRisk({
-      balance: balance,
+      balance: budgetBase,
       riskPct: riskPct,
       tradesPerDay: tradesPerDay,
       instrument: instrument,
-      stopTicks: stopTicks
+      stopTicks: stopTicks,
+      available: usage.valid ? usage.available : undefined
     });
 
     const warnEl = $('riskViabilityWarning');
-    const resultIds = ['riskBudget', 'riskTickValue', 'riskPerContract', 'riskPerTrade',
-      'riskContracts', 'riskCommission', 'riskTotal', 'riskRR', 'riskRecovery'];
+    const resultIds = ['riskBudget', 'riskUsedToday', 'riskAvailable', 'riskTickValue',
+      'riskPerContract', 'riskPerTrade', 'riskContracts', 'riskCommission', 'riskTotal',
+      'riskRR', 'riskRecovery'];
 
     if (!risk.valid) {
       resultIds.forEach(function (id) { setRiskItem(id, '—'); });
@@ -677,10 +693,14 @@
     }
 
     const totalRisk = risk.pm * risk.contracts;
-    setRiskItem('riskBudget', formatMoney(risk.dailyBudget));
+    setRiskItem('riskBudget', formatMoney(usage.valid ? usage.dailyBudget : risk.dailyBudget));
+    setRiskItem('riskUsedToday', formatMoney(usage.valid ? usage.used : 0),
+      usage.used > 0 ? 'warn' : '');
+    setRiskItem('riskAvailable', formatMoney(usage.valid ? usage.available : risk.available),
+      usage.valid && usage.exhausted ? 'warn' : '');
     setRiskItem('riskTickValue', formatMoney(risk.tickValue));
     setRiskItem('riskPerContract', formatMoney(risk.pm));
-    setRiskItem('riskPerTrade', formatMoney(risk.perTradeRisk));
+    setRiskItem('riskPerTrade', formatMoney(risk.perTradeCap));
     setRiskItem('riskContracts', String(risk.contracts));
     setRiskItem('riskCommission', formatMoney(risk.commission));
     setRiskItem('riskTotal', formatMoney(totalRisk));
@@ -709,10 +729,15 @@
     }
 
     if (warnEl) {
-      if (risk.contracts === 0) {
-        warnEl.textContent = 'Con un riesgo diario del ' + formatNumber(riskPct, 1) + ' % repartido en ' +
-          tradesPerDay + ' operaciones (' + formatMoney(risk.perTradeRisk) + ' por operación), un solo contrato de ' +
-          instrument + ' arriesga ' + formatMoney(risk.pm) +
+      if (usage.valid && usage.exhausted) {
+        warnEl.textContent = 'Sin presupuesto de riesgo disponible hoy: el presupuesto diario es ' +
+          formatMoney(usage.dailyBudget) + ' y las pérdidas de hoy suman ' + formatMoney(usage.used) +
+          '. No se sugieren contratos.';
+        warnEl.hidden = false;
+      } else if (risk.contracts === 0) {
+        warnEl.textContent = 'Con un riesgo diario del ' + formatNumber(riskPct, 1) +
+          ' % y un presupuesto disponible de ' + formatMoney(risk.available) +
+          ', un solo contrato de ' + instrument + ' arriesga ' + formatMoney(risk.pm) +
           '. El instrumento no es viable para esta cuenta con el riesgo configurado.';
         warnEl.hidden = false;
       } else {

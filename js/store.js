@@ -89,6 +89,12 @@ const Store = (function () {
     return String(value);
   }
 
+  /* Money is tracked to the cent; rounding keeps sums of floating-point
+   * `net` values from leaking sub-cent noise into the contract floor. */
+  function roundMoney(value) {
+    return Math.round(value * 100) / 100;
+  }
+
   function uid() {
     try {
       if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -826,21 +832,33 @@ const Store = (function () {
    *   P_m              = stopTicks * tickValue
    *   dailyBudget      = (riskPct / 100) * balance
    *   perTradeRiskPct  = riskPct / tradesPerDay      (tradesPerDay guarded to >= 1)
-   *   perTradeRisk     = (perTradeRiskPct / 100) * balance
-   *   contracts        = floor(perTradeRisk / P_m)
+   *   perTradeCap      = (perTradeRiskPct / 100) * balance   (= dailyBudget / tradesPerDay)
+   *   available        = remaining daily budget (dailyBudget - usedToday)
+   *   effectiveRisk    = min(perTradeCap, available)          (model B)
+   *   contracts        = floor(effectiveRisk / P_m)
    *
    * `riskPct` is the DAILY risk percentage; `tradesPerDay` defaults to the
    * per-account daily trade limit (3) and is never allowed to be 0. Commission
    * is reported separately and is NOT folded into `P_m`.
    *
+   * Model B: each trade is capped by its per-trade allowance (`perTradeCap`)
+   * AND limited by what remains of the daily budget (`available`, see
+   * `dailyRiskUsage`). The contract numerator is the smaller of the two, so a
+   * full budget never sizes more than one trade's worth into a single entry.
+   * When `available` is absent/non-finite the per-trade cap alone is used,
+   * keeping the pure calculator backward compatible; `available <= 0` yields
+   * 0 contracts.
+   *
    * Returns `{ valid, reason, dailyBudget, budget, dailyRiskPct, tradesPerDay,
-   * perTradeRisk, perTradeRiskPct, tickValue, stopTicks, pm, riskPerContract,
+   * perTradeRisk, perTradeRiskPct, perTradeCap, effectiveRisk, usedToday,
+   * available, exhausted, tickValue, stopTicks, pm, riskPerContract,
    * commission, contracts, viable, minBalanceForOneContract, size }`.
    * `budget` and `riskPerContract` are backward-compatible aliases for
-   * `dailyBudget` and `pm`. `valid` is false (and `contracts` 0) when an input
-   * is missing/non-numeric or `stopTicks <= 0`; `reason` names the first
-   * failing input. The viability warning applies when even one contract
-   * exceeds the per-trade budget.
+   * `dailyBudget` and `pm`; `perTradeRisk` is the legacy name for
+   * `perTradeCap`. `valid` is false (and `contracts` 0) when an input is
+   * missing/non-numeric or `stopTicks <= 0`; `reason` names the first failing
+   * input. The viability warning applies when even one contract exceeds the
+   * effective budget.
    */
   function computeRisk(inputs) {
     const opts = inputs || {};
@@ -852,6 +870,8 @@ const Store = (function () {
     const pointValue = spec ? numOr(spec.pointValue, 0) : 0;
     const tickValue = tick * pointValue;
     const stopTicks = resolveStopTicks(opts, spec);
+    const availableRaw = numOr(opts.available, NaN);
+    const hasAvailable = Number.isFinite(availableRaw);
 
     const result = {
       valid: false,
@@ -862,6 +882,11 @@ const Store = (function () {
       tradesPerDay: DAILY_LIMIT_DEFAULT,
       perTradeRisk: 0,
       perTradeRiskPct: 0,
+      perTradeCap: 0,
+      effectiveRisk: 0,
+      usedToday: 0,
+      available: 0,
+      exhausted: false,
       tickValue: tickValue,
       stopTicks: 0,
       pm: 0,
@@ -884,7 +909,13 @@ const Store = (function () {
     const perTradeRiskPct = riskPct / tradesPerDay;
     const perTradeRisk = (perTradeRiskPct / 100) * balance;
     const pm = stopTicks * tickValue;
-    const contracts = pm > 0 ? Math.floor(perTradeRisk / pm) : 0;
+    /* Model B: respect BOTH the per-trade allowance and the remaining daily
+     * budget. `available` is the day's remaining budget after realized losses;
+     * without it the per-trade cap alone applies (backward compatible). */
+    const effectiveRisk = hasAvailable ? Math.min(perTradeRisk, availableRaw) : perTradeRisk;
+    const contracts = (pm > 0 && effectiveRisk > 0)
+      ? Math.floor(effectiveRisk / pm)
+      : 0;
 
     result.valid = true;
     result.dailyBudget = dailyBudget;
@@ -893,6 +924,11 @@ const Store = (function () {
     result.tradesPerDay = tradesPerDay;
     result.perTradeRisk = perTradeRisk;
     result.perTradeRiskPct = perTradeRiskPct;
+    result.perTradeCap = perTradeRisk;
+    result.effectiveRisk = effectiveRisk;
+    result.usedToday = hasAvailable ? Math.max(0, dailyBudget - availableRaw) : 0;
+    result.available = hasAvailable ? availableRaw : dailyBudget;
+    result.exhausted = hasAvailable ? availableRaw <= 0 : false;
     result.stopTicks = stopTicks;
     result.tickValue = tickValue;
     result.pm = pm;
@@ -924,6 +960,99 @@ const Store = (function () {
     if (!(perTradeRiskPct > 0)) return null;
     const pm = stopTicks * tickValue;
     return pm / (perTradeRiskPct / 100);
+  }
+
+  /**
+   * Remaining daily risk budget for one account (pure).
+   *
+   *   dailyBudget = (riskPct / 100) * balance
+   *   used        = sum of |net| for that account's TODAY losers (net < 0)
+   *   available   = dailyBudget - used
+   *   exhausted   = available <= 0
+   *
+   * Only losing trades consume the budget; winners never reduce it. "Today"
+   * is `entryDate === todayISO()` unless an explicit `today` is passed, and
+   * trades are scoped to `account`. `trades` defaults to the store's trades,
+   * so the helper stays pure but is directly usable from the UI.
+   *
+   * `balance` is the capital base for the budget; the UI passes the
+   * start-of-day balance (`startOfDayBalance`) so today's realized losses are
+   * not counted twice (once by shrinking the base and once by `used`). All
+   * money fields are rounded to the cent.
+   *
+   * Returns `{ valid, reason, account, today, dailyBudget, used, available,
+   * exhausted, trades }`. `valid` is false when `account` is empty or
+   * `balance`/`riskPct` are missing/non-numeric; `reason` names the first
+   * failing input. A negative `balance` is allowed (a drawdown can leave the
+   * account below zero) and simply yields an exhausted budget. `trades` is the
+   * number of losing trades counted.
+   */
+  function dailyRiskUsage(inputs) {
+    const opts = inputs || {};
+    const account = strOr(opts.account, '');
+    const riskPct = numOr(opts.riskPct, NaN);
+    const balance = numOr(opts.balance, NaN);
+    const today = strOr(opts.today, '') || todayISO();
+    const source = Array.isArray(opts.trades) ? opts.trades : state.trades;
+
+    const result = {
+      valid: false,
+      reason: '',
+      account: account,
+      today: today,
+      dailyBudget: 0,
+      used: 0,
+      available: 0,
+      exhausted: false,
+      trades: 0
+    };
+
+    if (!account) { result.reason = 'account'; return result; }
+    if (!Number.isFinite(balance)) { result.reason = 'balance'; return result; }
+    if (!Number.isFinite(riskPct) || riskPct < 0) { result.reason = 'riskPct'; return result; }
+
+    let used = 0;
+    let losers = 0;
+    source.forEach(function (trade) {
+      if (!trade || trade.account !== account) return;
+      if (trade.entryDate !== today) return;
+      const net = computeTrade(trade).net;
+      if (net < 0) {
+        used += Math.abs(net);
+        losers += 1;
+      }
+    });
+
+    const dailyBudget = roundMoney((riskPct / 100) * balance);
+    /* Round `used` first so an exact exhaustion yields 0 (never -0) and the
+     * displayed available matches the contract floor. */
+    const usedRounded = roundMoney(used);
+    const available = roundMoney(dailyBudget - usedRounded);
+    result.valid = true;
+    result.dailyBudget = dailyBudget;
+    result.used = usedRounded;
+    result.available = available;
+    result.exhausted = available <= 0;
+    result.trades = losers;
+    return result;
+  }
+
+  /**
+   * Start-of-day balance for an account (pure): the initial balance plus the
+   * net of every trade dated before today. This is the capital base for the
+   * daily risk budget, so today's realized losses are not counted twice (once
+   * by shrinking the base and once by `dailyRiskUsage.used`). Accepts
+   * `(trades, account)` or `(account)` like the other discipline helpers.
+   */
+  function startOfDayBalance(a, b) {
+    const input = disciplineInput(a, b);
+    const today = todayISO();
+    let base = numOr(state.balances[input.account], 0);
+    input.trades.forEach(function (trade) {
+      if (trade.account !== input.account) return;
+      if (trade.entryDate && trade.entryDate < today) base += computeTrade(trade).net;
+    });
+    return roundMoney(base);
   }
 
   /* ------------------------------------------------------------------ */
@@ -1437,6 +1566,8 @@ const Store = (function () {
     losingStreak: losingStreak,
     countTradesToday: countTradesToday,
     dailyLimitStatus: dailyLimitStatus,
+    dailyRiskUsage: dailyRiskUsage,
+    startOfDayBalance: startOfDayBalance,
     dailyScalingPlan: dailyScalingPlan,
 
     importJSON: importJSON,

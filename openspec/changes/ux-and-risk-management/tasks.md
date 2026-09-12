@@ -77,3 +77,14 @@ Chain strategy: stacked-to-main
 - [x] 6.2 `js/app.js`: default the `contracts` field to the risk calculator's suggested contracts for the selected account/instrument while the field is untouched; stop auto-filling once the user edits it.
 - [x] 6.3 `index.html` + `js/app.js` + `js/store.js`: add a "Duplicar último trade" action (`Store.getLastTrade`) that copies the last saved trade's setup fields (account, instrument, strategy, direction, emotion, contracts, target/stop) into the form as a NEW trade (new id, no tradeNumber/exit), ready to edit.
 - [x] 6.4 `index.html` + `css/styles.css`: move `notes`, `target` and `plannedRisk` behind a "Más opciones" disclosure, collapsed by default, keeping the primary fields visible.
+
+## Phase 7: Remaining daily risk (PR 8)
+
+- [x] 7.1 `js/store.js`: add pure `dailyRiskUsage({ account, riskPct, balance })` → `{ valid, reason, account, today, dailyBudget, used, available, exhausted, trades }` (budget = riskPct% × balance; used = Σ |net| of the account's TODAY losers; available = budget − used; money rounded to the cent) and pure `startOfDayBalance(account)` (initial balance + net of trades dated before today); export both; extend `computeRisk` to accept an optional `available` that replaces the per-trade budget as the contract numerator (`contracts = floor(available / P_m)`), returning `usedToday`/`available`/`exhausted` and staying backward compatible without it.
+- [x] 7.2 `index.html` + `js/app.js`: Registro risk panel shows **Presupuesto diario**, **Usado hoy**, **Disponible** and **Contratos** from the remaining-budget model; when `available <= 0` it shows 0 contracts and the "Sin presupuesto de riesgo disponible hoy" warning; the daily budget is based on the start-of-day capital so realized losses are not double-counted. Reuses the dark tokens.
+
+## Phase 8: Model B — per-trade cap + remaining daily budget (PR 9)
+
+- [x] 8.1 `js/store.js`: cap the contract numerator by BOTH the per-trade allowance and the remaining daily budget — `perTradeCap = dailyBudget / tradesPerDay`, `effectiveRisk = min(perTradeCap, available)`, `contracts = floor(effectiveRisk / P_m)`; expose `perTradeCap`/`effectiveRisk` in the return shape (keeping `perTradeRisk` as the legacy alias); `tradesPerDay` guarded to ≥1; `available <= 0` → 0 contracts + the existing exhausted warning; backward compatible without `available` (per-trade cap alone). `dailyRiskUsage` rounds `used` before subtracting so exact exhaustion yields `0` (never `-0`).
+- [x] 8.2 `index.html` + `js/app.js`: Registro risk panel relabels "Riesgo por operación" → **Cupo por operación** (= `perTradeCap`) and keeps **Presupuesto diario / Usado hoy / Disponible / Contratos**; `renderRiskPanel` renders `risk.perTradeCap` and its JSDoc documents `effectiveRisk = min(perTradeCap, available)`.
+
