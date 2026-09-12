@@ -1199,6 +1199,21 @@ textarea {
     width: 100%;
   }
 
+  /* Keep the instrument Info button compact. The blanket `.btn { width: 100% }`
+   * above would otherwise stretch it across the whole field row and squash the
+   * instrument select. */
+  .field-inline .btn-info {
+    width: auto;
+    flex: 0 0 auto;
+  }
+
+  /* The logout button sits in a horizontal row with the user email; full width
+   * would collapse the email to nothing and overflow the header. */
+  .user-box .btn {
+    width: auto;
+    flex: 0 0 auto;
+  }
+
   .auth-gate {
     min-height: 0;
     padding: 24px 16px;
@@ -1214,19 +1229,21 @@ textarea {
   }
 
   /* Mobile density: keep identity/price/P&L columns, drop secondary ones.
+   * Scoped to the main trades table only (`:not(.scaling-table)`) so the daily
+   * scaling plan keeps all five of its columns.
    * Column order: 1 #, 2 Fecha, 3 Cuenta, 4 Instrumento, 5 Dirección,
    * 6 Contratos, 7 Entrada, 8 Salida, 9 Tipo de salida, 10 Emoción,
    * 11 Puntos, 12 Neto, 13 Acumulado, 14 Acciones. */
-  .trades-table th:nth-child(3),
-  .trades-table td:nth-child(3),
-  .trades-table th:nth-child(6),
-  .trades-table td:nth-child(6),
-  .trades-table th:nth-child(9),
-  .trades-table td:nth-child(9),
-  .trades-table th:nth-child(10),
-  .trades-table td:nth-child(10),
-  .trades-table th:nth-child(13),
-  .trades-table td:nth-child(13) {
+  .trades-table:not(.scaling-table) th:nth-child(3),
+  .trades-table:not(.scaling-table) td:nth-child(3),
+  .trades-table:not(.scaling-table) th:nth-child(6),
+  .trades-table:not(.scaling-table) td:nth-child(6),
+  .trades-table:not(.scaling-table) th:nth-child(9),
+  .trades-table:not(.scaling-table) td:nth-child(9),
+  .trades-table:not(.scaling-table) th:nth-child(10),
+  .trades-table:not(.scaling-table) td:nth-child(10),
+  .trades-table:not(.scaling-table) th:nth-child(13),
+  .trades-table:not(.scaling-table) td:nth-child(13) {
     display: none;
   }
 }

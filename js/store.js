@@ -865,9 +865,10 @@ const Store = (function () {
    * 0 contracts.
    *
    * Returns `{ valid, reason, dailyBudget, budget, dailyRiskPct, tradesPerDay,
-   * perTradeRisk, perTradeRiskPct, perTradeCap, effectiveRisk, usedToday,
-   * available, exhausted, tickValue, stopTicks, pm, riskPerContract,
-   * commission, contracts, viable, minBalanceForOneContract, size }`.
+   * perTradeRisk, perTradeRiskPct, perTradeCap, effectiveRisk,
+   * maxTicksForOneContract, usedToday, available, exhausted, tickValue,
+   * stopTicks, pm, riskPerContract, commission, contracts, viable,
+   * minBalanceForOneContract, size }`.
    * `budget` and `riskPerContract` are backward-compatible aliases for
    * `dailyBudget` and `pm`; `perTradeRisk` is the legacy name for
    * `perTradeCap`. `valid` is false (and `contracts` 0) when an input is
@@ -899,6 +900,7 @@ const Store = (function () {
       perTradeRiskPct: 0,
       perTradeCap: 0,
       effectiveRisk: 0,
+      maxTicksForOneContract: 0,
       usedToday: 0,
       available: 0,
       exhausted: false,
@@ -941,6 +943,10 @@ const Store = (function () {
     result.perTradeRiskPct = perTradeRiskPct;
     result.perTradeCap = perTradeRisk;
     result.effectiveRisk = effectiveRisk;
+    result.maxTicksForOneContract = maxTicksForOneContract({
+      effectiveRisk: effectiveRisk,
+      tickValue: tickValue
+    });
     result.usedToday = hasAvailable ? Math.max(0, dailyBudget - availableRaw) : 0;
     result.available = hasAvailable ? availableRaw : dailyBudget;
     result.exhausted = hasAvailable ? availableRaw <= 0 : false;
@@ -975,6 +981,27 @@ const Store = (function () {
     if (!(perTradeRiskPct > 0)) return null;
     const pm = stopTicks * tickValue;
     return pm / (perTradeRiskPct / 100);
+  }
+
+  /**
+   * Maximum stop distance in ticks that still fits exactly ONE contract within
+   * an effective per-trade risk budget (pure).
+   *
+   *   maxTicks = floor(effectiveRisk / tickValue)
+   *
+   * `effectiveRisk` is the same budget the calculator sizes contracts from
+   * (`min(perTradeCap, available)`); `tickValue` is `tick * pointValue` for the
+   * instrument. Returns 0 when either input is missing/non-positive or the
+   * budget cannot cover even one tick (e.g. an exhausted budget), so callers
+   * can hide the line instead of showing a meaningless zero.
+   */
+  function maxTicksForOneContract(inputs) {
+    const opts = inputs || {};
+    const effectiveRisk = numOr(opts.effectiveRisk, NaN);
+    const tickValue = numOr(opts.tickValue, NaN);
+    if (!Number.isFinite(effectiveRisk) || effectiveRisk <= 0) return 0;
+    if (!Number.isFinite(tickValue) || tickValue <= 0) return 0;
+    return Math.floor(effectiveRisk / tickValue);
   }
 
   /**
@@ -1571,6 +1598,7 @@ const Store = (function () {
     getTotalBalance: getTotalBalance,
     computeRisk: computeRisk,
     minBalanceForOneContract: minBalanceForOneContract,
+    maxTicksForOneContract: maxTicksForOneContract,
     microEquivalent: microEquivalent,
     clampRiskPct: clampRiskPct,
     clampDailyLimit: clampDailyLimit,

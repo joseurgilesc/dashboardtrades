@@ -679,6 +679,7 @@
 
     const warnEl = $('riskViabilityWarning');
     const suitabilityEl = $('riskSuitabilityHint');
+    const maxTicksItem = $('riskMaxTicksItem');
     const resultIds = ['riskBudget', 'riskUsedToday', 'riskAvailable', 'riskTickValue',
       'riskPerContract', 'riskPerTrade', 'riskContracts', 'riskCommission', 'riskTotal',
       'riskRR', 'riskRecovery'];
@@ -687,6 +688,7 @@
       resultIds.forEach(function (id) { setRiskItem(id, '—'); });
       if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
       if (suitabilityEl) { suitabilityEl.hidden = true; suitabilityEl.textContent = ''; }
+      if (maxTicksItem) { maxTicksItem.hidden = true; }
       return;
     }
 
@@ -707,6 +709,18 @@
     setRiskItem('riskPerContract', formatMoney(risk.pm));
     setRiskItem('riskPerTrade', formatMoney(risk.perTradeCap));
     setRiskItem('riskContracts', String(risk.contracts));
+    /* Alternative to fewer contracts: how wide a stop ONE contract can take
+     * within the effective per-trade budget. Hidden when the budget cannot
+     * cover a single tick or the day's budget is exhausted. */
+    if (maxTicksItem) {
+      const maxTicks = risk.maxTicksForOneContract;
+      if (maxTicks > 0 && !(usage.valid && usage.exhausted)) {
+        setRiskItem('riskMaxTicks', String(maxTicks) + ' ticks');
+        maxTicksItem.hidden = false;
+      } else {
+        maxTicksItem.hidden = true;
+      }
+    }
     setRiskItem('riskCommission', formatMoney(risk.commission));
     setRiskItem('riskTotal', formatMoney(totalRisk));
 
