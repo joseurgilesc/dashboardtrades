@@ -1406,6 +1406,480 @@ const Store = (function () {
   }
 
   /* ------------------------------------------------------------------ */
+  /* Discipline gamification (pure)                                      */
+  /* ------------------------------------------------------------------ */
+  /*
+   * Rewards PROCESS ONLY. XP and achievements are derived exclusively from
+   * recorded discipline signals (a recorded stop, planned risk/R/R, and
+   * daily-limit compliance). Profit/loss, leverage and trade volume NEVER
+   * award XP: more trades past the daily limit earn nothing.
+   */
+
+  const XP_TRADE = 2;             /* registering a trade (capped at the daily limit) */
+  const XP_STOP = 5;              /* recording a stop */
+  const XP_RR = 5;                /* meeting the configured minimum R/R */
+  const XP_DISCIPLINED_DAY = 10;  /* closing a day without exceeding the limit */
+  const XP_PER_LEVEL = 100;
+  const WEEKLY_DISCIPLINE_GOAL_DEFAULT = 5;
+
+  /* Process achievements. Each is earned from recorded data; `target` is the
+   * count required and is also the progress-bar denominator. */
+  const ACHIEVEMENTS = [
+    { id: 'first-stop', label: 'Primer stop registrado', description: 'Registra tu primer trade con stop.', target: 1 },
+    { id: 'disciplined-day', label: 'Día bajo el límite', description: 'Cierra un día sin superar el límite de operaciones.', target: 1 },
+    { id: 'risk-10', label: '10 trades dentro del riesgo', description: '10 trades que respetan el riesgo configurado por cuenta.', target: 10 },
+    { id: 'rr-10', label: '10 trades con R/R ≥ mínimo', description: '10 trades que cumplen el R/R mínimo configurado.', target: 10 },
+    { id: 'streak-5', label: 'Racha de 5 días', description: '5 días consecutivos sin superar el límite.', target: 5 },
+    { id: 'streak-10', label: 'Racha de 10 días', description: '10 días consecutivos sin superar el límite.', target: 10 }
+  ];
+
+  /** Trades for one account (or every account when `account` is empty). */
+  function tradesForAccount(trades, account) {
+    const list = Array.isArray(trades) ? trades : state.trades;
+    const key = strOr(account, '');
+    return list.filter(function (t) {
+      return t && !!t.entryDate && (!key || t.account === key);
+    });
+  }
+
+  /**
+   * Normalizes gamification options, deriving any missing value from the
+   * account's persisted risk settings and initial balance. `opts` may carry
+   * `{ limit, riskPct, minRR, initialBalance, today, weeklyGoal }`.
+   */
+  function gamifyOpts(account, opts) {
+    const src = opts || {};
+    const key = strOr(account, '');
+    const settings = getRiskSettings()[key] || {};
+    const limit = Number.isFinite(src.limit)
+      ? src.limit
+      : (Number.isFinite(settings.dailyTradeLimit) ? settings.dailyTradeLimit : DAILY_LIMIT_DEFAULT);
+    const riskPct = Number.isFinite(src.riskPct)
+      ? src.riskPct
+      : (Number.isFinite(settings.riskPct) ? settings.riskPct : RISK_PCT_DEFAULT);
+    const minRR = (Number.isFinite(src.minRR) && src.minRR > 0) ? src.minRR : getMinRR();
+    const initialBalance = Number.isFinite(src.initialBalance)
+      ? src.initialBalance
+      : numOr(state.balances[key], 0);
+    return {
+      account: key,
+      limit: limit,
+      riskPct: riskPct,
+      minRR: minRR,
+      initialBalance: initialBalance
+    };
+  }
+
+  /**
+   * Groups one account's trades by entry day and classifies each day:
+   * `{ date, count, limit, overTraded, disciplined }`, sorted by date
+   * ascending. A day is disciplined when it has at least one trade and its
+   * count does NOT exceed the limit (`overTraded = count > limit`).
+   */
+  function disciplineDays(trades, account, limit) {
+    const cap = Number.isFinite(limit) ? limit : DAILY_LIMIT_DEFAULT;
+    const byDate = {};
+    tradesForAccount(trades, account).forEach(function (t) {
+      byDate[t.entryDate] = (byDate[t.entryDate] || 0) + 1;
+    });
+    return Object.keys(byDate).sort().map(function (date) {
+      const count = byDate[date];
+      const overTraded = count > cap;
+      return { date: date, count: count, limit: cap, overTraded: overTraded, disciplined: !overTraded };
+    });
+  }
+
+  /**
+   * Current and best discipline streak for one account, measured in trading
+   * days. Only days with trades count, so non-trading calendar days never
+   * break a streak. `current` is the run of disciplined trading days ending
+   * at the most recent trading day (0 when that day over-traded); `best` is
+   * the longest disciplined run in the account's history.
+   */
+  function disciplineStreak(trades, account, limit) {
+    const days = disciplineDays(trades, account, limit);
+    let best = 0;
+    let run = 0;
+    days.forEach(function (day) {
+      if (day.disciplined) {
+        run += 1;
+        if (run > best) best = run;
+      } else {
+        run = 0;
+      }
+    });
+    let current = 0;
+    for (let i = days.length - 1; i >= 0; i -= 1) {
+      if (!days[i].disciplined) break;
+      current += 1;
+    }
+    return { current: current, best: best, days: days };
+  }
+
+  /**
+   * Risk in USD actually taken by a trade: `|entry - stop| * contracts *
+   * pointValue` when a stop is recorded, otherwise the recorded planned risk.
+   * Returns NaN when neither yields a usable value.
+   */
+  function tradeRiskUsd(trade) {
+    const stop = numOr(trade.stop, 0);
+    const entry = numOr(trade.entryPrice, 0);
+    const contracts = numOr(trade.contracts, 0);
+    const spec = instrumentSpec(trade.instrument);
+    const pointValue = spec ? numOr(spec.pointValue, 0) : 0;
+    if (stop > 0 && entry > 0 && contracts > 0 && pointValue > 0 && stop !== entry) {
+      return Math.abs(entry - stop) * contracts * pointValue;
+    }
+    const planned = numOr(trade.plannedRisk, 0);
+    return planned > 0 ? planned : NaN;
+  }
+
+  /**
+   * Counts trades that respected the account's risk budget at the moment they
+   * were taken: each trade's risk (`tradeRiskUsd`) must be at most the
+   * per-trade cap `(riskPct / 100) * runningBalance / tradesPerDay`, where the
+   * running balance is the initial balance plus the net of every earlier
+   * trade. Pure: reads only the passed trades and options.
+   */
+  function riskRespectedCount(trades, account, opts) {
+    const ctx = gamifyOpts(account, opts);
+    const list = sortChronologically(tradesForAccount(trades, account));
+    const perDay = resolveTradesPerDay(ctx.limit);
+    let balance = ctx.initialBalance;
+    let count = 0;
+    list.forEach(function (t) {
+      const cap = (ctx.riskPct / 100) * balance / perDay;
+      const risk = tradeRiskUsd(t);
+      if (Number.isFinite(risk) && risk > 0 && cap > 0 && risk <= cap + 1e-9) count += 1;
+      balance += computeTrade(t).net;
+    });
+    return count;
+  }
+
+  /** Counts trades whose recorded planned risk / target meet the min R/R. */
+  function rrMetCount(trades, account, opts) {
+    const ctx = gamifyOpts(account, opts);
+    let count = 0;
+    tradesForAccount(trades, account).forEach(function (t) {
+      const rr = computeRR({ plannedRisk: t.plannedRisk, target: t.target, minRR: ctx.minRR });
+      if (rr.valid && rr.meetsMinimum) count += 1;
+    });
+    return count;
+  }
+
+  /**
+   * Process-only XP breakdown for one account. No term reads P&L, leverage or
+   * contract count. Base journaling XP is capped at the daily limit so
+   * over-trading earns nothing beyond the process bonuses.
+   */
+  function xpBreakdown(trades, account, opts) {
+    const ctx = gamifyOpts(account, opts);
+    const list = sortChronologically(tradesForAccount(trades, account));
+    const dayCounts = {};
+    let base = 0;
+    let stop = 0;
+    let rr = 0;
+    list.forEach(function (t) {
+      const n = (dayCounts[t.entryDate] || 0) + 1;
+      dayCounts[t.entryDate] = n;
+      if (n <= ctx.limit) base += XP_TRADE;
+      if (numOr(t.stop, 0) > 0) stop += XP_STOP;
+      const res = computeRR({ plannedRisk: t.plannedRisk, target: t.target, minRR: ctx.minRR });
+      if (res.valid && res.meetsMinimum) rr += XP_RR;
+    });
+    const days = disciplineDays(trades, account, ctx.limit);
+    let dayBonus = 0;
+    let disciplinedDays = 0;
+    days.forEach(function (d) {
+      if (d.disciplined) {
+        dayBonus += XP_DISCIPLINED_DAY;
+        disciplinedDays += 1;
+      }
+    });
+    return {
+      total: base + stop + rr + dayBonus,
+      base: base,
+      stop: stop,
+      rr: rr,
+      dayBonus: dayBonus,
+      disciplinedDays: disciplinedDays,
+      perTrade: { base: XP_TRADE, stop: XP_STOP, rr: XP_RR },
+      perDay: XP_DISCIPLINED_DAY
+    };
+  }
+
+  /**
+   * Level from total XP: flat `XP_PER_LEVEL` per level, level 1 at 0 XP.
+   * Returns `{ xp, level, perLevel, intoLevel, toNext, progressPct }`.
+   */
+  function levelInfo(xp) {
+    const safe = Math.max(0, Math.floor(numOr(xp, 0)));
+    const intoLevel = safe % XP_PER_LEVEL;
+    return {
+      xp: safe,
+      level: Math.floor(safe / XP_PER_LEVEL) + 1,
+      perLevel: XP_PER_LEVEL,
+      intoLevel: intoLevel,
+      toNext: XP_PER_LEVEL - intoLevel,
+      progressPct: (intoLevel / XP_PER_LEVEL) * 100
+    };
+  }
+
+  /**
+   * Evaluates every process achievement for one account from recorded data.
+   * Returns the definitions enriched with `{ value, raw, earned, progressPct }`.
+   */
+  function evaluateAchievements(trades, account, opts) {
+    const ctx = gamifyOpts(account, opts);
+    const streak = disciplineStreak(trades, account, ctx.limit);
+    const days = disciplineDays(trades, account, ctx.limit);
+    const disciplinedDays = days.filter(function (d) { return d.disciplined; }).length;
+    const metrics = {
+      'first-stop': stopDiscipline(trades, account).withStop,
+      'disciplined-day': disciplinedDays,
+      'risk-10': riskRespectedCount(trades, account, ctx),
+      'rr-10': rrMetCount(trades, account, ctx),
+      'streak-5': streak.best,
+      'streak-10': streak.best
+    };
+    return ACHIEVEMENTS.map(function (a) {
+      const raw = metrics[a.id] || 0;
+      return {
+        id: a.id,
+        label: a.label,
+        description: a.description,
+        target: a.target,
+        value: Math.min(raw, a.target),
+        raw: raw,
+        earned: raw >= a.target,
+        progressPct: Math.min(100, (raw / a.target) * 100)
+      };
+    });
+  }
+
+  /** Local ISO date (YYYY-MM-DD) for a Date instance. */
+  function isoDate(d) {
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + mm + '-' + dd;
+  }
+
+  /** Monday..Sunday ISO bounds of the week containing `today`. */
+  function weekBounds(today) {
+    const parts = String(today || todayISO()).split('-').map(Number);
+    const base = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (!Number.isFinite(base.getTime())) return null;
+    const offset = (base.getDay() + 6) % 7; /* Monday = 0 */
+    const start = new Date(base.getFullYear(), base.getMonth(), base.getDate() - offset);
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+    return { start: isoDate(start), end: isoDate(end) };
+  }
+
+  function ratioItem(key, value, total) {
+    return { key: key, value: value, total: total, ratio: total > 0 ? value / total : 0 };
+  }
+
+  /** Highest positive ratio among the week's habit metrics. */
+  function pickBestHabit(recap) {
+    const candidates = [
+      ratioItem('discipline', recap.disciplinedDays, recap.daysWithTrades),
+      ratioItem('stop', recap.withStop, recap.totalTrades),
+      ratioItem('rr', recap.metRR, recap.rrEvaluable)
+    ].filter(function (c) { return c.total > 0; });
+    let best = null;
+    candidates.forEach(function (c) { if (!best || c.ratio > best.ratio) best = c; });
+    return best;
+  }
+
+  /** Most severe leak among the week's negative metrics (null when clean). */
+  function pickWorstLeak(recap) {
+    const candidates = [
+      ratioItem('missingStop', recap.missingStop, recap.totalTrades),
+      ratioItem('overtrading', recap.overTradedDays, recap.daysWithTrades),
+      ratioItem('rrMissed', recap.rrEvaluable - recap.metRR, recap.rrEvaluable)
+    ].filter(function (c) { return c.total > 0 && c.value > 0; });
+    let worst = null;
+    candidates.forEach(function (c) { if (!worst || c.ratio > worst.ratio) worst = c; });
+    return worst;
+  }
+
+  /**
+   * Weekly recap for one account (Monday..Sunday of `opts.today`). Returns the
+   * raw counts plus a `bestHabit` and `worstLeak` descriptor `{ key, value,
+   * total, ratio }` (or null). The UI maps `key` to Spanish copy.
+   */
+  function weeklyRecap(trades, account, opts) {
+    const ctx = gamifyOpts(account, opts);
+    const today = (opts && opts.today) ? opts.today : todayISO();
+    const bounds = weekBounds(today);
+    const result = {
+      valid: false,
+      account: ctx.account,
+      weekStart: '',
+      weekEnd: '',
+      totalTrades: 0,
+      daysWithTrades: 0,
+      disciplinedDays: 0,
+      overTradedDays: 0,
+      withStop: 0,
+      missingStop: 0,
+      metRR: 0,
+      rrEvaluable: 0,
+      bestHabit: null,
+      worstLeak: null
+    };
+    if (!bounds) return result;
+    result.valid = true;
+    result.weekStart = bounds.start;
+    result.weekEnd = bounds.end;
+
+    const list = tradesForAccount(trades, account).filter(function (t) {
+      return t.entryDate >= bounds.start && t.entryDate <= bounds.end;
+    });
+    result.totalTrades = list.length;
+    const days = disciplineDays(list, account, ctx.limit);
+    result.daysWithTrades = days.length;
+    result.disciplinedDays = days.filter(function (d) { return d.disciplined; }).length;
+    result.overTradedDays = days.filter(function (d) { return d.overTraded; }).length;
+    list.forEach(function (t) {
+      if (numOr(t.stop, 0) > 0) result.withStop += 1;
+      else result.missingStop += 1;
+      const rr = computeRR({ plannedRisk: t.plannedRisk, target: t.target, minRR: ctx.minRR });
+      if (rr.valid) {
+        result.rrEvaluable += 1;
+        if (rr.meetsMinimum) result.metRR += 1;
+      }
+    });
+    result.bestHabit = pickBestHabit(result);
+    result.worstLeak = pickWorstLeak(result);
+    return result;
+  }
+
+  /** Configurable-goal progress (weekly discipline + R/R compliance). */
+  function goalProgress(trades, account, opts, recap) {
+    const ctx = gamifyOpts(account, opts);
+    const week = recap || weeklyRecap(trades, account, opts);
+    const weeklyGoal = (opts && Number.isFinite(opts.weeklyGoal))
+      ? opts.weeklyGoal
+      : getWeeklyDisciplineGoal();
+    return {
+      dailyLimit: { target: ctx.limit },
+      minRR: { target: ctx.minRR },
+      weeklyDiscipline: {
+        value: week.disciplinedDays,
+        target: weeklyGoal,
+        pct: weeklyGoal > 0 ? Math.min(100, (week.disciplinedDays / weeklyGoal) * 100) : 0
+      },
+      rrCompliance: {
+        value: week.metRR,
+        total: week.rrEvaluable,
+        pct: week.rrEvaluable > 0 ? (week.metRR / week.rrEvaluable) * 100 : 0
+      }
+    };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Gamification persistence (settings.gamification, additive)          */
+  /* ------------------------------------------------------------------ */
+
+  /** Normalizes the persisted `settings.gamification` block. */
+  function normalizeGamification(raw) {
+    const src = (raw && typeof raw === 'object') ? raw : {};
+    const earned = {};
+    if (src.achievements && typeof src.achievements === 'object') {
+      Object.keys(src.achievements).forEach(function (id) {
+        if (src.achievements[id]) earned[id] = true;
+      });
+    }
+    return {
+      xp: Math.max(0, intOr(src.xp, 0)),
+      achievements: earned,
+      bestStreak: Math.max(0, intOr(src.bestStreak, 0)),
+      weeklyDisciplineGoal: Math.max(0, intOr(src.weeklyDisciplineGoal, WEEKLY_DISCIPLINE_GOAL_DEFAULT))
+    };
+  }
+
+  function getGamification() {
+    const raw = (state.settings && typeof state.settings === 'object') ? state.settings.gamification : undefined;
+    return normalizeGamification(raw);
+  }
+
+  function getWeeklyDisciplineGoal() {
+    return getGamification().weeklyDisciplineGoal;
+  }
+
+  /** Persists the weekly discipline goal (non-negative integer). */
+  function setWeeklyDisciplineGoal(value) {
+    const n = intOr(value, NaN);
+    const next = getGamification();
+    if (Number.isFinite(n) && n >= 0) next.weeklyDisciplineGoal = n;
+    setSettings({ gamification: next });
+    return next.weeklyDisciplineGoal;
+  }
+
+  /**
+   * Recomputes gamification from the recorded data and persists the
+   * high-water marks (max XP, earned achievement ids, best streak). Only
+   * writes when something actually changed, so a snapshot-triggered re-render
+   * cannot loop.
+   */
+  function syncGamification(account) {
+    const next = normalizeGamification(getGamification());
+    let changed = false;
+
+    const computedXp = xpBreakdown(state.trades, account).total;
+    if (computedXp > next.xp) { next.xp = computedXp; changed = true; }
+
+    const streak = disciplineStreak(state.trades, account);
+    if (streak.best > next.bestStreak) { next.bestStreak = streak.best; changed = true; }
+
+    evaluateAchievements(state.trades, account).forEach(function (a) {
+      if (a.earned && !next.achievements[a.id]) {
+        next.achievements[a.id] = true;
+        changed = true;
+      }
+    });
+
+    if (changed) setSettings({ gamification: next });
+    return next;
+  }
+
+  /**
+   * Aggregated, account-scoped gamification view for the UI: persisted
+   * high-water marks merged with the current computed state. Persists any new
+   * high-water mark as a side effect (see `syncGamification`).
+   */
+  function getDisciplineSummary(account) {
+    const key = strOr(account, '');
+    const ctx = gamifyOpts(key, null);
+    const streak = disciplineStreak(state.trades, key, ctx.limit);
+    const computed = xpBreakdown(state.trades, key);
+    const stored = syncGamification(key);
+    const xp = Math.max(computed.total, stored.xp);
+    const achievements = evaluateAchievements(state.trades, key);
+    achievements.forEach(function (a) {
+      if (stored.achievements[a.id]) a.earned = true;
+    });
+    const recap = weeklyRecap(state.trades, key);
+    const goals = goalProgress(state.trades, key, null, recap);
+    return {
+      account: key,
+      xp: xp,
+      computedXp: computed,
+      level: levelInfo(xp),
+      streak: {
+        current: streak.current,
+        best: Math.max(streak.best, stored.bestStreak)
+      },
+      days: streak.days,
+      achievements: achievements,
+      recap: recap,
+      goals: goals,
+      weeklyGoal: stored.weeklyDisciplineGoal
+    };
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Import / export                                                     */
   /* ------------------------------------------------------------------ */
 
@@ -1613,6 +2087,25 @@ const Store = (function () {
     dailyRiskUsage: dailyRiskUsage,
     startOfDayBalance: startOfDayBalance,
     dailyScalingPlan: dailyScalingPlan,
+
+    /* Discipline gamification (pure except getDisciplineSummary/syncGamification). */
+    disciplineDays: disciplineDays,
+    disciplineStreak: disciplineStreak,
+    tradeRiskUsd: tradeRiskUsd,
+    riskRespectedCount: riskRespectedCount,
+    rrMetCount: rrMetCount,
+    xpBreakdown: xpBreakdown,
+    levelInfo: levelInfo,
+    evaluateAchievements: evaluateAchievements,
+    weeklyRecap: weeklyRecap,
+    weekBounds: weekBounds,
+    goalProgress: goalProgress,
+    getGamification: getGamification,
+    getWeeklyDisciplineGoal: getWeeklyDisciplineGoal,
+    setWeeklyDisciplineGoal: setWeeklyDisciplineGoal,
+    syncGamification: syncGamification,
+    getDisciplineSummary: getDisciplineSummary,
+    ACHIEVEMENTS: ACHIEVEMENTS,
 
     importJSON: importJSON,
     exportJSON: exportJSON,

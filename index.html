@@ -79,6 +79,14 @@
     <button type="button" class="tab-button" role="tab" data-tab="ajustes" aria-selected="false" aria-controls="tab-ajustes">Ajustes</button>
   </nav>
 
+  <div class="global-search-bar" id="globalSearchBar">
+    <div class="global-search-field">
+      <label class="sr-only" for="globalSearch">Buscar en todos los trades</label>
+      <input type="search" id="globalSearch" placeholder="Buscar en todos los trades (pulsa /)" autocomplete="off">
+    </div>
+    <span class="global-search-hint" id="globalSearchHint" role="status" aria-live="polite" hidden></span>
+  </div>
+
   <p id="appStatus" class="app-status" role="status" aria-live="polite" hidden></p>
 
   <div class="filters" id="filtersBar" aria-label="Filtros">
@@ -364,6 +372,45 @@
         <div class="kpi-card"><span class="kpi-label">Peor trade</span><span class="kpi-value" id="kpiWorstTrade">$0.00</span></div>
       </div>
 
+      <div class="card" id="disciplineCard">
+        <div class="card-header card-header-row">
+          <h2>Nivel y disciplina</h2>
+          <span class="level-badge" id="levelBadge">Nivel 1</span>
+        </div>
+        <div class="level-progress">
+          <div class="progress-track"><div class="progress-fill" id="levelProgressFill" style="width:0%"></div></div>
+          <span class="progress-label" id="levelProgressLabel">0 / 100 XP</span>
+        </div>
+        <p class="hint">El XP premia el proceso: stop registrado, R/R planificado y días dentro del límite. Nunca el beneficio ni el volumen.</p>
+        <div class="streak-grid">
+          <div class="streak-item">
+            <span class="streak-label">Racha actual</span>
+            <span class="streak-value" id="streakCurrent">0 días</span>
+          </div>
+          <div class="streak-item">
+            <span class="streak-label">Mejor racha</span>
+            <span class="streak-value" id="streakBest">0 días</span>
+          </div>
+        </div>
+        <div class="goals-list" id="goalsList"></div>
+      </div>
+
+      <div class="card" id="achievementsCard">
+        <div class="card-header card-header-row">
+          <h2>Logros de proceso</h2>
+          <span class="table-summary" id="achievementsSummary"></span>
+        </div>
+        <div class="achievements-grid" id="achievementsList"></div>
+      </div>
+
+      <div class="card" id="weeklyRecapCard">
+        <div class="card-header card-header-row">
+          <h2>Resumen semanal</h2>
+          <span class="table-summary" id="weeklyRange"></span>
+        </div>
+        <div class="weekly-recap" id="weeklyRecap"></div>
+      </div>
+
       <div class="card">
         <div class="card-header card-header-row">
           <h2>Plan de escalado diario</h2>
@@ -496,6 +543,10 @@
           <div class="field">
             <label for="minRR">R/R mínimo</label>
             <input type="number" id="minRR" min="0" step="0.1" inputmode="decimal">
+          </div>
+          <div class="field">
+            <label for="weeklyDisciplineGoal">Meta semanal (días bajo el límite)</label>
+            <input type="number" id="weeklyDisciplineGoal" min="0" step="1" inputmode="numeric">
           </div>
         </div>
         <p class="risk-warning" id="riskSettingsWarning" role="status" hidden></p>

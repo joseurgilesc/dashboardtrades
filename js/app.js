@@ -16,6 +16,7 @@
     sortKey: 'entryDate',
     sortDir: 'asc',
     search: '',
+    globalSearch: '',
     filters: {
       account: '',
       instrument: '',
@@ -37,7 +38,7 @@
   let contractsTouched = false;
 
   /* Top-level regions hidden until authentication resolves. */
-  const APP_REGIONS = ['.tabs', '#filtersBar', '.app-main', '.app-footer'];
+  const APP_REGIONS = ['.tabs', '#globalSearchBar', '#filtersBar', '.app-main', '.app-footer'];
 
   const moneyFmt = new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -243,7 +244,12 @@
 
   function getFilteredTrades() {
     const f = state.filters;
-    return Store.getTrades().filter(function (t) {
+    const all = Store.getTrades();
+    /* A global search ignores the filter bar and looks across every trade. */
+    if (state.globalSearch) {
+      return all.filter(matchesGlobalSearch);
+    }
+    return all.filter(function (t) {
       if (f.account && t.account !== f.account) return false;
       if (f.instrument && t.instrument !== f.instrument) return false;
       if (f.strategy && t.strategy !== f.strategy) return false;
@@ -252,6 +258,17 @@
       if (f.dateTo && t.entryDate > f.dateTo) return false;
       return true;
     });
+  }
+
+  /** Full-text match across every trade, independent of the filter bar. */
+  function matchesGlobalSearch(trade) {
+    if (!state.globalSearch) return true;
+    const haystack = [
+      trade.tradeNumber, trade.account, trade.instrument, trade.direction,
+      trade.strategy, strategyLabelOf(trade.strategy), trade.exitType,
+      trade.emotion, trade.entryDate, trade.exitDate, trade.notes
+    ].join(' ').toLowerCase();
+    return haystack.indexOf(state.globalSearch) !== -1;
   }
 
   function matchesSearch(trade) {
@@ -423,8 +440,22 @@
     if (summary) {
       summary.textContent = rows.length + (rows.length === 1 ? ' trade' : ' trades');
     }
+    renderGlobalSearchHint();
     renderDisciplineSummary(trades);
     renderTableHeaders();
+  }
+
+  /** Tells the user that an active global search bypasses the filter bar. */
+  function renderGlobalSearchHint() {
+    const hint = $('globalSearchHint');
+    if (!hint) return;
+    if (state.globalSearch) {
+      hint.textContent = 'Buscando en todos los trades (los filtros no se aplican).';
+      hint.hidden = false;
+    } else {
+      hint.hidden = true;
+      hint.textContent = '';
+    }
   }
 
   /**
@@ -694,6 +725,7 @@
     const filtered = getFilteredTrades();
     renderTable(filtered);
     renderKpis(filtered);
+    renderGamification();
     renderChartsIfVisible(filtered);
   }
 
@@ -1172,6 +1204,140 @@
     }
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Discipline gamification (Dashboard)                                 */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Renders the account-scoped discipline view: level + XP progress, current
+   * and best streaks, configurable-goal progress bars, process achievements
+   * and the weekly recap. All values come from the pure store helpers; XP is
+   * process-only (see `Store.xpBreakdown`).
+   */
+  function renderGamification() {
+    if (typeof Store.getDisciplineSummary !== 'function') return;
+    const accountEl = $('account');
+    const account = accountEl && accountEl.value ? accountEl.value : ACCOUNTS[0];
+    const summary = Store.getDisciplineSummary(account);
+
+    const badge = $('levelBadge');
+    if (badge) badge.textContent = 'Nivel ' + summary.level.level;
+
+    const fill = $('levelProgressFill');
+    if (fill) fill.style.width = summary.level.progressPct.toFixed(1) + '%';
+    const label = $('levelProgressLabel');
+    if (label) {
+      label.textContent = summary.level.intoLevel + ' / ' + summary.level.perLevel +
+        ' XP · ' + summary.xp + ' XP totales';
+    }
+
+    const current = $('streakCurrent');
+    if (current) current.textContent = pluralDays(summary.streak.current);
+    const best = $('streakBest');
+    if (best) best.textContent = pluralDays(summary.streak.best);
+
+    renderGoals(summary);
+    renderAchievements(summary);
+    renderWeeklyRecap(summary);
+  }
+
+  function pluralDays(n) {
+    return n + (n === 1 ? ' día' : ' días');
+  }
+
+  function goalBar(label, valueText, pct) {
+    return '<div class="goal-row">' +
+      '<div class="goal-head"><span class="goal-label">' + escapeHtml(label) + '</span>' +
+      '<span class="goal-value">' + escapeHtml(valueText) + '</span></div>' +
+      '<div class="progress-track"><div class="progress-fill" style="width:' +
+        pct.toFixed(1) + '%"></div></div>' +
+      '</div>';
+  }
+
+  function renderGoals(summary) {
+    const el = $('goalsList');
+    if (!el) return;
+    const g = summary.goals;
+    const parts = [
+      '<div class="goal-row goal-row-plain">' +
+        '<span class="goal-label">Límite de operaciones/día</span>' +
+        '<span class="goal-value">' + escapeHtml(String(g.dailyLimit.target)) + ' op/día</span>' +
+      '</div>',
+      goalBar('Meta semanal de disciplina',
+        g.weeklyDiscipline.value + ' / ' + g.weeklyDiscipline.target + ' días',
+        g.weeklyDiscipline.pct),
+      goalBar('R/R mínimo (' + formatNumber(g.minRR.target, 1) + ':1)',
+        g.rrCompliance.value + ' / ' + g.rrCompliance.total + ' trades',
+        g.rrCompliance.pct)
+    ];
+    el.innerHTML = parts.join('');
+  }
+
+  function renderAchievements(summary) {
+    const el = $('achievementsList');
+    if (!el) return;
+    const list = summary.achievements || [];
+    el.innerHTML = list.map(function (a) {
+      const stateText = a.earned ? 'Conseguido' : a.value + ' / ' + a.target;
+      return '<div class="achievement' + (a.earned ? ' earned' : '') + '">' +
+        '<div class="achievement-head">' +
+          '<span class="achievement-label">' + escapeHtml(a.label) + '</span>' +
+          '<span class="achievement-state">' + escapeHtml(stateText) + '</span>' +
+        '</div>' +
+        '<p class="achievement-desc">' + escapeHtml(a.description) + '</p>' +
+        '<div class="progress-track"><div class="progress-fill" style="width:' +
+          a.progressPct.toFixed(1) + '%"></div></div>' +
+        '</div>';
+    }).join('');
+    const summaryEl = $('achievementsSummary');
+    if (summaryEl) {
+      const earned = list.filter(function (a) { return a.earned; }).length;
+      summaryEl.textContent = earned + ' / ' + list.length + ' logros';
+    }
+  }
+
+  /** Maps a store recap descriptor to Spanish copy. */
+  function recapText(item, kind) {
+    if (!item) {
+      return kind === 'best'
+        ? 'Sin datos suficientes esta semana.'
+        : 'Sin fugas destacadas esta semana.';
+    }
+    const value = item.value;
+    const total = item.total;
+    switch (item.key) {
+      case 'discipline': return 'Respetaste el límite ' + value + '/' + total + ' días.';
+      case 'stop': return value + '/' + total + ' trades con stop registrado.';
+      case 'rr': return value + '/' + total + ' trades cumplieron el R/R mínimo.';
+      case 'missingStop': return value + (value === 1 ? ' trade sin stop.' : ' trades sin stop.');
+      case 'overtrading': return value + (value === 1 ? ' día por encima del límite.' : ' días por encima del límite.');
+      case 'rrMissed': return value + (value === 1 ? ' trade por debajo del R/R mínimo.' : ' trades por debajo del R/R mínimo.');
+      default: return '';
+    }
+  }
+
+  function renderWeeklyRecap(summary) {
+    const el = $('weeklyRecap');
+    if (!el) return;
+    const recap = summary.recap;
+    const range = $('weeklyRange');
+    if (range) range.textContent = recap.valid ? recap.weekStart + ' → ' + recap.weekEnd : '';
+    if (!recap.valid || recap.totalTrades === 0) {
+      el.innerHTML = '<p class="recap-empty">Aún no hay trades registrados esta semana.</p>';
+      return;
+    }
+    el.innerHTML =
+      '<div class="recap-item">' +
+        '<span class="recap-label">Mejor hábito</span>' +
+        '<span class="recap-value pos">' + escapeHtml(recapText(recap.bestHabit, 'best')) + '</span>' +
+      '</div>' +
+      '<div class="recap-item">' +
+        '<span class="recap-label">Mayor fuga</span>' +
+        '<span class="recap-value' + (recap.worstLeak ? ' warn' : '') + '">' +
+          escapeHtml(recapText(recap.worstLeak, 'worst')) + '</span>' +
+      '</div>';
+  }
+
   function validateForm() {
     const errors = [];
     const form = readForm();
@@ -1451,6 +1617,7 @@
     if (filtersBar) filtersBar.hidden = tab === 'ajustes';
 
     if (tab === 'dashboard') {
+      renderGamification();
       renderChartsIfVisible(getFilteredTrades());
     }
   }
@@ -1490,6 +1657,10 @@
     });
     const minRREl = $('minRR');
     if (minRREl) minRREl.value = String(Store.getMinRR());
+    const weeklyEl = $('weeklyDisciplineGoal');
+    if (weeklyEl && Store.getWeeklyDisciplineGoal) {
+      weeklyEl.value = String(Store.getWeeklyDisciplineGoal());
+    }
     const warnEl = $('riskSettingsWarning');
     if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
   }
@@ -1563,8 +1734,21 @@
     }
 
     Store.setSettings({ riskPct: risk, dailyTradeLimit: limits, minRR: minRR });
+    const weeklyEl = $('weeklyDisciplineGoal');
+    if (weeklyEl && Store.setWeeklyDisciplineGoal) {
+      const rawWeekly = weeklyEl.value.trim();
+      if (rawWeekly !== '') {
+        const parsedWeekly = parseInt(rawWeekly, 10);
+        if (Number.isFinite(parsedWeekly) && parsedWeekly >= 0) {
+          Store.setWeeklyDisciplineGoal(parsedWeekly);
+        } else {
+          errors.push('La meta semanal debe ser un número no negativo.');
+        }
+      }
+    }
     loadRiskSettingsIntoForm();
     renderRiskPanel();
+    renderGamification();
 
     if (errors.length) {
       setStatus(errors.join(' '), 'error');
@@ -1826,6 +2010,41 @@
       state.search = event.target.value.trim().toLowerCase();
       refreshTableAndKpis();
     });
+
+    /* Global search: searches every trade, ignoring the filter bar. The `/`
+     * shortcut focuses it from anywhere outside a form field; Escape clears
+     * it while focused. */
+    const globalSearchEl = $('globalSearch');
+    if (globalSearchEl) {
+      globalSearchEl.addEventListener('input', function (event) {
+        state.globalSearch = event.target.value.trim().toLowerCase();
+        refreshTableAndKpis();
+      });
+      document.addEventListener('keydown', function (event) {
+        const target = event.target;
+        const tag = target && target.tagName ? target.tagName.toLowerCase() : '';
+        const typing = tag === 'input' || tag === 'textarea' || tag === 'select' ||
+          (target && target.isContentEditable);
+        if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !typing) {
+          event.preventDefault();
+          globalSearchEl.focus();
+          if (globalSearchEl.select) globalSearchEl.select();
+        } else if (event.key === 'Escape' && document.activeElement === globalSearchEl && globalSearchEl.value) {
+          globalSearchEl.value = '';
+          state.globalSearch = '';
+          refreshTableAndKpis();
+        }
+      });
+    }
+
+    /* The discipline panel is account-scoped: refresh it when the form's
+     * account changes while the dashboard is visible. */
+    const accountSelect = $('account');
+    if (accountSelect) {
+      accountSelect.addEventListener('change', function () {
+        if (isDashboardVisible()) renderGamification();
+      });
+    }
 
     ['filterAccount', 'filterInstrument', 'filterStrategy', 'filterEmotion',
       'filterDateFrom', 'filterDateTo'].forEach(function (id) {
