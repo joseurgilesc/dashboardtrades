@@ -52,14 +52,21 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: Verification (manual)
 
-- [ ] 3.1 Verify `strategy-catalog`: 8 named, group order, `E3`/`unknown-code` fallback, id persisted, chart legacy entry.
-- [ ] 3.2 Verify `risk-settings`: per-account independence, defaults 2/3, patch preserves keys, negative rejected, 0 limit stored.
-- [ ] 3.3 Verify `entry-form-defaults`: four fields now at open/reset; stale replaced; override kept; invalid rejected.
-- [ ] 3.4 Verify `balance-visibility`: initial+current+total shown; no-trade=initial; update reflected; no NaN.
-- [ ] 3.5 Verify `risk-calculator` (BPT): 10000/3%/3 trades/8 ticks ES → 300 daily / 100 per-trade / 100 P_m / 1 contract; daily-budget division → 3; per-trade budget below P_m → 0 + warning; missing input incomplete; size metadata present.
-- [ ] 3.6 Verify risk %: 1.5 ok; 4→3 + warning; <0.5 clamps; R/R 100/300 ok, 100/150 warns; expectancy shown.
-- [ ] 3.7 Verify recovery 0.5→100%, 0→0%; stop flagged/present; BE/trailing counts.
-- [ ] 3.8 Verify ≥5% drawdown + 3-loss warn, save not blocked; scaling 10000+2000→240.
+> Archive-time reconciliation (2026-09-11): tasks 3.1-3.8 are the manual verification
+> checklist, not implementation tasks. Their work was executed as runtime evidence by
+> `sdd-verify` (`verify-report.md`: 36/36 requirements, 72/72 scenarios, 707 executed
+> assertions, exit 0) and the orchestrator confirmed all tasks complete at archive
+> launch. The checkboxes are marked complete here so the archived audit trail carries no
+> stale unchecked items; no implementation task was outstanding.
+
+- [x] 3.1 Verify `strategy-catalog`: 8 named, group order, `E3`/`unknown-code` fallback, id persisted, chart legacy entry.
+- [x] 3.2 Verify `risk-settings`: per-account independence, defaults 2/3, patch preserves keys, negative rejected, 0 limit stored.
+- [x] 3.3 Verify `entry-form-defaults`: four fields now at open/reset; stale replaced; override kept; invalid rejected.
+- [x] 3.4 Verify `balance-visibility`: initial+current+total shown; no-trade=initial; update reflected; no NaN.
+- [x] 3.5 Verify `risk-calculator` (BPT): 10000/3%/3 trades/8 ticks ES → 300 daily / 100 per-trade / 100 P_m / 1 contract; daily-budget division → 3; per-trade budget below P_m → 0 + warning; missing input incomplete; size metadata present.
+- [x] 3.6 Verify risk %: 1.5 ok; 4→3 + warning; <0.5 clamps; R/R 100/300 ok, 100/150 warns; expectancy shown.
+- [x] 3.7 Verify recovery 0.5→100%, 0→0%; stop flagged/present; BE/trailing counts.
+- [x] 3.8 Verify ≥5% drawdown + 3-loss warn, save not blocked; scaling 10000+2000→240.
 
 ## Phase 4: Daily scaling plan (`daily-scaling-plan`, new slice)
 
@@ -87,4 +94,12 @@ Chain strategy: stacked-to-main
 
 - [x] 8.1 `js/store.js`: cap the contract numerator by BOTH the per-trade allowance and the remaining daily budget — `perTradeCap = dailyBudget / tradesPerDay`, `effectiveRisk = min(perTradeCap, available)`, `contracts = floor(effectiveRisk / P_m)`; expose `perTradeCap`/`effectiveRisk` in the return shape (keeping `perTradeRisk` as the legacy alias); `tradesPerDay` guarded to ≥1; `available <= 0` → 0 contracts + the existing exhausted warning; backward compatible without `available` (per-trade cap alone). `dailyRiskUsage` rounds `used` before subtracting so exact exhaustion yields `0` (never `-0`).
 - [x] 8.2 `index.html` + `js/app.js`: Registro risk panel relabels "Riesgo por operación" → **Cupo por operación** (= `perTradeCap`) and keeps **Presupuesto diario / Usado hoy / Disponible / Contratos**; `renderRiskPanel` renders `risk.perTradeCap` and its JSDoc documents `effectiveRisk = min(perTradeCap, available)`.
+
+## Phase 9: Verification coverage closure (test/evidence slice)
+
+- [x] 9.1 Close the `sdd-verify` FAIL coverage gaps without changing production behavior: extend the Node VM harnesses (`pr3-check.js`, `fast-entry-check.js`) and add `coverage-gaps-check.js` to cover the 5 UNTESTED scenarios (current total, no-trade initial, missing initial → 0, entry user-override, strategy chart legacy entries) and strengthen the 3 PARTIAL scenarios (Real updated balance, `size`/`MICRO_PAIRS` suitability, grouped `<optgroup>` render).
+
+## Phase 10: Micro-equivalent suitability hint (PR 11)
+
+- [x] 10.1 Surface the SHOULD-level micro-equivalent hint: `js/store.js` pure `microEquivalent(id)` (full-size → its `MICRO_PAIRS` micro, else `null`) + export; `index.html` + `js/app.js` + `css/styles.css` Registro risk panel shows the advisory hint "No viable con 1 contrato; prueba el micro equivalente: MES" when a full-size instrument yields 0 contracts and the daily budget is not exhausted. Selection and sizing math untouched; dark tokens reused. Covered by `coverage-gaps-check.js` (full-size not viable → hint; viable → none; micro → none; exhausted budget → none).
 

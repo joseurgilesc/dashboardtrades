@@ -800,6 +800,21 @@ const Store = (function () {
   }
 
   /**
+   * Resolves the micro equivalent of a full-size instrument (pure), using the
+   * `MICRO_PAIRS` catalog. Returns the micro symbol, or null when the id is
+   * empty/unknown, already micro, or has no mapped equivalent.
+   */
+  function microEquivalent(id) {
+    const key = strOr(id, '');
+    if (!key) return null;
+    const spec = instrumentSpec(key);
+    if (!spec || spec.size !== 'full') return null;
+    const pairs = (typeof MICRO_PAIRS !== 'undefined' && MICRO_PAIRS) ? MICRO_PAIRS : null;
+    if (!pairs) return null;
+    return pairs[key] || null;
+  }
+
+  /**
    * Resolves a stop expressed in ticks from either an explicit `stopTicks`
    * input or the legacy `stopDistance` (points), converted via the
    * instrument's tick size. Returns NaN when neither yields a usable value.
@@ -1556,6 +1571,7 @@ const Store = (function () {
     getTotalBalance: getTotalBalance,
     computeRisk: computeRisk,
     minBalanceForOneContract: minBalanceForOneContract,
+    microEquivalent: microEquivalent,
     clampRiskPct: clampRiskPct,
     clampDailyLimit: clampDailyLimit,
     getMinRR: getMinRR,

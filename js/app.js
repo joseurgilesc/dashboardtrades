@@ -603,7 +603,10 @@
    * warning; when one contract still exceeds the available budget a viability
    * warning is shown. A recorded stop price yields the stop in ticks
    * (|entry - stop| / tick) and takes precedence over the tick input; a
-   * recorded planned risk / target feed the R/R.
+   * recorded planned risk / target feed the R/R. When a full-size instrument
+   * is not viable for the account (0 contracts) and the budget is not
+   * exhausted, an advisory hint points at its micro equivalent from
+   * MICRO_PAIRS; it never changes the selection or the sizing math.
    */
   function renderRiskPanel() {
     const accountEl = $('account');
@@ -675,6 +678,7 @@
     });
 
     const warnEl = $('riskViabilityWarning');
+    const suitabilityEl = $('riskSuitabilityHint');
     const resultIds = ['riskBudget', 'riskUsedToday', 'riskAvailable', 'riskTickValue',
       'riskPerContract', 'riskPerTrade', 'riskContracts', 'riskCommission', 'riskTotal',
       'riskRR', 'riskRecovery'];
@@ -682,6 +686,7 @@
     if (!risk.valid) {
       resultIds.forEach(function (id) { setRiskItem(id, '—'); });
       if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
+      if (suitabilityEl) { suitabilityEl.hidden = true; suitabilityEl.textContent = ''; }
       return;
     }
 
@@ -743,6 +748,22 @@
       } else {
         warnEl.hidden = true;
         warnEl.textContent = '';
+      }
+    }
+
+    /* Size suitability hint: when a full-size instrument cannot be sized even
+     * with one contract (and the day's budget is not simply exhausted), point
+     * at its micro equivalent from MICRO_PAIRS. Advisory only: the selection
+     * is never changed and the sizing math is untouched. */
+    if (suitabilityEl) {
+      const micro = risk.size === 'full' ? Store.microEquivalent(instrument) : null;
+      if (micro && risk.contracts === 0 && !(usage.valid && usage.exhausted)) {
+        suitabilityEl.textContent = 'No viable con 1 contrato; prueba el micro equivalente: ' +
+          micro + '.';
+        suitabilityEl.hidden = false;
+      } else {
+        suitabilityEl.hidden = true;
+        suitabilityEl.textContent = '';
       }
     }
   }

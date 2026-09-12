@@ -645,6 +645,17 @@ textarea {
   font-size: 13px;
 }
 
+/* Advisory hint (e.g. try the micro equivalent); muted, not a warning. */
+.risk-hint {
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 /* Amber signal for values that trip a warning threshold (e.g. R/R < min). */
 .warn {
   color: var(--amber);

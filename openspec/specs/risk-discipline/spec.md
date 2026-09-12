@@ -106,18 +106,19 @@ The system MUST compute the selected account's current-day drawdown and losing-t
 - WHEN the user submits a valid trade
 - THEN the trade is saved successfully
 
-### Requirement: Progressive Scaling
+### Requirement: Risk Budget Scaling Base
 
-The system MUST derive the risk budget from the current balance (initial plus net results), so size scales only with accumulated gains and never increases from the principal alone.
+The system MUST derive the daily risk budget from the account's start-of-day capital (initial balance plus the net of trades dated before today), so prior-day gains scale size and today's losses are counted once via the remaining-budget model. The compounding projection is provided by the `daily-scaling-plan` capability.
 
-#### Scenario: Gains scale the budget
+#### Scenario: Prior gains scale the base
 
-- GIVEN initial balance 10000, `riskPct` 2, and net results +2000
-- WHEN the budget is computed
-- THEN it uses 12000 (240), not 10000 (200)
+- GIVEN initial balance 10000, `riskPct` 2, and prior-day net results +2000
+- WHEN the start-of-day capital is derived
+- THEN the budget uses 12000 (240), not 10000 (200)
 
-#### Scenario: Principal alone
+#### Scenario: Today's results excluded from the base
 
-- GIVEN only the initial balance with no net gains
-- WHEN the budget is computed
-- THEN it is `riskPct` percent of the initial balance and no higher
+- GIVEN today's realized results are already recorded
+- WHEN the start-of-day capital is derived
+- THEN it excludes today's trades
+- AND today's losses are subtracted once via `usedToday`
