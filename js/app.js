@@ -119,6 +119,30 @@
     }
   }
 
+  /**
+   * Non-blocking toast feedback. Toasts stack bottom-right, reuse the dark
+   * panel tokens, and auto-dismiss. The colored left border carries the
+   * signal (green ok / red error / amber warn).
+   */
+  function showToast(message, kind) {
+    const container = $('toastContainer');
+    if (!container || !message) return;
+    const toast = document.createElement('div');
+    toast.className = 'toast' + (kind ? ' ' + kind : '');
+    toast.textContent = message;
+    container.appendChild(toast);
+    /* Next frame so the enter transition actually runs. */
+    window.requestAnimationFrame(function () {
+      toast.classList.add('toast-visible');
+    });
+    window.setTimeout(function () {
+      toast.classList.remove('toast-visible');
+      window.setTimeout(function () {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 220);
+    }, 2600);
+  }
+
   /* ------------------------------------------------------------------ */
   /* Select population                                                   */
   /* ------------------------------------------------------------------ */
@@ -293,6 +317,51 @@
   /* Table                                                               */
   /* ------------------------------------------------------------------ */
 
+  /* Muted line-chart glyph for empty states. Inline SVG keeps the app
+   * asset-free; `currentColor` inherits the muted token from CSS. */
+  const EMPTY_STATE_ICON =
+    '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 4-6"/></svg>';
+
+  /**
+   * Reusable empty-state block: muted icon, a title, optional supporting text
+   * and an optional action button. `cta.action` is a `data-action` value wired
+   * by the trades-body click delegation.
+   */
+  function emptyStateHtml(opts) {
+    const options = opts || {};
+    const parts = ['<div class="empty-state">'];
+    parts.push('<span class="empty-state-icon" aria-hidden="true">' + EMPTY_STATE_ICON + '</span>');
+    if (options.title) {
+      parts.push('<span class="empty-state-title">' + escapeHtml(options.title) + '</span>');
+    }
+    if (options.text) {
+      parts.push('<span class="empty-state-text">' + escapeHtml(options.text) + '</span>');
+    }
+    if (options.cta && options.cta.action && options.cta.label) {
+      parts.push('<button type="button" class="btn btn-primary empty-state-cta" data-action="' +
+        escapeHtml(options.cta.action) + '">' + escapeHtml(options.cta.label) + '</button>');
+    }
+    parts.push('</div>');
+    return parts.join('');
+  }
+
+  /* Localised day label for the trades-table day separators. */
+  const dayLabelFmt = new Intl.DateTimeFormat('es-ES', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+  });
+
+  function formatDayLabel(iso) {
+    const parts = String(iso || '').split('-').map(Number);
+    if (parts.length !== 3 || parts.some(function (p) { return !Number.isFinite(p); })) {
+      return iso || '';
+    }
+    const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (!Number.isFinite(dt.getTime())) return iso || '';
+    return dayLabelFmt.format(dt);
+  }
+
   const TABLE_COLUMNS = [
     { key: 'tradeNumber', label: '#' },
     { key: 'entryDate', label: 'Fecha' },
@@ -327,33 +396,27 @@
     const body = $('tradesBody');
     if (!body) return;
 
-    const rows = sortTrades(trades.filter(matchesSearch));
+    const totalTrades = Store.getTrades().length;
+    /* Compute before sorting so the Neto/Puntos/Acumulado columns render real
+     * values and sorting by result/net compares numbers, not `undefined`. */
+    const rows = sortTrades(Store.computeAll((trades || []).filter(matchesSearch)));
 
     if (rows.length === 0) {
+      const empty = totalTrades === 0
+        ? emptyStateHtml({
+            title: 'Aún no hay trades',
+            text: 'Registra tu primera operación para ver métricas, curva de equity y análisis.',
+            cta: { action: 'new-trade', label: 'Añade tu primer trade' }
+          })
+        : emptyStateHtml({
+            title: 'Sin coincidencias',
+            text: 'No hay trades que coincidan con los filtros o la búsqueda actual.',
+            cta: { action: 'clear-filters', label: 'Limpiar filtros' }
+          });
       body.innerHTML = '<tr><td class="table-empty" colspan="' +
-        (TABLE_COLUMNS.length + 1) + '">No hay trades que coincidan con los filtros.</td></tr>';
+        (TABLE_COLUMNS.length + 1) + '">' + empty + '</td></tr>';
     } else {
-      body.innerHTML = rows.map(function (t) {
-        return '<tr>' +
-          '<td>' + escapeHtml(t.tradeNumber) + '</td>' +
-          '<td><span class="cell-main">' + escapeHtml(t.entryDate) + '</span> <span class="muted">' + escapeHtml(t.entryTime) + '</span></td>' +
-          '<td>' + escapeHtml(t.account) + '</td>' +
-          '<td>' + escapeHtml(t.instrument) + missingStopBadge(t) + '</td>' +
-          '<td>' + escapeHtml(t.direction) + '</td>' +
-          '<td class="num">' + escapeHtml(t.contracts) + '</td>' +
-          '<td class="num">' + escapeHtml(t.entryPrice) + '</td>' +
-          '<td class="num">' + escapeHtml(t.exitPrice) + '</td>' +
-          '<td>' + escapeHtml(t.exitType) + '</td>' +
-          '<td>' + escapeHtml(t.emotion) + '</td>' +
-          '<td class="num ' + signClass(t.points) + '">' + formatNumber(t.points) + '</td>' +
-          '<td class="num ' + signClass(t.net) + '">' + formatMoney(t.net) + '</td>' +
-          '<td class="num ' + signClass(t.cumulative) + '">' + formatMoney(t.cumulative) + '</td>' +
-          '<td class="col-actions">' +
-            '<button type="button" class="btn-icon" data-action="edit" data-id="' + escapeHtml(t.id) + '">Editar</button>' +
-            '<button type="button" class="btn-icon danger" data-action="delete" data-id="' + escapeHtml(t.id) + '">Eliminar</button>' +
-          '</td>' +
-        '</tr>';
-      }).join('');
+      body.innerHTML = buildTradeRows(rows);
     }
 
     const summary = $('tableSummary');
@@ -362,6 +425,58 @@
     }
     renderDisciplineSummary(trades);
     renderTableHeaders();
+  }
+
+  /**
+   * Builds the trade rows. When the table is sorted by entry date, a subtle
+   * day separator is inserted before each new day; the row being edited is
+   * flagged with `.editing`.
+   */
+  function buildTradeRows(rows) {
+    const groupByDay = state.sortKey === 'entryDate';
+    const dayCounts = {};
+    if (groupByDay) {
+      rows.forEach(function (t) {
+        dayCounts[t.entryDate] = (dayCounts[t.entryDate] || 0) + 1;
+      });
+    }
+    const html = [];
+    let lastDay = null;
+    rows.forEach(function (t) {
+      if (groupByDay && t.entryDate !== lastDay) {
+        const count = dayCounts[t.entryDate] || 0;
+        html.push('<tr class="day-separator"><td colspan="' + (TABLE_COLUMNS.length + 1) + '">' +
+          '<span class="day-label">' + escapeHtml(formatDayLabel(t.entryDate)) + '</span>' +
+          '<span class="day-count">' + count + (count === 1 ? ' trade' : ' trades') + '</span>' +
+          '</td></tr>');
+        lastDay = t.entryDate;
+      }
+      html.push(tradeRowHtml(t));
+    });
+    return html.join('');
+  }
+
+  function tradeRowHtml(t) {
+    const editing = state.editingId && t.id === state.editingId;
+    return '<tr' + (editing ? ' class="editing"' : '') + '>' +
+      '<td>' + escapeHtml(t.tradeNumber) + '</td>' +
+      '<td><span class="cell-main">' + escapeHtml(t.entryDate) + '</span> <span class="muted">' + escapeHtml(t.entryTime) + '</span></td>' +
+      '<td>' + escapeHtml(t.account) + '</td>' +
+      '<td>' + escapeHtml(t.instrument) + missingStopBadge(t) + '</td>' +
+      '<td>' + escapeHtml(t.direction) + '</td>' +
+      '<td class="num">' + escapeHtml(t.contracts) + '</td>' +
+      '<td class="num">' + escapeHtml(t.entryPrice) + '</td>' +
+      '<td class="num">' + escapeHtml(t.exitPrice) + '</td>' +
+      '<td>' + escapeHtml(t.exitType) + '</td>' +
+      '<td>' + escapeHtml(t.emotion) + '</td>' +
+      '<td class="num ' + signClass(t.points) + '">' + formatNumber(t.points) + '</td>' +
+      '<td class="num ' + signClass(t.net) + '">' + formatMoney(t.net) + '</td>' +
+      '<td class="num ' + signClass(t.cumulative) + '">' + formatMoney(t.cumulative) + '</td>' +
+      '<td class="col-actions">' +
+        '<button type="button" class="btn-icon" data-action="edit" data-id="' + escapeHtml(t.id) + '">Editar</button>' +
+        '<button type="button" class="btn-icon danger" data-action="delete" data-id="' + escapeHtml(t.id) + '">Eliminar</button>' +
+      '</td>' +
+    '</tr>';
   }
 
   /** Amber "Sin stop" flag for a row whose normalized stop is not positive. */
@@ -394,8 +509,143 @@
     el.className = 'kpi-value' + (cls ? ' ' + cls : '');
   }
 
+  /* KPIs that get a "vs. previous half" delta, and how to format it. */
+  const KPI_DELTAS = {
+    kpiWinRate: { key: 'winRate', kind: 'pp' },
+    kpiNetTotal: { key: 'netTotal', kind: 'money' },
+    kpiProfitFactor: { key: 'profitFactor', kind: 'ratio' },
+    kpiExpectancy: { key: 'expectancy', kind: 'money' }
+  };
+
+  /* KPIs whose context line carries a sparkline derived from real trades. */
+  const KPI_SPARKS = {
+    kpiNetTotal: { series: 'equity' },
+    kpiWinRate: { series: 'winRate' }
+  };
+
+  const KPI_SPARK_MAX_POINTS = 40;
+
+  /** Lazily creates the `.kpi-context` line inside a KPI card. */
+  function ensureKpiContext(id) {
+    const valueEl = $(id);
+    if (!valueEl) return null;
+    const card = valueEl.closest('.kpi-card');
+    if (!card) return null;
+    let ctx = card.querySelector('.kpi-context');
+    if (!ctx) {
+      ctx = document.createElement('span');
+      ctx.className = 'kpi-context';
+      card.appendChild(ctx);
+    }
+    return ctx;
+  }
+
+  /** Splits the chronological list into equal earlier/recent halves. */
+  function splitHalves(list) {
+    if (!list || list.length < 4) return null;
+    const mid = Math.floor(list.length / 2);
+    return { previous: list.slice(0, mid), recent: list.slice(mid) };
+  }
+
+  /** Evenly samples a series down to at most `maxPoints` values. */
+  function sampleSeries(values, maxPoints) {
+    if (!values || values.length <= maxPoints) return values || [];
+    const step = (values.length - 1) / (maxPoints - 1);
+    const out = [];
+    for (let i = 0; i < maxPoints; i += 1) out.push(values[Math.round(i * step)]);
+    return out;
+  }
+
+  /** Running win rate (%) over the chronological list. */
+  function rollingWinRate(list) {
+    let wins = 0;
+    return list.map(function (t, index) {
+      if (t.net > 0) wins += 1;
+      return (wins / (index + 1)) * 100;
+    });
+  }
+
+  /** Inline SVG sparkline. `cls` adds a color modifier (pos/neg/accent). */
+  function sparklineSvg(values, cls) {
+    const points = sampleSeries(values, KPI_SPARK_MAX_POINTS);
+    if (points.length < 2) return '';
+    const w = 100;
+    const h = 26;
+    const pad = 2;
+    let min = Math.min.apply(null, points);
+    let max = Math.max.apply(null, points);
+    if (max === min) max = min + 1;
+    const step = (w - pad * 2) / (points.length - 1);
+    const path = points.map(function (value, index) {
+      const x = pad + index * step;
+      const y = h - pad - ((value - min) / (max - min)) * (h - pad * 2);
+      return (index === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1);
+    }).join(' ');
+    return '<svg class="kpi-spark' + (cls ? ' ' + cls : '') + '" viewBox="0 0 ' + w + ' ' + h +
+      '" preserveAspectRatio="none" aria-hidden="true"><path class="spark-line" d="' + path + '"/></svg>';
+  }
+
+  function formatDelta(value, kind) {
+    if (!Number.isFinite(value)) return null;
+    if (value === 0) return { text: '0', cls: '' };
+    const sign = value > 0 ? '+' : '';
+    if (kind === 'money') return { text: sign + formatMoney(value), cls: signClass(value) };
+    if (kind === 'pp') return { text: sign + formatNumber(value, 1) + ' pp', cls: signClass(value) };
+    return { text: sign + formatNumber(value, 2), cls: signClass(value) };
+  }
+
+  function sparkSeriesFor(id, list, recent) {
+    const spec = KPI_SPARKS[id];
+    if (!spec || list.length < 2) return '';
+    if (spec.series === 'equity') {
+      const values = list.map(function (t) { return t.cumulative; });
+      const color = recent && recent.netTotal < 0 ? 'neg' : (recent && recent.netTotal > 0 ? 'pos' : '');
+      return sparklineSvg(values, color);
+    }
+    return sparklineSvg(rollingWinRate(list), 'accent');
+  }
+
+  /**
+   * Adds a delta hint (recent half vs. earlier half of the shown trades) and a
+   * sparkline where a real series exists. Hidden entirely when there is not
+   * enough history; never uses placeholder data.
+   */
+  function renderKpiContext(list) {
+    const halves = splitHalves(list);
+    const previous = halves ? Store.getKpis(halves.previous) : null;
+    const recent = halves ? Store.getKpis(halves.recent) : null;
+
+    Object.keys(KPI_DELTAS).forEach(function (id) {
+      const el = ensureKpiContext(id);
+      if (!el) return;
+      const spec = KPI_DELTAS[id];
+      let delta = null;
+      if (previous && recent) {
+        const a = previous[spec.key];
+        const b = recent[spec.key];
+        delta = (Number.isFinite(a) && Number.isFinite(b)) ? (b - a) : null;
+      }
+      const formatted = delta === null ? null : formatDelta(delta, spec.kind);
+      const spark = KPI_SPARKS[id] ? sparkSeriesFor(id, list, recent) : '';
+      el.innerHTML = (formatted
+        ? '<span class="kpi-delta ' + formatted.cls + '">' + escapeHtml(formatted.text) +
+          '</span><span class="kpi-delta-suffix">vs. anterior</span>'
+        : '') + spark;
+      if (formatted) {
+        el.title = 'Comparado con la mitad anterior de los trades mostrados.';
+      } else if (spark) {
+        el.title = 'Evolución de los trades mostrados.';
+      } else {
+        el.removeAttribute('title');
+      }
+    });
+  }
+
   function renderKpis(trades) {
-    const k = Store.getKpis(trades);
+    /* Compute once so KPIs and their context share the same chronological
+     * series (and the sparkline is derived from real cumulative equity). */
+    const list = Store.computeAll(trades || []);
+    const k = Store.getKpis(list);
     setKpi('kpiTotalTrades', String(k.totalTrades));
     setKpi('kpiWinRate', formatNumber(k.winRate, 1) + ' %');
     setKpi('kpiNetTotal', formatMoney(k.netTotal), signClass(k.netTotal));
@@ -406,6 +656,7 @@
     setKpi('kpiMaxDrawdown', formatMoney(k.maxDrawdown), k.maxDrawdown > 0 ? 'neg' : '');
     setKpi('kpiBestTrade', formatMoney(k.bestTrade), 'pos');
     setKpi('kpiWorstTrade', formatMoney(k.worstTrade), 'neg');
+    renderKpiContext(list);
   }
 
   /* ------------------------------------------------------------------ */
@@ -1027,13 +1278,13 @@
     if (state.editingId) {
       if (!Number.isFinite(trade.tradeNumber) || trade.tradeNumber <= 0) delete trade.tradeNumber;
       Store.updateTrade(state.editingId, trade);
-      setStatus('Trade actualizado correctamente.', 'ok');
+      showToast('Trade actualizado', 'ok');
     } else {
       trade.tradeNumber = Number.isFinite(trade.tradeNumber) && trade.tradeNumber > 0
         ? trade.tradeNumber
         : Store.nextTradeNumber();
       Store.addTrade(trade);
-      setStatus('Trade guardado correctamente.', 'ok');
+      showToast('Trade guardado', 'ok');
     }
 
     /* Remember the setup the user just used so the next new trade starts
@@ -1083,6 +1334,8 @@
     if (advanced) advanced.open = trade.target > 0 || trade.plannedRisk > 0 || !!trade.notes;
     showFormErrors([]);
     updatePreview();
+    /* Re-render so the edited row is highlighted in the table. */
+    refreshTableAndKpis();
     switchTab('registro');
     const form = $('tradeForm');
     if (form && form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1135,6 +1388,8 @@
     $('btnCancel').hidden = false;
     showFormErrors([]);
     updatePreview();
+    /* Duplicating starts a new trade: clear any edit highlight. */
+    refreshTableAndKpis();
     switchTab('registro');
     const form = $('tradeForm');
     if (form && form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1146,7 +1401,7 @@
     if (!window.confirm('¿Eliminar el trade ' + label + '? Esta acción no se puede deshacer.')) return;
     Store.deleteTrade(id);
     if (state.editingId === id) resetForm();
-    setStatus('Trade eliminado.', 'ok');
+    showToast('Trade eliminado', 'ok');
     renderAll();
   }
 
@@ -1509,6 +1764,8 @@
 
     $('btnCancel').addEventListener('click', function () {
       resetForm();
+      /* Drop the edit highlight from the table. */
+      refreshTableAndKpis();
     });
 
     /* Mark the contracts field as user-owned as soon as it is edited, so the
@@ -1533,9 +1790,23 @@
     $('tradesBody').addEventListener('click', function (event) {
       const button = event.target.closest('button[data-action]');
       if (!button) return;
+      const action = button.getAttribute('data-action');
+      /* Empty-state CTAs have no trade id. */
+      if (action === 'new-trade') {
+        switchTab('registro');
+        const form = $('tradeForm');
+        if (form && form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const firstField = $('tradeNumber');
+        if (firstField && firstField.focus) firstField.focus();
+        return;
+      }
+      if (action === 'clear-filters') {
+        clearFilters();
+        return;
+      }
       const id = button.getAttribute('data-id');
-      if (button.getAttribute('data-action') === 'edit') handleEdit(id);
-      else if (button.getAttribute('data-action') === 'delete') handleDelete(id);
+      if (action === 'edit') handleEdit(id);
+      else if (action === 'delete') handleDelete(id);
     });
 
     $('tradesHead').addEventListener('click', function (event) {

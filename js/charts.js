@@ -73,6 +73,12 @@ const DashboardCharts = (function () {
   /* Empty-state handling                                                */
   /* ------------------------------------------------------------------ */
 
+  /* Muted line-chart glyph; matches the empty state used by the table. */
+  const EMPTY_ICON =
+    '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 4-6"/></svg>';
+
   function setEmpty(canvas, isEmpty, message) {
     const parent = canvas.parentElement;
     if (!parent) return;
@@ -84,7 +90,17 @@ const DashboardCharts = (function () {
         note.className = 'chart-empty';
         parent.appendChild(note);
       }
-      note.textContent = message || 'Sin datos';
+      /* Icon + message, built as nodes so the message is never HTML. */
+      note.innerHTML = '';
+      const icon = document.createElement('span');
+      icon.className = 'empty-state-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.innerHTML = EMPTY_ICON;
+      const text = document.createElement('span');
+      text.className = 'empty-state-text';
+      text.textContent = message || 'Sin datos';
+      note.appendChild(icon);
+      note.appendChild(text);
       note.hidden = false;
     } else {
       canvas.style.display = '';

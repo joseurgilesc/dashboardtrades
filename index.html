@@ -345,6 +345,12 @@
 
     <!-- ============================ DASHBOARD =========================== -->
     <section id="tab-dashboard" role="tabpanel" aria-labelledby="tab-dashboard" hidden>
+      <!-- Equity curve is the dashboard protagonist: first and slightly taller. -->
+      <div class="card chart-card chart-hero">
+        <h3>Curva de equity</h3>
+        <div class="chart-body"><canvas id="chartEquity"></canvas></div>
+      </div>
+
       <div class="kpi-grid">
         <div class="kpi-card"><span class="kpi-label">Total trades</span><span class="kpi-value" id="kpiTotalTrades">0</span></div>
         <div class="kpi-card"><span class="kpi-label">Win rate</span><span class="kpi-value" id="kpiWinRate">0 %</span></div>
@@ -404,10 +410,6 @@
       </div>
 
       <div class="charts-grid">
-        <div class="card chart-card chart-wide">
-          <h3>Curva de equity</h3>
-          <div class="chart-body"><canvas id="chartEquity"></canvas></div>
-        </div>
         <div class="card chart-card">
           <h3>Neto por instrumento</h3>
           <div class="chart-body"><canvas id="chartInstrument"></canvas></div>
@@ -522,6 +524,9 @@
   <footer class="app-footer">
     <p>Diario de Trading — aplicación estática. Tus datos se guardan en tu cuenta.</p>
   </footer>
+
+  <!-- Non-blocking save feedback. Toasts are appended and auto-dismissed. -->
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="false"></div>
 
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js" defer></script>

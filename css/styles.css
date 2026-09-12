@@ -1247,3 +1247,202 @@ textarea {
     display: none;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Phase 1 — presentation layer                                        */
+/* ------------------------------------------------------------------ */
+/* Reuses the existing dark tokens. Structure only; color stays signal. */
+
+/* --- Empty states (trades table + dashboard charts) --------------- */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 30px 16px;
+  text-align: center;
+}
+
+.empty-state-icon {
+  display: inline-flex;
+  color: var(--text-faint);
+}
+
+.empty-state-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.empty-state-text {
+  max-width: 340px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.empty-state-cta {
+  margin-top: 8px;
+}
+
+/* The empty state owns its own padding, so the table cell stays flush. */
+.table-empty {
+  padding: 0;
+}
+
+/* Chart empty state reuses the same block, centered over the canvas area. */
+.chart-empty {
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
+}
+
+/* --- Toast (save / edit / delete feedback) ------------------------ */
+
+.toast-container {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  min-width: 190px;
+  max-width: 320px;
+  padding: 10px 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.32);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.toast-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast.ok { border-left-color: var(--pos); }
+.toast.error { border-left-color: var(--neg); }
+.toast.warn { border-left-color: var(--amber); }
+
+/* --- KPI context (delta vs. previous half + sparkline) ------------ */
+
+.kpi-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.kpi-context:empty {
+  display: none;
+}
+
+.kpi-delta {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.kpi-delta-suffix {
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.kpi-spark {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 22px;
+  overflow: visible;
+}
+
+.kpi-spark .spark-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.kpi-spark.pos .spark-line { stroke: var(--pos); }
+.kpi-spark.neg .spark-line { stroke: var(--neg); }
+.kpi-spark.accent .spark-line { stroke: var(--accent); }
+
+/* --- Trades table: day separators + edit-row highlight ------------ */
+
+.trades-table tbody tr.day-separator td {
+  padding: 6px 10px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.trades-table tbody tr.day-separator .day-count {
+  margin-left: 8px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-faint);
+}
+
+.trades-table tbody tr.editing td {
+  background: var(--accent-soft);
+}
+
+.trades-table tbody tr.editing td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* --- Dashboard: equity hero --------------------------------------- */
+
+.chart-hero .chart-body {
+  height: 400px;
+}
+
+.chart-hero h3 {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .chart-hero .chart-body {
+    height: 320px;
+  }
+}
+
+@media (max-width: 560px) {
+  .toast-container {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .toast {
+    max-width: none;
+  }
+
+  .kpi-spark {
+    width: 52px;
+  }
+}
