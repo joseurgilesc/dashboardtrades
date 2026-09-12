@@ -45,6 +45,7 @@ const Store = (function () {
   const MIN_RR_DEFAULT = (typeof DEFAULT_MIN_RR !== 'undefined') ? DEFAULT_MIN_RR : 2;
   const DD_WARN_PCT = (typeof DAILY_DD_WARN_PCT !== 'undefined') ? DAILY_DD_WARN_PCT : 5;
   const STREAK_WARN_COUNT = (typeof STREAK_WARN !== 'undefined') ? STREAK_WARN : 3;
+  const SMALL_ACCOUNT_LIMIT = (typeof SMALL_ACCOUNT_MAX !== 'undefined') ? SMALL_ACCOUNT_MAX : 5000;
 
   /* Daily scaling-plan defaults (from instruments.js). */
   const SCALING_RR_DEFAULT = (typeof DEFAULT_SCALING_RR !== 'undefined') ? DEFAULT_SCALING_RR : 2;
@@ -841,40 +842,44 @@ const Store = (function () {
   }
 
   /**
-   * Pure BPT risk calculation (works in ticks, commission kept separate).
+   * Pure BPT/Francisca Serrano risk calculation (works in ticks, commission
+   * kept separate).
    *
-   *   tickValue        = tick * pointValue
-   *   P_m              = stopTicks * tickValue
-   *   dailyBudget      = (riskPct / 100) * balance
-   *   perTradeRiskPct  = riskPct / tradesPerDay      (tradesPerDay guarded to >= 1)
-   *   perTradeCap      = (perTradeRiskPct / 100) * balance   (= dailyBudget / tradesPerDay)
-   *   available        = remaining daily budget (dailyBudget - usedToday)
-   *   effectiveRisk    = min(perTradeCap, available)          (model B)
-   *   contracts        = floor(effectiveRisk / P_m)
+   *   tickValue     = tick * pointValue
+   *   P_m           = stopTicks * tickValue
+   *   dailyBudget   = (riskPct / 100) * balance
+   *   available     = remaining daily budget (dailyBudget - dayLoss)
+   *   presupuesto   = available
+   *   contracts     = floor(available / P_m)
+   *   ticksTP2      = stopTicks * 2
+   *   ticksTP3      = stopTicks * 3
+   *   lossPct       = (P_m * contracts) / capital
+   *   recoveryPct   = lossPct / (1 - lossPct)
    *
-   * `riskPct` is the DAILY risk percentage; `tradesPerDay` defaults to the
-   * per-account daily trade limit (3) and is never allowed to be 0. Commission
-   * is reported separately and is NOT folded into `P_m`.
+   * Sizing uses the AVAILABLE daily budget only (NOT the model-B per-trade
+   * division). The user required that the day's REALIZED LOSSES consume the
+   * daily budget, so `available` is passed in from `dailyRiskUsage` (daily
+   * budget minus the sum of |net| of today's losers for the account).
    *
-   * Model B: each trade is capped by its per-trade allowance (`perTradeCap`)
-   * AND limited by what remains of the daily budget (`available`, see
-   * `dailyRiskUsage`). The contract numerator is the smaller of the two, so a
-   * full budget never sizes more than one trade's worth into a single entry.
-   * When `available` is absent/non-finite the per-trade cap alone is used,
-   * keeping the pure calculator backward compatible; `available <= 0` yields
-   * 0 contracts.
+   * Circuit breakers (Block 4):
+   *   - Daily drawdown: `dayLoss / capital >= 5%`  -> blocked, 0 contracts.
+   *   - Losing streak: `losingStreak >= 3`         -> blocked, 0 contracts.
+   *   - Small account: `capital <= 5000`           -> forced to 1 contract.
+   * When blocked, `contracts` is 0 and `blockReasons` names the tripped
+   * breaker(s); the UI must show the red alert and never compute silently.
    *
    * Returns `{ valid, reason, dailyBudget, budget, dailyRiskPct, tradesPerDay,
    * perTradeRisk, perTradeRiskPct, perTradeCap, effectiveRisk,
-   * maxTicksForOneContract, usedToday, available, exhausted, tickValue,
-   * stopTicks, pm, riskPerContract, commission, contracts, viable,
-   * minBalanceForOneContract, size }`.
-   * `budget` and `riskPerContract` are backward-compatible aliases for
-   * `dailyBudget` and `pm`; `perTradeRisk` is the legacy name for
-   * `perTradeCap`. `valid` is false (and `contracts` 0) when an input is
-   * missing/non-numeric or `stopTicks <= 0`; `reason` names the first failing
-   * input. The viability warning applies when even one contract exceeds the
-   * effective budget.
+   * maxTicksForOneContract, usedToday, available, presupuesto, exhausted,
+   * tickValue, stopTicks, ticksSL, ticksTP, ticksTP2, ticksTP3, pm,
+   * riskPerContract, totalRisk, lossPct, recoveryPct, commission, contracts,
+   * viable, minBalanceForOneContract, size, capital, dayLoss, drawdownPct,
+   * losingStreak, smallAccount, blocked, blockReasons }`.
+   * `budget`/`riskPerContract` stay backward-compatible aliases for
+   * `dailyBudget`/`pm`; `perTradeCap`/`perTradeRisk`/`effectiveRisk` are kept
+   * for callers that still read them but no longer size contracts.
+   * `valid` is false (and `contracts` 0) when an input is missing/non-numeric
+   * or `stopTicks <= 0`; `reason` names the first failing input.
    */
   function computeRisk(inputs) {
     const opts = inputs || {};
@@ -903,16 +908,31 @@ const Store = (function () {
       maxTicksForOneContract: 0,
       usedToday: 0,
       available: 0,
+      presupuesto: 0,
       exhausted: false,
       tickValue: tickValue,
       stopTicks: 0,
+      ticksSL: 0,
+      ticksTP: 0,
+      ticksTP2: 0,
+      ticksTP3: 0,
       pm: 0,
       riskPerContract: 0,
+      totalRisk: 0,
+      lossPct: 0,
+      recoveryPct: 0,
       commission: spec ? numOr(spec.commission, 0) : 0,
       contracts: 0,
       viable: false,
       minBalanceForOneContract: null,
-      size: spec ? spec.size : null
+      size: spec ? spec.size : null,
+      capital: 0,
+      dayLoss: 0,
+      drawdownPct: 0,
+      losingStreak: 0,
+      smallAccount: false,
+      blocked: false,
+      blockReasons: []
     };
 
     if (!spec) { result.reason = 'instrument'; return result; }
@@ -921,18 +941,40 @@ const Store = (function () {
     if (!Number.isFinite(stopTicks) || stopTicks <= 0) { result.reason = 'stopTicks'; return result; }
     if (!(tickValue > 0)) { result.reason = 'tickValue'; return result; }
 
+    const capitalRaw = numOr(opts.capital, NaN);
+    const capital = Number.isFinite(capitalRaw) ? capitalRaw : balance;
     const tradesPerDay = resolveTradesPerDay(opts.tradesPerDay);
     const dailyBudget = (riskPct / 100) * balance;
     const perTradeRiskPct = riskPct / tradesPerDay;
     const perTradeRisk = (perTradeRiskPct / 100) * balance;
     const pm = stopTicks * tickValue;
-    /* Model B: respect BOTH the per-trade allowance and the remaining daily
-     * budget. `available` is the day's remaining budget after realized losses;
-     * without it the per-trade cap alone applies (backward compatible). */
-    const effectiveRisk = hasAvailable ? Math.min(perTradeRisk, availableRaw) : perTradeRisk;
-    const contracts = (pm > 0 && effectiveRisk > 0)
-      ? Math.floor(effectiveRisk / pm)
-      : 0;
+
+    /* `available` is the day's remaining budget after realized losses; without
+     * it the full daily budget applies. Sizing reads ONLY this value. */
+    const available = hasAvailable ? availableRaw : dailyBudget;
+    const dayLoss = Math.max(0, numOr(opts.dayLoss, 0));
+    const losingStreak = Math.max(0, intOr(opts.losingStreak, 0));
+    const drawdownPct = capital > 0 ? (dayLoss / capital) * 100 : 0;
+    const smallAccount = capital <= SMALL_ACCOUNT_LIMIT;
+
+    const blockReasons = [];
+    if (drawdownPct >= DD_WARN_PCT) blockReasons.push('drawdown');
+    if (losingStreak >= STREAK_WARN_COUNT) blockReasons.push('streak');
+    const blocked = blockReasons.length > 0;
+
+    let contracts = 0;
+    if (blocked) {
+      contracts = 0;
+    } else if (smallAccount) {
+      /* Small-account filter: force exactly one contract (never more). */
+      contracts = 1;
+    } else if (pm > 0 && available > 0) {
+      contracts = Math.floor(available / pm);
+    }
+
+    const totalRisk = pm * contracts;
+    const lossPct = capital > 0 ? totalRisk / capital : 0;
+    const recovery = recoveryPct(lossPct);
 
     result.valid = true;
     result.dailyBudget = dailyBudget;
@@ -942,21 +984,107 @@ const Store = (function () {
     result.perTradeRisk = perTradeRisk;
     result.perTradeRiskPct = perTradeRiskPct;
     result.perTradeCap = perTradeRisk;
-    result.effectiveRisk = effectiveRisk;
+    result.effectiveRisk = available;
     result.maxTicksForOneContract = maxTicksForOneContract({
-      effectiveRisk: effectiveRisk,
+      effectiveRisk: available,
       tickValue: tickValue
     });
     result.usedToday = hasAvailable ? Math.max(0, dailyBudget - availableRaw) : 0;
-    result.available = hasAvailable ? availableRaw : dailyBudget;
-    result.exhausted = hasAvailable ? availableRaw <= 0 : false;
+    result.available = available;
+    result.presupuesto = available;
+    result.exhausted = available <= 0;
     result.stopTicks = stopTicks;
+    result.ticksSL = stopTicks;
+    result.ticksTP = stopTicks * 2;
+    result.ticksTP2 = stopTicks * 2;
+    result.ticksTP3 = stopTicks * 3;
     result.tickValue = tickValue;
     result.pm = pm;
     result.riskPerContract = pm;
+    result.totalRisk = totalRisk;
+    result.lossPct = lossPct;
+    result.recoveryPct = recovery;
     result.contracts = contracts;
     result.viable = contracts >= 1;
     result.minBalanceForOneContract = perTradeRiskPct > 0 ? pm / (perTradeRiskPct / 100) : null;
+    result.capital = capital;
+    result.dayLoss = dayLoss;
+    result.drawdownPct = drawdownPct;
+    result.losingStreak = losingStreak;
+    result.smallAccount = smallAccount;
+    result.blocked = blocked;
+    result.blockReasons = blockReasons;
+    return result;
+  }
+
+  /**
+   * Pure circuit-breaker context for one account (Block 4).
+   *
+   *   dayLoss       = sum of |net| of the account's TODAY losers (net < 0)
+   *   drawdownPct   = dayLoss / capital * 100
+   *   losingStreak  = trailing run of today's losing trades (net <= 0),
+   *                   counted chronologically
+   *   blocked       = drawdownPct >= 5% OR losingStreak >= 3
+   *
+   * `capital` is the capital base for the drawdown percentage (the UI passes
+   * `startOfDayBalance`). `trades` defaults to the store's trades; "today" is
+   * `entryDate === todayISO()` unless an explicit `today` is passed. Returns
+   * `{ valid, reason, account, today, capital, dayLoss, drawdownPct,
+   * losingStreak, blocked, blockReasons }`.
+   */
+  function riskGuard(inputs) {
+    const opts = inputs || {};
+    const account = strOr(opts.account, '');
+    const capitalRaw = numOr(opts.capital, NaN);
+    const capital = Number.isFinite(capitalRaw) ? capitalRaw : 0;
+    const today = strOr(opts.today, '') || todayISO();
+    const source = Array.isArray(opts.trades) ? opts.trades : state.trades;
+
+    const result = {
+      valid: false,
+      reason: '',
+      account: account,
+      today: today,
+      capital: capital,
+      dayLoss: 0,
+      drawdownPct: 0,
+      losingStreak: 0,
+      blocked: false,
+      blockReasons: []
+    };
+
+    if (!account) { result.reason = 'account'; return result; }
+    if (!Number.isFinite(capitalRaw)) { result.reason = 'capital'; return result; }
+
+    const todayTrades = source.filter(function (t) {
+      return t && t.account === account && t.entryDate === today;
+    });
+
+    let dayLoss = 0;
+    todayTrades.forEach(function (t) {
+      const net = computeTrade(t).net;
+      if (net < 0) dayLoss += Math.abs(net);
+    });
+    dayLoss = roundMoney(dayLoss);
+
+    const sorted = sortChronologically(todayTrades);
+    let streak = 0;
+    for (let i = sorted.length - 1; i >= 0; i -= 1) {
+      if (computeTrade(sorted[i]).net <= 0) streak += 1;
+      else break;
+    }
+
+    const drawdownPct = capital > 0 ? (dayLoss / capital) * 100 : 0;
+    const blockReasons = [];
+    if (drawdownPct >= DD_WARN_PCT) blockReasons.push('drawdown');
+    if (streak >= STREAK_WARN_COUNT) blockReasons.push('streak');
+
+    result.valid = true;
+    result.dayLoss = dayLoss;
+    result.drawdownPct = drawdownPct;
+    result.losingStreak = streak;
+    result.blocked = blockReasons.length > 0;
+    result.blockReasons = blockReasons;
     return result;
   }
 
@@ -2071,6 +2199,7 @@ const Store = (function () {
     getAccountBalances: getAccountBalances,
     getTotalBalance: getTotalBalance,
     computeRisk: computeRisk,
+    riskGuard: riskGuard,
     minBalanceForOneContract: minBalanceForOneContract,
     maxTicksForOneContract: maxTicksForOneContract,
     microEquivalent: microEquivalent,
@@ -2087,6 +2216,7 @@ const Store = (function () {
     dailyRiskUsage: dailyRiskUsage,
     startOfDayBalance: startOfDayBalance,
     dailyScalingPlan: dailyScalingPlan,
+    SMALL_ACCOUNT_MAX: SMALL_ACCOUNT_LIMIT,
 
     /* Discipline gamification (pure except getDisciplineSummary/syncGamification). */
     disciplineDays: disciplineDays,

@@ -661,6 +661,83 @@ textarea {
   color: var(--amber);
 }
 
+/* Four-step risk calculator: numbered blocks a beginner can follow top-down.
+ * Reuses the dark tokens; structure only. */
+.risk-block {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+}
+
+.risk-block-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+/* The inner preview sits on the card background so it reads as a result
+ * surface nested inside the block panel. */
+.risk-block .preview {
+  margin-top: 10px;
+  background: var(--panel);
+}
+
+/* Compact instrument lookup table. Deliberately NOT `.trades-table`, so the
+ * mobile density rules that hide main-table columns never touch it. */
+.risk-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.risk-table thead th {
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.risk-table tbody td {
+  padding: 6px 8px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.risk-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.risk-table .num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-table tr.risk-row-active td {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* Red circuit-breaker alert: shown only while the calculator is BLOQUEADO. */
+.risk-block-alert {
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.55);
+  background: rgba(239, 68, 68, 0.10);
+  border-radius: var(--radius-sm);
+  color: var(--neg);
+  font-size: 13px;
+  font-weight: 500;
+}
+
 /* ------------------------------------------------------------------ */
 /* Instrument info panel                                               */
 /* ------------------------------------------------------------------ */

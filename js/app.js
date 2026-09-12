@@ -37,6 +37,10 @@
    * calculator stops prefilling it for the current trade. Reset on reset. */
   let contractsTouched = false;
 
+  /* Last account the risk panel seeded its % risk input for. Used so switching
+   * account refreshes the default while hand-edits persist for that account. */
+  let lastRiskAccount = null;
+
   /* Top-level regions hidden until authentication resolves. */
   const APP_REGIONS = ['.tabs', '#globalSearchBar', '#filtersBar', '.app-main', '.app-footer'];
 
@@ -231,6 +235,8 @@
     fillSelect($('direction'), DIRECTIONS);
     fillSelect($('exitType'), EXIT_TYPES);
     fillSelect($('emotion'), EMOTIONS);
+    /* Block 2 of the risk calculator mirrors the form's instrument. */
+    fillSelect($('riskInstrument'), Object.keys(INSTRUMENTS));
 
     fillSelect($('filterAccount'), ACCOUNTS, 'Todas las cuentas');
     fillSelect($('filterInstrument'), Object.keys(INSTRUMENTS), 'Todos los instrumentos');
@@ -864,39 +870,97 @@
     el.className = 'preview-value' + (cls ? ' ' + cls : '');
   }
 
+  /** Clamps the daily risk % to the spec band [1, 3]; non-numeric -> default. */
+  function clampDailyRiskPct(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return DEFAULT_RISK_PCT;
+    if (n < 1) return 1;
+    if (n > 3) return 3;
+    return n;
+  }
+
+  /** Value per tick for the lookup table: tick × pointValue, currency aware. */
+  function formatTickValue(spec) {
+    if (!spec) return '—';
+    const value = Number(spec.tick) * Number(spec.pointValue);
+    if (!Number.isFinite(value)) return '—';
+    if (spec.currency === 'EUR') return formatNumber(value, 2) + ' €';
+    return formatMoney(value);
+  }
+
+  /** Tick counts are usually whole but a derived stop can be fractional. */
+  function formatTicks(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '—';
+    return (Math.round(n * 100) / 100) + ' ticks';
+  }
+
+  /** Spanish red-alert copy for the tripped circuit breakers (Block 4). */
+  function riskBlockMessage(reasons) {
+    const parts = [];
+    if (reasons.indexOf('drawdown') !== -1) {
+      parts.push('Drawdown diario ≥ 5 % del capital: límite de pérdida acumulada alcanzado.');
+    }
+    if (reasons.indexOf('streak') !== -1) {
+      parts.push('Racha de 3 derrotas consecutivas hoy: cálculo detenido para proteger la cuenta.');
+    }
+    return parts.join(' ');
+  }
+
   /**
-   * Renders the BPT risk calculator for the form's selected account and
-   * instrument. Uses the account's start-of-day capital and its configured
-   * DAILY risk percentage, then subtracts the day's realized losses so
-   * contracts are sized from the remaining daily budget.
+   * Renders Block 2's market-parameter lookup table from instruments.js and
+   * highlights the selected instrument. `valor_tick = tick × pointValue`.
+   */
+  function renderRiskMarketTable() {
+    const body = $('riskMarketBody');
+    if (!body || typeof INSTRUMENTS === 'undefined') return;
+    const selected = ($('riskInstrument') && $('riskInstrument').value) ||
+      ($('instrument') && $('instrument').value) || '';
+    body.innerHTML = Object.keys(INSTRUMENTS).map(function (id) {
+      const spec = INSTRUMENTS[id];
+      return '<tr' + (id === selected ? ' class="risk-row-active"' : '') + '>' +
+        '<td><span class="cell-main">' + escapeHtml(id) + '</span> ' +
+          '<span class="muted">' + escapeHtml(spec.name) + '</span></td>' +
+        '<td class="num">' + escapeHtml(formatTickValue(spec)) + '</td>' +
+        '<td class="num">' + escapeHtml(String(spec.tick)) + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  /**
+   * Renders the 4-block BPT/Francisca Serrano risk calculator for the form's
+   * selected account and instrument.
    *
    *   tickValue   = tick * pointValue            (from the instrument)
    *   P_m         = stopTicks * tickValue
    *   dailyBudget = dailyRiskPct% * startOfDayBalance
    *   used        = sum of |net| of today's losers for the account
-   *   available   = dailyBudget - used
-   *   perTradeCap = dailyBudget / tradesPerDay
-   *   effectiveRisk = min(perTradeCap, available)
-   *   contracts   = floor(effectiveRisk / P_m)
+   *   presupuesto = disponible = dailyBudget - used
+   *   contracts   = floor(presupuesto / P_m)     (small account -> 1)
+   *   ticksTP2    = stopTicks * 2   /   ticksTP3 = stopTicks * 3
+   *   recovery    = lossPct / (1 - lossPct)
    *
-   * Commission is shown separately and is never folded into P_m. R/R (warned
-   * below the minimum) and the non-linear recovery are kept from the previous
-   * panel. When the remaining budget is exhausted (available <= 0) the panel
-   * shows 0 contracts and the "Sin presupuesto de riesgo disponible hoy"
-   * warning; when one contract still exceeds the available budget a viability
-   * warning is shown. A recorded stop price yields the stop in ticks
-   * (|entry - stop| / tick) and takes precedence over the tick input; a
-   * recorded planned risk / target feed the R/R. When a full-size instrument
-   * is not viable for the account (0 contracts) and the budget is not
-   * exhausted, an advisory hint points at its micro equivalent from
-   * MICRO_PAIRS; it never changes the selection or the sizing math.
+   * Block 4 blocks the calculation (0 contracts + red alert) on a >= 5% daily
+   * drawdown or >= 3 consecutive losses today, and forces 1 contract when the
+   * capital is <= $5,000. Commission is shown separately and never folded into
+   * P_m. A recorded stop price yields the stop in ticks (|entry - stop| / tick)
+   * and takes precedence over the tick input; a recorded planned risk / target
+   * feed the R/R.
    */
   function renderRiskPanel() {
     const accountEl = $('account');
     if (!accountEl) return;
 
     const account = accountEl.value || ACCOUNTS[0];
-    const instrument = $('instrument') ? $('instrument').value : '';
+    const formInstrumentEl = $('instrument');
+    const panelInstrumentEl = $('riskInstrument');
+    /* Keep the Block 2 select mirrored with the form's instrument. */
+    if (panelInstrumentEl && formInstrumentEl && panelInstrumentEl.value !== formInstrumentEl.value) {
+      panelInstrumentEl.value = formInstrumentEl.value;
+    }
+    const instrument = (panelInstrumentEl && panelInstrumentEl.value)
+      || (formInstrumentEl ? formInstrumentEl.value : '');
+
     const stopEl = $('riskStopTicks');
     const targetEl = $('riskTarget');
     const formStopEl = $('stop');
@@ -906,7 +970,6 @@
 
     const spec = instrumentMeta(instrument);
     const tick = spec ? Number(spec.tick) : NaN;
-    const tickValue = (spec && Number.isFinite(tick)) ? tick * Number(spec.pointValue) : NaN;
 
     const manualStopTicks = stopEl ? parseFloat(stopEl.value) : NaN;
     const manualTarget = targetEl ? parseFloat(targetEl.value) : NaN;
@@ -925,13 +988,22 @@
       : NaN;
     const stopTicks = derivedStopTicks > 0 ? derivedStopTicks : manualStopTicks;
 
-    const balance = Store.getAccountBalances()[account];
-    /* The daily budget is based on the start-of-day capital, so today's
-     * realized losses are subtracted once (via `used`) instead of twice (a
-     * shrinking base plus the loss). */
-    const budgetBase = Store.startOfDayBalance(account);
+    const capital = Store.startOfDayBalance(account);
     const settings = Store.getRiskSettings()[account] || {};
-    const riskPct = Number.isFinite(settings.riskPct) ? settings.riskPct : DEFAULT_RISK_PCT;
+    const defaultPct = Number.isFinite(settings.riskPct) ? settings.riskPct : DEFAULT_RISK_PCT;
+
+    /* Block 1 input: seed from the account's setting on account switch, then
+     * honour (and clamp to 1–3 %) whatever the user typed. */
+    const pctInput = $('riskDailyPctInput');
+    if (pctInput && lastRiskAccount !== account) {
+      pctInput.value = String(clampDailyRiskPct(defaultPct));
+    }
+    let riskPct = pctInput ? parseFloat(pctInput.value) : NaN;
+    if (!Number.isFinite(riskPct)) riskPct = clampDailyRiskPct(defaultPct);
+    riskPct = clampDailyRiskPct(riskPct);
+    if (pctInput && pctInput.value !== String(riskPct)) pctInput.value = String(riskPct);
+    lastRiskAccount = account;
+
     const tradesPerDay = Number.isFinite(settings.dailyTradeLimit)
       ? settings.dailyTradeLimit
       : DEFAULT_DAILY_TRADE_LIMIT;
@@ -939,79 +1011,106 @@
 
     /* Remaining daily budget: the account's daily risk budget minus the sum of
      * its realized losses for today. */
-    const usage = Store.dailyRiskUsage({ account: account, riskPct: riskPct, balance: budgetBase });
+    const usage = Store.dailyRiskUsage({ account: account, riskPct: riskPct, balance: capital });
+    /* Circuit-breaker context for Block 4. */
+    const guard = Store.riskGuard({ account: account, capital: capital });
 
     const hint = $('riskAccountHint');
     if (hint) {
       hint.textContent = account + ' · riesgo diario ' + formatNumber(riskPct, 1) + ' % · ' +
-        tradesPerDay + ' op/día · capital inicio ' + formatMoney(budgetBase);
+        tradesPerDay + ' op/día · capital inicio ' + formatMoney(capital);
     }
 
-    setRiskItem('riskCapital', formatMoney(budgetBase));
+    setRiskItem('riskCapital', formatMoney(capital));
     setRiskItem('riskDailyPct', formatNumber(riskPct, 1) + ' %');
-    setRiskItem('riskTradesPerDay', String(tradesPerDay));
+    renderRiskMarketTable();
 
     const risk = Store.computeRisk({
-      balance: budgetBase,
+      balance: capital,
+      capital: capital,
       riskPct: riskPct,
       tradesPerDay: tradesPerDay,
       instrument: instrument,
       stopTicks: stopTicks,
-      available: usage.valid ? usage.available : undefined
+      available: usage.valid ? usage.available : undefined,
+      dayLoss: guard.valid ? guard.dayLoss : 0,
+      losingStreak: guard.valid ? guard.losingStreak : 0
     });
 
     const warnEl = $('riskViabilityWarning');
     const suitabilityEl = $('riskSuitabilityHint');
-    const maxTicksItem = $('riskMaxTicksItem');
-    const resultIds = ['riskBudget', 'riskUsedToday', 'riskAvailable', 'riskTickValue',
-      'riskPerContract', 'riskPerTrade', 'riskContracts', 'riskCommission', 'riskTotal',
-      'riskRR', 'riskRecovery'];
+    const blockEl = $('riskBlockAlert');
+    const smallEl = $('riskSmallAccountHint');
+    const resultIds = ['riskTickValue', 'riskPerContract', 'riskBudget', 'riskUsedToday',
+      'riskAvailable', 'riskContracts', 'riskTotal', 'riskTicksSL', 'riskTicksTP2',
+      'riskTicksTP3', 'riskRecovery', 'riskRR', 'riskCommission'];
+
+    /* Block 4 is always rendered, even when a required input is missing. */
+    setRiskItem('riskDayLoss', formatMoney(guard.valid ? guard.dayLoss : 0),
+      guard.valid && guard.dayLoss > 0 ? 'warn' : '');
+    setRiskItem('riskDrawdown', guard.valid ? formatNumber(guard.drawdownPct, 1) + ' %' : '—',
+      guard.valid && guard.drawdownPct >= DAILY_DD_WARN_PCT ? 'neg' : '');
+    setRiskItem('riskStreak', guard.valid ? String(guard.losingStreak) : '—',
+      guard.valid && guard.losingStreak >= STREAK_WARN ? 'warn' : '');
+
+    const blocked = risk.valid && risk.blocked;
+    setRiskItem('riskState',
+      !risk.valid ? '—' : (blocked ? 'BLOQUEADO' : 'Operativo'),
+      !risk.valid ? '' : (blocked ? 'neg' : 'pos'));
+
+    if (blockEl) {
+      if (blocked) {
+        blockEl.textContent = riskBlockMessage(risk.blockReasons);
+        blockEl.hidden = false;
+      } else {
+        blockEl.hidden = true;
+        blockEl.textContent = '';
+      }
+    }
+
+    if (smallEl) {
+      if (risk.valid && risk.smallAccount && !blocked) {
+        smallEl.textContent = 'Cuenta pequeña (capital ≤ ' + formatMoney(Store.SMALL_ACCOUNT_MAX) +
+          '): el cálculo se limita a 1 contrato.';
+        smallEl.hidden = false;
+      } else {
+        smallEl.hidden = true;
+        smallEl.textContent = '';
+      }
+    }
 
     if (!risk.valid) {
       resultIds.forEach(function (id) { setRiskItem(id, '—'); });
       if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
       if (suitabilityEl) { suitabilityEl.hidden = true; suitabilityEl.textContent = ''; }
-      if (maxTicksItem) { maxTicksItem.hidden = true; }
       return;
     }
 
     /* Default the contracts field to the calculator's suggestion while the
-     * user has not edited it by hand. A zero suggestion is left blank. */
+     * user has not edited it by hand and the calculator is not blocked. */
     const contractsEl = $('contracts');
-    if (contractsEl && !contractsTouched && risk.contracts > 0) {
+    if (contractsEl && !contractsTouched && !blocked && risk.contracts > 0) {
       contractsEl.value = String(risk.contracts);
     }
 
-    const totalRisk = risk.pm * risk.contracts;
-    setRiskItem('riskBudget', formatMoney(usage.valid ? usage.dailyBudget : risk.dailyBudget));
-    setRiskItem('riskUsedToday', formatMoney(usage.valid ? usage.used : 0),
-      usage.used > 0 ? 'warn' : '');
-    setRiskItem('riskAvailable', formatMoney(usage.valid ? usage.available : risk.available),
-      usage.valid && usage.exhausted ? 'warn' : '');
     setRiskItem('riskTickValue', formatMoney(risk.tickValue));
     setRiskItem('riskPerContract', formatMoney(risk.pm));
-    setRiskItem('riskPerTrade', formatMoney(risk.perTradeCap));
+    setRiskItem('riskBudget', formatMoney(usage.valid ? usage.dailyBudget : risk.dailyBudget));
+    setRiskItem('riskUsedToday', formatMoney(usage.valid ? usage.used : 0),
+      usage.valid && usage.used > 0 ? 'warn' : '');
+    setRiskItem('riskAvailable', formatMoney(risk.presupuesto), risk.exhausted ? 'warn' : '');
     setRiskItem('riskContracts', String(risk.contracts));
-    /* Alternative to fewer contracts: how wide a stop ONE contract can take
-     * within the effective per-trade budget. Hidden when the budget cannot
-     * cover a single tick or the day's budget is exhausted. */
-    if (maxTicksItem) {
-      const maxTicks = risk.maxTicksForOneContract;
-      if (maxTicks > 0 && !(usage.valid && usage.exhausted)) {
-        setRiskItem('riskMaxTicks', String(maxTicks) + ' ticks');
-        maxTicksItem.hidden = false;
-      } else {
-        maxTicksItem.hidden = true;
-      }
-    }
+    setRiskItem('riskTotal', formatMoney(risk.totalRisk));
+    setRiskItem('riskTicksSL', formatTicks(risk.ticksSL));
+    setRiskItem('riskTicksTP2', formatTicks(risk.ticksTP2));
+    setRiskItem('riskTicksTP3', formatTicks(risk.ticksTP3));
     setRiskItem('riskCommission', formatMoney(risk.commission));
-    setRiskItem('riskTotal', formatMoney(totalRisk));
 
     /* A recorded planned risk / target takes precedence over the computed
      * position risk and the calculator's own target input. */
     const plannedRisk = (Number.isFinite(formPlannedRisk) && formPlannedRisk > 0)
       ? formPlannedRisk
-      : totalRisk;
+      : risk.totalRisk;
     const rewardTarget = (Number.isFinite(formTarget) && formTarget > 0) ? formTarget : manualTarget;
     const rr = Store.computeRR({ plannedRisk: plannedRisk, target: rewardTarget, minRR: minRR });
     if (rr.valid) {
@@ -1020,25 +1119,28 @@
       setRiskItem('riskRR', '—');
     }
 
-    const lossPct = (risk.contracts > 0 && balance > 0) ? totalRisk / balance : NaN;
-    const recovery = Number.isFinite(lossPct) ? Store.recoveryPct(lossPct) : NaN;
-    if (recovery === Infinity) {
-      setRiskItem('riskRecovery', '∞');
-    } else if (Number.isFinite(recovery)) {
-      setRiskItem('riskRecovery', formatNumber(recovery * 100, 1) + ' %');
+    if (risk.recoveryPct === Infinity) {
+      setRiskItem('riskRecovery', '∞', 'warn');
+    } else if (Number.isFinite(risk.recoveryPct)) {
+      setRiskItem('riskRecovery', formatNumber(risk.recoveryPct * 100, 1) + ' %',
+        risk.recoveryPct > 1 ? 'warn' : '');
     } else {
       setRiskItem('riskRecovery', '—');
     }
 
     if (warnEl) {
-      if (usage.valid && usage.exhausted) {
+      if (blocked) {
+        warnEl.hidden = true;
+        warnEl.textContent = '';
+      } else if (risk.exhausted) {
         warnEl.textContent = 'Sin presupuesto de riesgo disponible hoy: el presupuesto diario es ' +
-          formatMoney(usage.dailyBudget) + ' y las pérdidas de hoy suman ' + formatMoney(usage.used) +
+          formatMoney(usage.valid ? usage.dailyBudget : risk.dailyBudget) +
+          ' y las pérdidas de hoy suman ' + formatMoney(usage.valid ? usage.used : 0) +
           '. No se sugieren contratos.';
         warnEl.hidden = false;
       } else if (risk.contracts === 0) {
         warnEl.textContent = 'Con un riesgo diario del ' + formatNumber(riskPct, 1) +
-          ' % y un presupuesto disponible de ' + formatMoney(risk.available) +
+          ' % y un presupuesto disponible de ' + formatMoney(risk.presupuesto) +
           ', un solo contrato de ' + instrument + ' arriesga ' + formatMoney(risk.pm) +
           '. El instrumento no es viable para esta cuenta con el riesgo configurado.';
         warnEl.hidden = false;
@@ -1054,7 +1156,7 @@
      * is never changed and the sizing math is untouched. */
     if (suitabilityEl) {
       const micro = risk.size === 'full' ? Store.microEquivalent(instrument) : null;
-      if (micro && risk.contracts === 0 && !(usage.valid && usage.exhausted)) {
+      if (micro && risk.contracts === 0 && !risk.exhausted && !blocked) {
         suitabilityEl.textContent = 'No viable con 1 contrato; prueba el micro equivalente: ' +
           micro + '.';
         suitabilityEl.hidden = false;
@@ -1965,11 +2067,21 @@
     ['account', 'instrument', 'contracts', 'direction', 'entryPrice', 'exitPrice',
       'stop', 'target', 'plannedRisk',
       'entryDate', 'entryTime', 'exitDate', 'exitTime',
-      'riskStopTicks', 'riskTarget'].forEach(function (id) {
+      'riskStopTicks', 'riskTarget', 'riskDailyPctInput'].forEach(function (id) {
       const el = $(id);
       if (el) el.addEventListener('input', updatePreview);
       if (el) el.addEventListener('change', updatePreview);
     });
+
+    /* Block 2's instrument select drives the form's instrument (two-way sync:
+     * the reverse happens inside renderRiskPanel). */
+    const panelInstrument = $('riskInstrument');
+    if (panelInstrument) {
+      panelInstrument.addEventListener('change', function () {
+        if ($('instrument')) $('instrument').value = panelInstrument.value;
+        updatePreview();
+      });
+    }
 
     $('tradesBody').addEventListener('click', function (event) {
       const button = event.target.closest('button[data-action]');

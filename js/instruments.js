@@ -5,8 +5,8 @@
  * STRATEGY_IDS, STRATEGY_GROUPS, MICRO_PAIRS, EXIT_TYPES, EMOTIONS,
  * DEFAULT_BALANCES, DEFAULT_RISK_PCT, DEFAULT_DAILY_TRADE_LIMIT,
  * RISK_PCT_MIN, RISK_PCT_MAX, RISK_PCT_HARD_MAX, DEFAULT_MIN_RR,
- * DAILY_DD_WARN_PCT, STREAK_WARN, DEFAULT_SCALING_RR, DEFAULT_SCALING_DAYS,
- * SCALING_DAYS_MAX.
+ * DAILY_DD_WARN_PCT, STREAK_WARN, SMALL_ACCOUNT_MAX, DEFAULT_SCALING_RR,
+ * DEFAULT_SCALING_DAYS, SCALING_DAYS_MAX.
  *
  * Instrument hours follow the exchange timezone: CME Globex uses ET,
  * Eurex uses CET/CEST. Items still pending confirmation are marked
@@ -78,11 +78,11 @@ const INSTRUMENTS = {
     name: 'Euro FX (EUR/USD)',
     exchange: 'CME Globex',
     hours: 'Dom–Vie 18:00–17:00 ET (pausa diaria 17:00–18:00 ET)',
-    tick: 0.00005,
+    tick: 0.0001,
     size: 'full',
     pointValue: 125000,
     commission: 4.72,
-    note: 'Full-size EUR/USD; 125.000 USD por punto.'
+    note: 'Full-size EUR/USD; 125.000 USD por punto; tick 0,0001 (12,50 USD por tick).'
   },
   M6E: {
     name: 'Micro EUR/USD',
@@ -118,21 +118,23 @@ const INSTRUMENTS = {
     name: 'DAX Futures',
     exchange: 'Eurex',
     hours: 'Lun–Vie 02:10–22:00 CET (inicio de mañana por verificar)',
-    tick: 1,
+    tick: 0.5,
     size: 'full',
     pointValue: 25,
+    currency: 'EUR',
     commission: 4.08,
-    note: 'Full-size DAX; 25 EUR por punto. Horario en CET/CEST; inicio de mañana por verificar.'
+    note: 'Full-size DAX; 25 EUR por punto; tick 0,50 (12,50 EUR por tick). Horario en CET/CEST; inicio de mañana por verificar.'
   },
   FDXM: {
     name: 'Micro-DAX (Eurex: FDXS)',
     exchange: 'Eurex',
     hours: 'Lun–Vie 01:10–22:00 CET (por verificar)',
-    tick: 1,
+    tick: 0.5,
     size: 'micro',
     pointValue: 5,
+    currency: 'EUR',
     commission: 2.26,
-    note: 'Micro-DAX; 5 EUR por punto. El símbolo FDXM es del bróker (Eurex: FDXS); horario por verificar.'
+    note: 'Micro-DAX; 5 EUR por punto; tick 0,50 (2,50 EUR por tick). El símbolo FDXM es del bróker (Eurex: FDXS); horario por verificar.'
   }
 };
 
@@ -204,6 +206,10 @@ const RISK_PCT_HARD_MAX = 3;
 const DEFAULT_MIN_RR = 2;
 const DAILY_DD_WARN_PCT = 5;
 const STREAK_WARN = 3;
+
+/* Small-account circuit breaker: at or below this capital the calculator is
+ * forced to a single contract so a tiny account can never over-size. */
+const SMALL_ACCOUNT_MAX = 5000;
 
 /* Daily scaling-plan defaults (proportional compounding projection).
  * `DEFAULT_SCALING_RR` is the R/B expectancy (2 means 2:1) and
