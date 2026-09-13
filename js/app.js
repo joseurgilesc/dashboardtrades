@@ -836,7 +836,12 @@
     dot.style.background = emotionColor(select.value);
   }
 
-  /** Renders the per-instrument reference panel (hidden until toggled). */
+  /**
+   * Renders the per-instrument reference panel (hidden until toggled). The
+   * panel now lives with the calculator's instrument selector (Block 1). It
+   * reads the canonical `#instrument` value, which is the synced value shared
+   * by both selectors, so it follows changes made from either one.
+   */
   function renderInstrumentInfo() {
     const panel = $('instrumentInfo');
     if (!panel) return;
