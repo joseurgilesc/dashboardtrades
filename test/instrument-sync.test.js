@@ -154,6 +154,7 @@ const stubs = [
   'var stopTicksTouched = false;',
   'var contractsTouched = false;',
   'var touchedFields = { stop: false, exitPrice: false };',
+  'var editingTarget = 0;',
   'var riskItems = {};',
   'var suggestions = [];',
   'var previews = [];',
@@ -166,7 +167,11 @@ const stubs = [
   'function renderRiskMarketTable() { marketRenders += 1; }',
   'function renderPriceSuggestions(ticks) { suggestions.push(ticks); }',
   'function renderRiskPreview(ctx) { previews.push(ctx); }',
-  'function riskBlockMessage() { return "blocked"; }'
+  'function riskBlockMessage() { return "blocked"; }',
+  /* R/B ratio selector collaborators (Change 1). The default 1:2 keeps the
+   * instrument-sync assertions focused on the instrument wiring. */
+  'function readRatio() { var el = $("riskRatio"); var n = el ? parseFloat(el.value) : NaN; return (isFinite(n) && n > 0) ? n : 2; }',
+  'function ratioLabel(v) { return "1:" + v; }'
 ].join('\n');
 
 vm.runInContext(extracted + '\n' + stubs, uiContext, { filename: 'app-instrument-functions.js' });

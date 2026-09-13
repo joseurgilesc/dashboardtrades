@@ -185,11 +185,15 @@ eq('targetPrice === target2 (Corto)', corto.targetPrice, corto.target2);
 console.log('\n[6] Structural UI wiring');
 
 check('form exposes #exitSuggestion', htmlSrc.indexOf('id="exitSuggestion"') !== -1);
-check('form keeps #targetSuggestion', htmlSrc.indexOf('id="targetSuggestion"') !== -1);
-check('UI renders target2', appSrc.indexOf('suggestion.target2') !== -1);
-check('UI renders target3', appSrc.indexOf('suggestion.target3') !== -1);
-check('UI labels the R/B range (2:1)', appSrc.indexOf('R/B 2:1') !== -1);
-check('UI labels the R/B range (3:1)', appSrc.indexOf('R/B 3:1') !== -1);
+/* Change 1 removed the USD target input and its suggestion slot from the form;
+ * the computed exit price now carries the planning target. */
+check('form no longer exposes #targetSuggestion', htmlSrc.indexOf('id="targetSuggestion"') === -1);
+check('form no longer exposes a USD #target input', htmlSrc.indexOf('id="target"') === -1);
+check('UI renders the ratio target price', appSrc.indexOf('suggestion.targetPrice') !== -1);
+check('UI no longer hardcodes the R/B 2:1 label', appSrc.indexOf('R/B 2:1') === -1);
+check('UI no longer hardcodes the R/B 3:1 label', appSrc.indexOf('R/B 3:1') === -1);
+check('UI labels the R/B range from the selected ratio',
+  appSrc.indexOf("ratioLabel(ratio)") !== -1);
 check('suggestion derives from the resolved stop ticks', appSrc.indexOf('renderPriceSuggestions(stopTicks)') !== -1);
 check('suggestion is no longer gated on max ticks',
   appSrc.indexOf('maxTicksForOneContract : 0') === -1);

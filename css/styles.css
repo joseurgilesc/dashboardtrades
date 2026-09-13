@@ -1032,6 +1032,17 @@ input.is-draft {
 .rp-ticks-neg { fill: var(--neg); }
 .rp-ticks-pos { fill: var(--pos); }
 
+/* Deterministic mini candlesticks behind the level lines. Sober and readable
+ * at small size: thin wicks, slightly translucent bodies. */
+.rp-wick {
+  stroke-width: 1;
+  opacity: 0.75;
+}
+
+.rp-candle {
+  opacity: 0.85;
+}
+
 /* ------------------------------------------------------------------ */
 /* Instrument info panel                                               */
 /* ------------------------------------------------------------------ */

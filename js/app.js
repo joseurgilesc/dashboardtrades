@@ -54,6 +54,13 @@
    * never fire `input`, so a draft can never mark itself as touched. */
   const touchedFields = { stop: false, exitPrice: false };
 
+  /* Legacy USD `target` of the trade being edited. The USD target input was
+   * removed in favour of the R/B ratio selector, but saved trades may still
+   * carry a numeric `target`; keeping it here lets an edit round-trip it
+   * without a form field (migration-safe: it is never read as USD for
+   * planning, only preserved on save). */
+  let editingTarget = 0;
+
   /* Top-level regions hidden until authentication resolves. */
   const APP_REGIONS = ['.tabs', '#globalSearchBar', '#filtersToggle', '#filtersBar', '.app-main', '.app-footer'];
 
@@ -241,12 +248,46 @@
     select.appendChild(opt);
   }
 
+  /** Spanish label for an R/B ratio value (2 -> "1:2", 2.5 -> "1:2.5"). */
+  function ratioLabel(value) {
+    return '1:' + value;
+  }
+
+  /**
+   * Populates the calculator's R/B ratio selector from the shared catalog
+   * (`Store.getRatioOptions`), preserving the catalog order and defaulting to
+   * the first option (1:2). The option VALUE is the numeric reward multiple.
+   */
+  function fillRatioSelect(select) {
+    if (!select) return;
+    const options = (typeof Store !== 'undefined' && Store.getRatioOptions)
+      ? Store.getRatioOptions()
+      : [2, 2.5, 3, 3.5, 4];
+    select.innerHTML = '';
+    options.forEach(function (ratio) {
+      const opt = document.createElement('option');
+      opt.value = String(ratio);
+      opt.textContent = ratioLabel(ratio);
+      select.appendChild(opt);
+    });
+    select.value = String(options[0]);
+  }
+
+  /** Reads the selected R/B ratio (defaults to the first catalog option). */
+  function readRatio() {
+    const el = $('riskRatio');
+    const n = el ? parseFloat(el.value) : NaN;
+    if (Number.isFinite(n) && n > 0) return n;
+    return (typeof DEFAULT_RATIO !== 'undefined' && DEFAULT_RATIO > 0) ? DEFAULT_RATIO : 2;
+  }
+
   function initSelects() {
     fillSelect($('account'), ACCOUNTS);
     fillSelect($('instrument'), Object.keys(INSTRUMENTS));
     /* The calculator's selector is populated from the SAME catalog source as
      * the trade form's, so the instrument list is never hardcoded twice. */
     fillSelect($('riskInstrument'), Object.keys(INSTRUMENTS));
+    fillRatioSelect($('riskRatio'));
     fillStrategySelect($('strategy'));
     fillSelect($('direction'), DIRECTIONS);
     fillSelect($('exitType'), EXIT_TYPES);
@@ -798,7 +839,9 @@
       exitTime: $('exitTime').value,
       exitPrice: parseFloat($('exitPrice').value),
       stop: parseFloat($('stop').value),
-      target: parseFloat($('target').value),
+      /* The USD target input is gone; a saved trade's numeric `target` is
+       * preserved on edit via `editingTarget`, never used for planning. */
+      target: editingTarget,
       plannedRisk: parseFloat($('plannedRisk').value),
       exitType: $('exitType').value,
       emotion: $('emotion').value,
@@ -1025,12 +1068,13 @@
   }
 
   /**
-   * Renders the advisory stop/target price suggestions next to the form's stop,
-   * exit and target inputs, then applies the DRAFT autofill. `ticks` is the
-   * calculator's resolved stop distance (`ticksSL`), so the suggested stop and
-   * both R/B target prices stay in sync with the calculator's preview and R/B
-   * range row. The advisory text is read-only; the draft writes #stop and
-   * #exitPrice only while those fields are untouched (see applyDraftAutofill).
+   * Renders the advisory stop/exit price suggestions next to the form's stop
+   * and exit inputs, then applies the DRAFT autofill. `ticks` is the
+   * calculator's resolved stop distance (`ticksSL`) and the selected R/B ratio
+   * is read from the calculator selector, so the suggested stop and the
+   * ratio-driven exit price stay in sync with the calculator's preview and R/B
+   * row. The advisory text is read-only; the draft writes #stop and #exitPrice
+   * only while those fields are untouched (see applyDraftAutofill).
    */
   function renderPriceSuggestions(ticks) {
     const instrumentEl = $('instrument');
@@ -1041,10 +1085,9 @@
     const spec = instrumentMeta(instrument);
     const tick = spec ? Number(spec.tick) : NaN;
     const account = accountEl ? accountEl.value : '';
-
-    const cfg = (typeof Store.resolveInstrumentConfig === 'function')
-      ? Store.resolveInstrumentConfig(account, instrument)
-      : { targetR: 2, targetRAlt: 3 };
+    /* The chosen R/B ratio is the single planning multiple: it drives the
+     * suggested stop/target text, the draft autofill and the preview. */
+    const ratio = readRatio();
 
     const suggestion = (typeof Store.suggestStopTarget === 'function')
       ? Store.suggestStopTarget({
@@ -1052,40 +1095,32 @@
           entryPrice: entryEl ? parseFloat(entryEl.value) : NaN,
           direction: directionEl ? directionEl.value : '',
           ticks: ticks,
-          targetR: cfg.targetR,
-          targetRAlt: cfg.targetRAlt
+          targetR: ratio,
+          targetRAlt: ratio
         })
       : { valid: false };
 
     const stopEl = $('stopSuggestion');
-    const targetEl = $('targetSuggestion');
     const exitEl = $('exitSuggestion');
 
     if (suggestion.valid) {
-      /* The BPT 2:1 / 3:1 labels are the default config; a custom per-instrument
-       * R multiple renders its own ratio instead. */
-      const rangeText = (suggestion.targetR === 2 && suggestion.targetRAlt === 3)
-        ? 'Salida sugerida — R/B 2:1: ' + formatPrice(suggestion.target2, tick) +
-          ' · R/B 3:1: ' + formatPrice(suggestion.target3, tick)
-        : 'Salida sugerida — R/B ' + formatNumber(suggestion.targetR, 2) + ':1: ' +
-          formatPrice(suggestion.target2, tick) +
-          ' · R/B ' + formatNumber(suggestion.targetRAlt, 2) + ':1: ' +
-          formatPrice(suggestion.target3, tick);
+      /* The exit suggestion follows the SELECTED ratio (e.g. "R/B 1:3"), not a
+       * hardcoded 2:1 / 3:1 range. */
+      const rangeText = 'Salida sugerida — R/B ' + ratioLabel(ratio) + ': ' +
+        formatPrice(suggestion.targetPrice, tick);
       if (stopEl) {
         stopEl.textContent = 'Stop sugerido: ' + formatPrice(suggestion.stopPrice, tick);
         stopEl.hidden = false;
       }
-      if (targetEl) { targetEl.textContent = rangeText; targetEl.hidden = false; }
       if (exitEl) { exitEl.textContent = rangeText; exitEl.hidden = false; }
     } else {
       if (stopEl) { stopEl.hidden = true; stopEl.textContent = ''; }
-      if (targetEl) { targetEl.hidden = true; targetEl.textContent = ''; }
       if (exitEl) { exitEl.hidden = true; exitEl.textContent = ''; }
     }
 
-    /* DRAFT autofill: writes the suggested stop and the primary R/B exit into
+    /* DRAFT autofill: writes the suggested stop and the ratio-based exit into
      * the form inputs while they are untouched, marked as drafts. */
-    applyDraftAutofill(account, instrument, ticks, tick);
+    applyDraftAutofill(account, instrument, ticks, tick, ratio);
   }
 
   /**
@@ -1105,11 +1140,14 @@
    * untouched; once the user types, the draft mark clears and the value is
    * final. Recomputing therefore never clobbers a user-edited field.
    */
-  function applyDraftAutofill(account, instrument, ticks, tick) {
+  function applyDraftAutofill(account, instrument, ticks, tick, ratio) {
     const stopEl = $('stop');
     const exitEl = $('exitPrice');
     const stopBadge = $('stopDraftBadge');
     const exitBadge = $('exitPriceDraftBadge');
+    /* `ratio` is optional so the pure helper stays callable in isolation; it
+     * falls back to the default 1:2 without touching app globals. */
+    const safeRatio = (Number.isFinite(Number(ratio)) && Number(ratio) > 0) ? Number(ratio) : 2;
 
     const draft = (typeof Store.draftAutofill === 'function')
       ? Store.draftAutofill({
@@ -1118,6 +1156,7 @@
           entryPrice: $('entryPrice') ? parseFloat($('entryPrice').value) : NaN,
           direction: $('direction') ? $('direction').value : '',
           stopTicks: ticks,
+          targetR: safeRatio,
           touched: touchedFields
         })
       : { valid: false };
@@ -1204,6 +1243,30 @@
         '" text-anchor="middle">' + escapeHtml(text) + '</text>';
     };
 
+    /* Deterministic mini candlesticks (geometry from the Store). They sit
+     * behind the level lines: body as a rect, wick as a 1px line. The colour
+     * follows the candle's own price movement (positive/negative tokens). */
+    const candles = geometry.candles || [];
+    if (candles.length) {
+      const plotW = plotX2 - plotX1;
+      const candleW = Math.max(3, (plotW / candles.length) * 0.6);
+      candles.forEach(function (candle) {
+        const cx = plotX1 + candle.x * plotW;
+        const color = candle.up ? 'var(--pos)' : 'var(--neg)';
+        const openY = yOf(candle.oY);
+        const closeY = yOf(candle.cY);
+        const highY = yOf(candle.hY);
+        const lowY = yOf(candle.lY);
+        const bodyTop = Math.min(openY, closeY);
+        const bodyH = Math.max(1, Math.abs(closeY - openY));
+        parts.push('<line class="rp-wick" x1="' + cx.toFixed(1) + '" y1="' + highY.toFixed(1) +
+          '" x2="' + cx.toFixed(1) + '" y2="' + lowY.toFixed(1) + '" stroke="' + color + '" />');
+        parts.push('<rect class="rp-candle" x="' + (cx - candleW / 2).toFixed(1) + '" y="' +
+          bodyTop.toFixed(1) + '" width="' + candleW.toFixed(1) + '" height="' +
+          bodyH.toFixed(1) + '" fill="' + color + '" />');
+      });
+    }
+
     /* Secondary (dashed) target first, then the primary levels, so the entry
      * line always wins any overlap. */
     if (targetYs.length > 1) {
@@ -1282,11 +1345,14 @@
     if (emptyEl) { emptyEl.hidden = true; emptyEl.textContent = ''; }
 
     if (rbEl) {
-      const ratios = geometry.ticksTP.map(function (t) {
-        return String(Math.round((t / geometry.stopTicks) * 100) / 100);
-      });
-      rbEl.textContent = ratios.length
-        ? 'R/B ' + ratios.map(function (r) { return r + ':1'; }).join(' – ')
+      /* The label always reflects the SELECTED ratio (e.g. "R/B 1:3"), never a
+       * hardcoded 2:1 / 3:1 range. */
+      let ratio = Number(ctx.ratio);
+      if (!Number.isFinite(ratio) || ratio <= 0) {
+        ratio = geometry.ticksTP.length ? geometry.ticksTP[0] / geometry.stopTicks : NaN;
+      }
+      rbEl.textContent = (Number.isFinite(ratio) && ratio > 0)
+        ? 'R/B ' + ratioLabel(ratio)
         : 'R/B —';
     }
   }
@@ -1334,11 +1400,11 @@
     const direction = formDirectionEl ? formDirectionEl.value : '';
 
     const stopEl = $('riskStopTicks');
-    const targetEl = $('riskTarget');
     const formStopEl = $('stop');
-    const formTargetEl = $('target');
-    const formPlannedRiskEl = $('plannedRisk');
     const entryPriceEl = $('entryPrice');
+    /* The selected R/B ratio is the planning multiple: it replaces the old USD
+     * target for the calculator's target/exit/preview. */
+    const ratio = readRatio();
 
     const spec = instrumentMeta(instrument);
     const tick = spec ? Number(spec.tick) : NaN;
@@ -1385,10 +1451,11 @@
     /* Circuit-breaker context for Block 4. */
     const guard = Store.riskGuard({ account: account, capital: capital });
 
-    /* Per-instrument config (target R multiples + the resolved stop distance).
-     * The stop is AUTO by default and derived from the SAME budget the
-     * calculator sizes contracts from, so it adapts to instrument, capital,
-     * risk % and trades/day. A fixed value saved in Ajustes wins. */
+    /* Per-instrument config: the resolved stop distance. The stop is AUTO by
+     * default and derived from the SAME budget the calculator sizes contracts
+     * from, so it adapts to instrument, capital, risk % and trades/day. A fixed
+     * value saved in Ajustes wins. The planning target comes from the R/B ratio
+     * selector, not from the per-instrument target multiples. */
     const cfg = (typeof Store.resolveInstrumentConfig === 'function')
       ? Store.resolveInstrumentConfig(account, instrument, {
           balance: capital,
@@ -1410,10 +1477,7 @@
     }
 
     const manualStopTicks = stopEl ? parseFloat(stopEl.value) : NaN;
-    const manualTarget = targetEl ? parseFloat(targetEl.value) : NaN;
     const formStop = formStopEl ? parseFloat(formStopEl.value) : NaN;
-    const formTarget = formTargetEl ? parseFloat(formTargetEl.value) : NaN;
-    const formPlannedRisk = formPlannedRiskEl ? parseFloat(formPlannedRiskEl.value) : NaN;
     const entryPrice = entryPriceEl ? parseFloat(entryPriceEl.value) : NaN;
 
     /* A recorded stop price yields the stop in ticks and takes precedence over
@@ -1462,19 +1526,19 @@
       tradesPerDay: tradesPerDay,
       instrument: instrument,
       stopTicks: stopTicks,
-      targetR: cfg.targetR,
-      targetRAlt: cfg.targetRAlt,
+      targetR: ratio,
+      targetRAlt: ratio,
       available: usage.valid ? usage.available : undefined,
       dayLoss: guard.valid ? guard.dayLoss : 0,
       losingStreak: guard.valid ? guard.losingStreak : 0
     });
 
     /* Advisory stop/target price suggestions. They derive from the SAME
-     * resolved stop distance (`ticksSL`) the calculator uses for its R/B range
-     * row and preview, so the 2:1/3:1 target prices always match. They appear
-     * whenever entry price + stop ticks + instrument are present, regardless of
-     * the sizing state, and are rendered as text only: the form inputs are
-     * never overwritten. */
+     * resolved stop distance (`ticksSL`) and the SELECTED R/B ratio the
+     * calculator uses for its R/B row and preview, so the target prices always
+     * match. They appear whenever entry price + stop ticks + instrument are
+     * present, regardless of the sizing state, and are rendered as text only:
+     * the form inputs are never overwritten. */
     renderPriceSuggestions(stopTicks);
 
     /* The visual plan reuses the same values as the calculator, so it stays in
@@ -1485,7 +1549,9 @@
       tick: tick,
       direction: direction,
       instrument: instrument,
-      ticksTP: (risk.valid ? [risk.ticksTP2, risk.ticksTP3] : undefined)
+      ratio: ratio,
+      /* A single ratio-driven target (the chosen R/B); no fixed TP3. */
+      ticksTP: [stopTicks * ratio]
     });
 
     const warnEl = $('riskViabilityWarning');
@@ -1497,7 +1563,7 @@
      * must never blank a recorded loss. */
     const resultIds = ['riskTickValue', 'riskPerContract', 'riskPerTradeBudget',
       'riskEffectiveBudget', 'riskMaxTicks', 'riskContracts', 'riskTotal',
-      'riskTicksSL', 'riskTicksTP2', 'riskTicksTP3', 'riskRRRange', 'riskRecovery',
+      'riskTicksSL', 'riskTicksTP2', 'riskRRRange', 'riskRecovery',
       'riskRR', 'riskCommission'];
 
     /* Block 4 is always rendered, even when a required input is missing. */
@@ -1567,27 +1633,15 @@
     setRiskItem('riskContracts', String(risk.contracts));
     setRiskItem('riskTotal', formatMoney(risk.totalRisk));
     setRiskItem('riskTicksSL', formatTicks(risk.ticksSL));
+    /* The take-profit distance and the R/B row both follow the SELECTED ratio. */
     setRiskItem('riskTicksTP2', formatTicks(risk.ticksTP2));
-    setRiskItem('riskTicksTP3', formatTicks(risk.ticksTP3));
-    /* BPT minimum R/B range: the same stop sized to the configured R multiples
-     * (2:1 and 3:1 by default), with both take-profit tick distances. */
     setRiskItem('riskRRRange',
-      formatNumber(risk.targetR, 2) + ':1 (' + formatTicks(risk.ticksTP2) + ') – ' +
-      formatNumber(risk.targetRAlt, 2) + ':1 (' + formatTicks(risk.ticksTP3) + ')');
+      ratioLabel(ratio) + ' (' + formatTicks(risk.ticksTP2) + ')');
     setRiskItem('riskCommission', formatMoney(risk.commission));
 
-    /* A recorded planned risk / target takes precedence over the computed
-     * position risk and the calculator's own target input. */
-    const plannedRisk = (Number.isFinite(formPlannedRisk) && formPlannedRisk > 0)
-      ? formPlannedRisk
-      : risk.totalRisk;
-    const rewardTarget = (Number.isFinite(formTarget) && formTarget > 0) ? formTarget : manualTarget;
-    const rr = Store.computeRR({ plannedRisk: plannedRisk, target: rewardTarget, minRR: minRR });
-    if (rr.valid) {
-      setRiskItem('riskRR', formatNumber(rr.ratio, 2) + ' : 1', rr.warned ? 'warn' : '');
-    } else {
-      setRiskItem('riskRR', '—');
-    }
+    /* The planned R/R is exactly the selected R/B ratio (the reward is the
+     * ratio multiple of the planned risk). Warn below the configured minimum. */
+    setRiskItem('riskRR', formatNumber(ratio, 2) + ' : 1', ratio < minRR ? 'warn' : '');
 
     if (risk.recoveryPct === Infinity) {
       setRiskItem('riskRecovery', '∞', 'warn');
@@ -1987,10 +2041,11 @@
     const now = nowTime();
     $('entryTime').value = now;
     $('exitTime').value = now;
-    /* Stop, target and planned risk are optional and start empty. */
+    /* Stop and planned risk are optional and start empty. The legacy USD
+     * target no longer has a field; a new trade starts without one. */
     $('stop').value = '';
-    $('target').value = '';
     $('plannedRisk').value = '';
+    editingTarget = 0;
     /* New trade: the stop and exit fields are draftable again, and any stale
      * draft mark from the previous trade is cleared. */
     touchedFields.stop = false;
@@ -2063,7 +2118,8 @@
     $('exitTime').value = trade.exitTime;
     $('exitPrice').value = trade.exitPrice;
     $('stop').value = trade.stop > 0 ? trade.stop : '';
-    $('target').value = trade.target > 0 ? trade.target : '';
+    /* No USD target field anymore: preserve the saved value for the round-trip. */
+    editingTarget = trade.target > 0 ? trade.target : 0;
     $('plannedRisk').value = trade.plannedRisk > 0 ? trade.plannedRisk : '';
     $('exitType').value = trade.exitType;
     $('emotion').value = trade.emotion;
@@ -2117,7 +2173,8 @@
     $('direction').value = last.direction;
     $('emotion').value = last.emotion;
     $('stop').value = last.stop > 0 ? last.stop : '';
-    $('target').value = last.target > 0 ? last.target : '';
+    /* A duplicated trade is new: it does not inherit the legacy USD target. */
+    editingTarget = 0;
     $('plannedRisk').value = '';
     $('notes').value = '';
     /* No exit data is copied: entry/exit default to the current moment. */
@@ -2787,9 +2844,9 @@
     }
 
     ['account', 'instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
-      'stop', 'target', 'plannedRisk',
+      'stop', 'plannedRisk',
       'entryDate', 'entryTime', 'exitDate', 'exitTime',
-      'riskStopTicks', 'riskTarget', 'riskDailyPctInput', 'riskTradesPerDayInput'].forEach(function (id) {
+      'riskStopTicks', 'riskRatio', 'riskDailyPctInput', 'riskTradesPerDayInput'].forEach(function (id) {
       const el = $(id);
       if (el) el.addEventListener('input', updatePreview);
       if (el) el.addEventListener('change', updatePreview);

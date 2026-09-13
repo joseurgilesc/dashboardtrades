@@ -70,7 +70,7 @@ const extracted = [
   extractFunction(appSrc, 'function decimalsForTick(tick)'),
   extractFunction(appSrc, 'function formatPrice(value, tick)'),
   extractFunction(appSrc, 'function setDraftField(input, badge, value, isDraft)'),
-  extractFunction(appSrc, 'function applyDraftAutofill(account, instrument, ticks, tick)')
+  extractFunction(appSrc, 'function applyDraftAutofill(account, instrument, ticks, tick, ratio)')
 ].join('\n');
 
 /* ------------------------------------------------------------------ */
@@ -184,6 +184,26 @@ elements.entryPrice.value = ''; /* no plan anymore */
 apply();
 eq('untouched stop draft cleared', elements.stop.value, '');
 eq('touched exit value kept', elements.exitPrice.value, '5102');
+
+/* ------------------------------------------------------------------ */
+/* [6] The selected R/B ratio moves the draft exit                     */
+/* ------------------------------------------------------------------ */
+
+console.log('\n[6] Ratio drives the draft exit');
+
+uiContext.touchedFields.stop = true;       /* keep the user stop out of the way */
+uiContext.touchedFields.exitPrice = false;
+elements.entryPrice.value = '5000';
+uiContext.applyDraftAutofill('Sim', 'MES', 8, 0.25, 3);
+eq('ratio 1:3 exit = entry + 3 x 8 x 0.25', elements.exitPrice.value, '5006.00');
+eq('exit still marked as draft', isDraft(elements.exitPrice), true);
+
+uiContext.applyDraftAutofill('Sim', 'MES', 8, 0.25, 2.5);
+eq('ratio 1:2.5 exit = entry + 2.5 x 8 x 0.25', elements.exitPrice.value, '5005.00');
+
+/* The default ratio keeps the 2:1 behaviour when no ratio is passed. */
+uiContext.applyDraftAutofill('Sim', 'MES', 8, 0.25);
+eq('default ratio exit = entry + 2 x 8 x 0.25', elements.exitPrice.value, '5004.00');
 
 /* ------------------------------------------------------------------ */
 /* Result                                                              */

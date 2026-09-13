@@ -204,8 +204,9 @@
         <div class="risk-block">
           <h3 class="risk-block-title">3. Cálculo</h3>
           <div class="field">
-            <label for="riskTarget">Objetivo (USD, opcional)</label>
-            <input type="number" id="riskTarget" min="0" step="any" inputmode="decimal">
+            <label for="riskRatio">R/B (riesgo/beneficio)</label>
+            <select id="riskRatio"></select>
+            <span class="field-hint">El objetivo se calcula como entrada ± (stop en ticks × R/B) × tick.</span>
           </div>
           <div class="preview" id="riskResults" aria-live="polite">
             <div class="preview-item">
@@ -253,15 +254,11 @@
               <span class="preview-value" id="riskTicksSL">—</span>
             </div>
             <div class="preview-item">
-              <span class="preview-label">Ticks TP mínimo (×2)</span>
+              <span class="preview-label">Ticks TP (R/B)</span>
               <span class="preview-value" id="riskTicksTP2">—</span>
             </div>
             <div class="preview-item">
-              <span class="preview-label">Ticks TP alternativo (×3)</span>
-              <span class="preview-value" id="riskTicksTP3">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">R/B mínimo (BPT)</span>
+              <span class="preview-label">R/B seleccionado</span>
               <span class="preview-value" id="riskRRRange">—</span>
             </div>
             <div class="preview-item">
@@ -408,11 +405,6 @@
           <details class="advanced-options" id="advancedOptions">
             <summary>Más opciones</summary>
             <div class="form-grid">
-              <div class="field">
-                <label for="target">Objetivo (USD, opcional)</label>
-                <input type="number" id="target" min="0" step="any" inputmode="decimal">
-                <span class="field-suggestion" id="targetSuggestion" hidden></span>
-              </div>
               <div class="field">
                 <label for="plannedRisk">Riesgo planeado (USD, opcional)</label>
                 <input type="number" id="plannedRisk" min="0" step="any" inputmode="decimal">

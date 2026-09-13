@@ -8,7 +8,7 @@
  * RISK_PCT_HARD_MAX, DEFAULT_MIN_RR, DAILY_DD_WARN_PCT, STREAK_WARN,
  * SMALL_ACCOUNT_MAX, DEFAULT_SCALING_RR, DEFAULT_SCALING_DAYS,
  * SCALING_DAYS_MAX, FALLBACK_STOP_TICKS, DEFAULT_TARGET_R,
- * DEFAULT_TARGET_R_ALT.
+ * DEFAULT_TARGET_R_ALT, RATIO_OPTIONS, DEFAULT_RATIO.
  *
  * Instrument hours follow the exchange timezone: CME Globex uses ET,
  * Eurex uses CET/CEST. Items still pending confirmation are marked
@@ -291,6 +291,13 @@ const SMALL_ACCOUNT_MAX = 5000;
 const FALLBACK_STOP_TICKS = 1;
 const DEFAULT_TARGET_R = DEFAULT_MIN_RR;
 const DEFAULT_TARGET_R_ALT = DEFAULT_MIN_RR + 1;
+
+/* Risk/benefit ratio options for the calculator's planning selector. Each
+ * value is the reward multiple of the stop distance (2 means 1:2), so the
+ * target price is `entry ± stopTicks × ratio × tick`. The order is the one the
+ * UI must show and the first entry is the default. */
+const RATIO_OPTIONS = [2, 2.5, 3, 3.5, 4];
+const DEFAULT_RATIO = RATIO_OPTIONS[0];
 
 /* Daily scaling-plan defaults (proportional compounding projection).
  * `DEFAULT_SCALING_RR` is the R/B expectancy (2 means 2:1) and

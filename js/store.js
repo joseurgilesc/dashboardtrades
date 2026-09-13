@@ -1535,6 +1535,40 @@ const Store = (function () {
   }
 
   /**
+   * Available risk/benefit ratio options (pure). Reads the catalog constant
+   * when present and falls back to the canonical 1:2 … 1:4 list so the UI
+   * always has a complete, ordered set even if the constant is missing.
+   */
+  function getRatioOptions() {
+    return (typeof RATIO_OPTIONS !== 'undefined' && Array.isArray(RATIO_OPTIONS) && RATIO_OPTIONS.length)
+      ? RATIO_OPTIONS.slice()
+      : [2, 2.5, 3, 3.5, 4];
+  }
+
+  /**
+   * Ratio-driven planning target (pure). The chosen risk/benefit ratio is the
+   * reward multiple of the stop distance, so the target price is
+   *
+   *   targetPrice = entry ± stopTicks × ratio × tick   (Largo / Corto)
+   *
+   * Wraps `suggestStopTarget` with the ratio as both the primary and the
+   * alternative R multiple, so the calculator, the exit suggestion, the draft
+   * autofill and the preview all share one formula. Returns the same shape as
+   * `suggestStopTarget` (`targetPrice` is the ratio target).
+   */
+  function ratioTarget(inputs) {
+    const opts = inputs || {};
+    return suggestStopTarget({
+      instrument: opts.instrument,
+      entryPrice: opts.entryPrice,
+      direction: opts.direction,
+      ticks: opts.ticks,
+      targetR: opts.ratio,
+      targetRAlt: opts.ratio
+    });
+  }
+
+  /**
    * Pure DRAFT-autofill decision for the entry form's stop and exit fields.
    *
    * Given the calculator context (account, instrument, entry price, direction)
@@ -1598,6 +1632,40 @@ const Store = (function () {
   }
 
   /**
+   * Fixed, deterministic OHLC template for the mini candlestick preview.
+   *
+   * Each entry is expressed as a fraction of the PRIMARY target distance
+   * (`p` = centre, positive = toward the target, negative = toward the stop)
+   * plus a body half-height (`body`) and a wick half-height (`wick`). `up` is
+   * the template's intended body direction; the rendered colour follows the
+   * ACTUAL price movement, so a short reverses the colours.
+   *
+   * There is deliberately NO `Math.random()` here: the series is hardcoded so
+   * the chart never flickers or jumps on re-render. The extreme progress is
+   * kept within `[-0.22, 1.01]` so the candles always fit inside the level
+   * range for every ratio in `RATIO_OPTIONS` (>= 2, whose stop sits at
+   * `-1 / ratio >= -0.5`).
+   */
+  const PREVIEW_CANDLES = [
+    { p: -0.12, body: 0.10, wick: 0.05, up: true },
+    { p: -0.06, body: 0.12, wick: 0.05, up: false },
+    { p: 0.00, body: 0.10, wick: 0.06, up: true },
+    { p: 0.08, body: 0.14, wick: 0.05, up: true },
+    { p: 0.04, body: 0.10, wick: 0.07, up: false },
+    { p: 0.14, body: 0.12, wick: 0.05, up: true },
+    { p: 0.22, body: 0.10, wick: 0.06, up: false },
+    { p: 0.30, body: 0.14, wick: 0.05, up: true },
+    { p: 0.38, body: 0.12, wick: 0.05, up: true },
+    { p: 0.32, body: 0.10, wick: 0.07, up: false },
+    { p: 0.46, body: 0.14, wick: 0.05, up: true },
+    { p: 0.56, body: 0.12, wick: 0.06, up: true },
+    { p: 0.64, body: 0.10, wick: 0.05, up: false },
+    { p: 0.74, body: 0.14, wick: 0.05, up: true },
+    { p: 0.84, body: 0.12, wick: 0.05, up: true },
+    { p: 0.92, body: 0.10, wick: 0.04, up: false }
+  ];
+
+  /**
    * Pure geometry for the compact trade-preview chart (no DOM, no SVG).
    *
    * Prices are derived from the calculator's tick distances and the
@@ -1617,11 +1685,18 @@ const Store = (function () {
    * targetY`; for a short the order is inverted. An 12% pad is added to the
    * price range so the extreme lines never sit glued to the chart edges.
    *
+   * `candles` is a deterministic mini candlestick series (see
+   * `PREVIEW_CANDLES`) mapped onto the same price/y scale, with `x` normalised
+   * in `[0, 1]` across the plot width and `oY`/`hY`/`lY`/`cY` normalised like
+   * the levels. `up` reflects the actual price direction, so a short mirrors
+   * the colours. The candle series is excluded from `min`/`max` (which stay
+   * level-derived) and is clamped into the level range, so the axis is stable.
+   *
    * Returns `{ valid, reason, entry, stop, targets, stopTicks, ticksTP, tick,
-   * direction, min, max, entryY, stopY, targetYs }`. `valid` is false when the
-   * entry price, stop ticks, tick size or direction is missing/invalid;
-   * `reason` names the first failing input (the UI turns it into placeholder
-   * copy).
+   * direction, min, max, entryY, stopY, targetYs, candles }`. `valid` is false
+   * when the entry price, stop ticks, tick size or direction is
+   * missing/invalid; `reason` names the first failing input (the UI turns it
+   * into placeholder copy).
    */
   function tradePreviewGeometry(inputs) {
     const opts = inputs || {};
@@ -1643,7 +1718,8 @@ const Store = (function () {
       max: NaN,
       entryY: 0,
       stopY: 0,
-      targetYs: []
+      targetYs: [],
+      candles: []
     };
 
     if (!Number.isFinite(entry)) { result.reason = 'entry'; return result; }
@@ -1675,6 +1751,44 @@ const Store = (function () {
     const hi = max + pad;
     const yOf = function (price) { return (hi - price) / (hi - lo); };
 
+    /* Candles are scaled to the primary target distance so the path visibly
+     * walks from the entry toward the chosen R/B target. Prices are snapped to
+     * the tick grid and clamped into the level range, keeping the y values in
+     * [0, 1] for any ratio. */
+    const targetTicks = tpTicks.length ? tpTicks[0] : stopTicks * 2;
+    const candleScale = targetTicks * tick;
+    const candleCount = PREVIEW_CANDLES.length;
+    const priceOf = function (progress) {
+      const raw = entry + sign * progress * candleScale;
+      return roundToTick(Math.max(min, Math.min(max, raw)), tick);
+    };
+    const candles = PREVIEW_CANDLES.map(function (candle, index) {
+      const half = candle.body / 2;
+      const openProgress = candle.up ? candle.p - half : candle.p + half;
+      const closeProgress = candle.up ? candle.p + half : candle.p - half;
+      const open = priceOf(openProgress);
+      const close = priceOf(closeProgress);
+      /* The wick extends `wick` beyond each end of the body in PROGRESS space;
+       * because the progress->price map is monotonic but flips for a short,
+       * take the price extremes so `h`/`l` stay meaningful for both directions. */
+      const wickEndA = priceOf(Math.max(openProgress, closeProgress) + candle.wick);
+      const wickEndB = priceOf(Math.min(openProgress, closeProgress) - candle.wick);
+      const high = Math.max(wickEndA, wickEndB);
+      const low = Math.min(wickEndA, wickEndB);
+      return {
+        x: (index + 0.5) / candleCount,
+        o: open,
+        h: high,
+        l: low,
+        c: close,
+        up: close > open,
+        oY: yOf(open),
+        hY: yOf(high),
+        lY: yOf(low),
+        cY: yOf(close)
+      };
+    });
+
     result.valid = true;
     result.entry = entry;
     result.stop = stop;
@@ -1688,6 +1802,7 @@ const Store = (function () {
     result.entryY = yOf(entry);
     result.stopY = yOf(stop);
     result.targetYs = targets.map(yOf);
+    result.candles = candles;
     return result;
   }
 
@@ -2764,6 +2879,8 @@ const Store = (function () {
     budgetStopTicks: budgetStopTicks,
     resolveStopTicksSeed: resolveStopTicksSeed,
     suggestStopTarget: suggestStopTarget,
+    ratioTarget: ratioTarget,
+    getRatioOptions: getRatioOptions,
     draftAutofill: draftAutofill,
     tradePreviewGeometry: tradePreviewGeometry,
     microEquivalent: microEquivalent,
