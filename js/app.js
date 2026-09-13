@@ -43,12 +43,9 @@
    * account refreshes the default while hand-edits persist for that account. */
   let lastRiskAccount = null;
 
-  /* Last instrument the risk panel seeded its stop-ticks input for, so the
-   * per-instrument config only re-seeds when the instrument actually changes. */
-  let lastRiskInstrument = null;
-
-  /* True once the user edits the stop-ticks input by hand; blocks the
-   * per-instrument config from re-seeding it until the instrument changes. */
+  /* True once the user edits the stop-ticks input by hand. A user-typed stop is
+   * FINAL: the budget-derived default never re-seeds over it again, not even
+   * when the instrument or the account changes. */
   let stopTicksTouched = false;
 
   /* Draft/touched state for the autofilled form fields. A draft is written
@@ -247,6 +244,9 @@
   function initSelects() {
     fillSelect($('account'), ACCOUNTS);
     fillSelect($('instrument'), Object.keys(INSTRUMENTS));
+    /* The calculator's selector is populated from the SAME catalog source as
+     * the trade form's, so the instrument list is never hardcoded twice. */
+    fillSelect($('riskInstrument'), Object.keys(INSTRUMENTS));
     fillStrategySelect($('strategy'));
     fillSelect($('direction'), DIRECTIONS);
     fillSelect($('exitType'), EXIT_TYPES);
@@ -762,6 +762,26 @@
   /* Form: preview, validation, save, edit, cancel                       */
   /* ------------------------------------------------------------------ */
 
+  /**
+   * Single source of truth for the instrument. `#instrument` (the trade form)
+   * is canonical because the save path reads it; `#riskInstrument` (the
+   * calculator selector) is a view over the SAME value. Both are written
+   * together on every change, so the two views can never diverge. A known
+   * instrument always wins; an unknown/empty value is preserved as-is so a
+   * legacy trade being edited is never silently retargeted.
+   */
+  function syncInstrument(value) {
+    const formEl = $('instrument');
+    const calcEl = $('riskInstrument');
+    const fallback = formEl ? formEl.value : '';
+    const next = (typeof Store !== 'undefined' && Store.normalizeInstrument)
+      ? Store.normalizeInstrument(value, fallback)
+      : String(value === null || value === undefined ? '' : value);
+    if (formEl) formEl.value = next;
+    if (calcEl) calcEl.value = next;
+    return next;
+  }
+
   function readForm() {
     return {
       id: state.editingId || undefined,
@@ -950,8 +970,9 @@
 
   /**
    * Renders Block 2's market-parameter lookup table from instruments.js and
-   * highlights the instrument selected in the trade form. `valor_tick =
-   * tick × pointValue`. The calculator has no instrument select of its own.
+   * highlights the currently selected instrument. `valor_tick = tick ×
+   * pointValue`. The selection is the shared one: the calculator selector in
+   * Block 1 and the trade form's `#instrument` are always the same value.
    */
   function renderRiskMarketTable() {
     const body = $('riskMarketBody');
@@ -972,7 +993,7 @@
       const spec = selected ? INSTRUMENTS[selected] : null;
       if (spec) {
         hint.textContent = 'Mostrando ' + selected + ' · ' + spec.name +
-          '. Cambia el instrumento en el formulario del trade.';
+          '. Cambia el instrumento en la calculadora o en el formulario: ambos están sincronizados.';
         hint.hidden = false;
       } else {
         hint.hidden = true;
@@ -1297,8 +1318,11 @@
     if (!accountEl) return;
 
     const account = accountEl.value || ACCOUNTS[0];
-    /* The calculator has no instrument of its own: it always follows the
-     * instrument selected in the trade form. */
+    /* One instrument, two views: keep the calculator's selector mirrored to
+     * the canonical #instrument value on every render, so a programmatic
+     * instrument change (reset, edit, duplicate, last-used) can never leave
+     * the two selectors out of sync. */
+    syncInstrument($('instrument') ? $('instrument').value : '');
     const formInstrumentEl = $('instrument');
     const instrument = formInstrumentEl ? formInstrumentEl.value : '';
     const formDirectionEl = $('direction');
@@ -1314,48 +1338,7 @@
     const spec = instrumentMeta(instrument);
     const tick = spec ? Number(spec.tick) : NaN;
 
-    /* Per-instrument config (ticks + target R multiples), resolved for the
-     * account. Its stop distance seeds the manual tick input when the
-     * instrument changes (unless the user edited it), and its target multiples
-     * shape the exit distances. */
-    const cfg = (typeof Store.resolveInstrumentConfig === 'function')
-      ? Store.resolveInstrumentConfig(account, instrument)
-      : { stopTicks: 8, targetR: 2, targetRAlt: 3, valid: false };
-
     const accountChanged = lastRiskAccount !== account;
-    const instrumentChanged = lastRiskInstrument !== instrument;
-
-    /* Seed the stop-ticks input from the instrument's config on an instrument
-     * change; a hand-edited value is respected until the instrument changes. */
-    if (stopEl) {
-      if (instrumentChanged) stopTicksTouched = false;
-      if ((instrumentChanged || accountChanged) && !stopTicksTouched) {
-        stopEl.value = String(cfg.stopTicks);
-      }
-    }
-    lastRiskInstrument = instrument;
-
-    const manualStopTicks = stopEl ? parseFloat(stopEl.value) : NaN;
-    const manualTarget = targetEl ? parseFloat(targetEl.value) : NaN;
-    const formStop = formStopEl ? parseFloat(formStopEl.value) : NaN;
-    const formTarget = formTargetEl ? parseFloat(formTargetEl.value) : NaN;
-    const formPlannedRisk = formPlannedRiskEl ? parseFloat(formPlannedRiskEl.value) : NaN;
-    const entryPrice = entryPriceEl ? parseFloat(entryPriceEl.value) : NaN;
-
-    /* A recorded stop price yields the stop in ticks and takes precedence over
-     * the calculator's own tick input. A DRAFT stop (written by the autofill
-     * while the field is untouched) is NOT user input, so it must not feed the
-     * calculator: only a touched stop does. */
-    const derivedStopPoints = (touchedFields.stop && Number.isFinite(formStop) &&
-      Number.isFinite(entryPrice) && formStop !== entryPrice)
-      ? Math.abs(entryPrice - formStop)
-      : NaN;
-    const derivedStopTicks = (Number.isFinite(derivedStopPoints) && tick > 0)
-      ? Number((derivedStopPoints / tick).toFixed(4))
-      : NaN;
-    const stopTicks = derivedStopTicks > 0
-      ? derivedStopTicks
-      : ((Number.isFinite(manualStopTicks) && manualStopTicks > 0) ? manualStopTicks : cfg.stopTicks);
 
     const capital = Store.startOfDayBalance(account);
     const settings = Store.getRiskSettings()[account] || {};
@@ -1373,7 +1356,7 @@
     if (pctInput && pctInput.value !== String(riskPct)) pctInput.value = String(riskPct);
 
     /* Block 1 input: trades per day drives the per-trade budget (and therefore
-     * the suggested stop). Seeded from the account's daily limit, then the
+     * the budget-derived stop). Seeded from the account's daily limit, then the
      * user can change it; it is a calculator input, not persisted here. */
     const defaultTrades = Number.isFinite(settings.dailyTradeLimit)
       ? settings.dailyTradeLimit
@@ -1397,10 +1380,70 @@
     /* Circuit-breaker context for Block 4. */
     const guard = Store.riskGuard({ account: account, capital: capital });
 
+    /* Per-instrument config (target R multiples + the resolved stop distance).
+     * The stop is AUTO by default and derived from the SAME budget the
+     * calculator sizes contracts from, so it adapts to instrument, capital,
+     * risk % and trades/day. A fixed value saved in Ajustes wins. */
+    const cfg = (typeof Store.resolveInstrumentConfig === 'function')
+      ? Store.resolveInstrumentConfig(account, instrument, {
+          balance: capital,
+          riskPct: riskPct,
+          tradesPerDay: tradesPerDay,
+          available: usage.valid ? usage.available : undefined
+        })
+      : { stopTicks: 1, stopTicksAuto: true, targetR: 2, targetRAlt: 3, valid: false };
+
+    /* Seed the stop-ticks input from the resolved value whenever the inputs
+     * that determine it change, but NEVER once the user has edited it: a
+     * user-typed stop is final. The pure decision lives in the Store so it is
+     * testable without a DOM. */
+    const stopSeed = (typeof Store.resolveStopTicksSeed === 'function')
+      ? Store.resolveStopTicksSeed(stopTicksTouched, cfg.stopTicks)
+      : cfg.stopTicks;
+    if (stopEl && stopSeed !== null) {
+      stopEl.value = String(stopSeed);
+    }
+
+    const manualStopTicks = stopEl ? parseFloat(stopEl.value) : NaN;
+    const manualTarget = targetEl ? parseFloat(targetEl.value) : NaN;
+    const formStop = formStopEl ? parseFloat(formStopEl.value) : NaN;
+    const formTarget = formTargetEl ? parseFloat(formTargetEl.value) : NaN;
+    const formPlannedRisk = formPlannedRiskEl ? parseFloat(formPlannedRiskEl.value) : NaN;
+    const entryPrice = entryPriceEl ? parseFloat(entryPriceEl.value) : NaN;
+
+    /* A recorded stop price yields the stop in ticks and takes precedence over
+     * the calculator's own tick input. A DRAFT stop (written by the autofill
+     * while the field is untouched) is NOT user input, so it must not feed the
+     * calculator: only a touched stop does. */
+    const derivedStopPoints = (touchedFields.stop && Number.isFinite(formStop) &&
+      Number.isFinite(entryPrice) && formStop !== entryPrice)
+      ? Math.abs(entryPrice - formStop)
+      : NaN;
+    const derivedStopTicks = (Number.isFinite(derivedStopPoints) && tick > 0)
+      ? Number((derivedStopPoints / tick).toFixed(4))
+      : NaN;
+    const stopTicks = derivedStopTicks > 0
+      ? derivedStopTicks
+      : ((Number.isFinite(manualStopTicks) && manualStopTicks > 0) ? manualStopTicks : cfg.stopTicks);
+
     const hint = $('riskAccountHint');
     if (hint) {
       hint.textContent = account + ' · riesgo diario ' + formatNumber(riskPct, 1) + ' % · ' +
         tradesPerDay + ' op/día · capital inicio ' + formatMoney(capital);
+    }
+
+    /* Provenance of the stop distance: the user must never wonder where the
+     * number came from. */
+    const stopHintEl = $('riskStopHint');
+    if (stopHintEl) {
+      if (stopTicksTouched) {
+        stopHintEl.textContent = 'Manual: valor introducido por ti.';
+      } else if (cfg.stopTicksAuto) {
+        stopHintEl.textContent = 'Auto: máx. que aguanta tu presupuesto (' +
+          formatTicks(cfg.stopTicks) + ').';
+      } else {
+        stopHintEl.textContent = 'Fijo (Ajustes): ' + formatTicks(cfg.stopTicks) + '.';
+      }
     }
 
     setRiskItem('riskCapital', formatMoney(capital));
@@ -2375,15 +2418,24 @@
     body.innerHTML = Object.keys(INSTRUMENTS).map(function (id) {
       const cfg = accountConfig[id] || {};
       const tick = Number(INSTRUMENTS[id].tick);
+      const auto = cfg.stopTicksAuto === true;
       const stopPts = formatPoints(Number(cfg.stopPoints), tick);
+      /* AUTO shows the budget-derived distance inline; a fixed value shows only
+       * the points equivalent under its input. */
+      const stopDisplay = auto
+        ? 'Auto (' + cfg.stopTicks + ' ticks) · ' + stopPts
+        : stopPts;
+      const stopValue = auto ? '' : String(cfg.fixedStopTicks);
       const exitPts = formatPoints(Number(cfg.targetPoints), tick);
       const exitAltPts = formatPoints(Number(cfg.targetAltPoints), tick);
-      return '<tr data-instrument="' + escapeHtml(id) + '">' +
+      return '<tr data-instrument="' + escapeHtml(id) + '" data-auto-ticks="' +
+          escapeHtml(String(cfg.stopTicks)) + '">' +
         '<td><span class="cell-main">' + escapeHtml(id) + '</span> ' +
           '<span class="muted">' + escapeHtml(INSTRUMENTS[id].name) + '</span></td>' +
         '<td><input type="number" min="0" step="any" inputmode="decimal" ' +
-          'id="cfgStop_' + account + '_' + id + '" value="' + escapeHtml(String(cfg.stopTicks)) + '">' +
-          '<span class="instrument-config-points">' + escapeHtml(stopPts) + '</span></td>' +
+          'id="cfgStop_' + account + '_' + id + '" value="' + escapeHtml(stopValue) + '" ' +
+          'placeholder="Auto" aria-label="Stop en ticks (' + escapeHtml(id) + ')">' +
+          '<span class="instrument-config-points">' + escapeHtml(stopDisplay) + '</span></td>' +
         '<td><input type="number" min="0" step="0.1" inputmode="decimal" ' +
           'id="cfgTargetR_' + account + '_' + id + '" value="' + escapeHtml(String(cfg.targetR)) + '"></td>' +
         '<td><input type="number" min="0" step="0.1" inputmode="decimal" ' +
@@ -2406,12 +2458,21 @@
     const stopInput = tr.querySelector('input[id^="cfgStop_"]');
     const targetRInput = tr.querySelector('input[id^="cfgTargetR_"]');
     const targetRAltInput = tr.querySelector('input[id^="cfgTargetRAlt_"]');
-    const stopTicks = stopInput ? parseFloat(stopInput.value) : NaN;
+    /* An empty stop input means AUTO: fall back to the budget-derived value the
+     * row was rendered with, kept in `data-auto-ticks`. */
+    const stopRaw = stopInput ? String(stopInput.value).trim() : '';
+    const autoTicks = parseFloat(tr.getAttribute('data-auto-ticks'));
+    const stopTicks = stopRaw === '' ? autoTicks : parseFloat(stopRaw);
     const targetR = targetRInput ? parseFloat(targetRInput.value) : NaN;
     const targetRAlt = targetRAltInput ? parseFloat(targetRAltInput.value) : NaN;
     const stopPtsEl = tr.querySelector('.instrument-config-points');
     const exitsEl = tr.querySelector('.instrument-config-exits');
-    if (stopPtsEl) stopPtsEl.textContent = formatPoints(stopTicks * tick, tick);
+    if (stopPtsEl) {
+      const points = formatPoints(stopTicks * tick, tick);
+      stopPtsEl.textContent = stopRaw === ''
+        ? 'Auto (' + autoTicks + ' ticks) · ' + points
+        : points;
+    }
     if (exitsEl) {
       exitsEl.textContent = formatPoints(stopTicks * targetR * tick, tick) + ' · ' +
         formatPoints(stopTicks * targetRAlt * tick, tick);
@@ -2446,14 +2507,18 @@
       const stopInput = tr.querySelector('input[id^="cfgStop_"]');
       const targetRInput = tr.querySelector('input[id^="cfgTargetR_"]');
       const targetRAltInput = tr.querySelector('input[id^="cfgTargetRAlt_"]');
-      const stopTicks = stopInput ? parseFloat(stopInput.value) : NaN;
+      /* An empty stop input means AUTO (budget-derived), not an error. */
+      const stopRaw = stopInput ? String(stopInput.value).trim() : '';
+      const stopAuto = stopRaw === '';
+      const stopTicks = stopAuto ? null : parseFloat(stopRaw);
       const targetR = targetRInput ? parseFloat(targetRInput.value) : NaN;
       const targetRAlt = targetRAltInput ? parseFloat(targetRAltInput.value) : NaN;
-      const valid = [stopTicks, targetR, targetRAlt].every(function (n) {
+      const targetsValid = [targetR, targetRAlt].every(function (n) {
         return Number.isFinite(n) && n > 0;
       });
-      if (!valid) {
-        errors.push('Los rangos de ' + id + ' deben ser números mayores que 0.');
+      const stopValid = stopAuto || (Number.isFinite(stopTicks) && stopTicks > 0);
+      if (!targetsValid || !stopValid) {
+        errors.push('Los rangos de ' + id + ' deben ser números mayores que 0 (deja el stop vacío para Auto).');
         return;
       }
       Store.setInstrumentConfig(account, id, {
@@ -2699,6 +2764,21 @@
       const markStopTicksTouched = function () { stopTicksTouched = true; };
       riskStopField.addEventListener('input', markStopTicksTouched);
       riskStopField.addEventListener('change', markStopTicksTouched);
+    }
+
+    /* The calculator's instrument selector is the other view of the same
+     * value: on change it writes the canonical #instrument FIRST, then the
+     * shared render pass re-renders every instrument-dependent region
+     * (calculator values, NinjaTrader preview, R/B range, price/draft
+     * suggestions, AUTO stop default and market table). */
+    const riskInstrumentField = $('riskInstrument');
+    if (riskInstrumentField) {
+      const onRiskInstrument = function () {
+        syncInstrument(riskInstrumentField.value);
+        updatePreview();
+      };
+      riskInstrumentField.addEventListener('input', onRiskInstrument);
+      riskInstrumentField.addEventListener('change', onRiskInstrument);
     }
 
     ['account', 'instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',

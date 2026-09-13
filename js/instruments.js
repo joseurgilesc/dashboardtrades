@@ -7,7 +7,7 @@
  * DEFAULT_RISK_PCT, DEFAULT_DAILY_TRADE_LIMIT, RISK_PCT_MIN, RISK_PCT_MAX,
  * RISK_PCT_HARD_MAX, DEFAULT_MIN_RR, DAILY_DD_WARN_PCT, STREAK_WARN,
  * SMALL_ACCOUNT_MAX, DEFAULT_SCALING_RR, DEFAULT_SCALING_DAYS,
- * SCALING_DAYS_MAX, DEFAULT_STOP_TICKS, DEFAULT_TARGET_R,
+ * SCALING_DAYS_MAX, FALLBACK_STOP_TICKS, DEFAULT_TARGET_R,
  * DEFAULT_TARGET_R_ALT.
  *
  * Instrument hours follow the exchange timezone: CME Globex uses ET,
@@ -277,10 +277,18 @@ const SMALL_ACCOUNT_MAX = 5000;
 /* Per-instrument stop/target defaults, expressed in TICKS (the authoritative
  * unit) and configurable per account in Ajustes. A tick maps to a different
  * number of points per instrument, so the UI also shows the points equivalent
- * (`ticks × tick`). `DEFAULT_STOP_TICKS` matches the calculator's historical
- * default input (8); `DEFAULT_TARGET_R`/`DEFAULT_TARGET_R_ALT` keep the BPT
- * 2:1 / 3:1 range when an instrument has no explicit configuration. */
-const DEFAULT_STOP_TICKS = 8;
+ * (`ticks × tick`).
+ *
+ * The stop distance is AUTO by default: it is derived from the per-trade risk
+ * budget as the maximum distance one contract can afford
+ * (`floor(effectiveBudget / tickValue)`, see `Store.budgetStopTicks`). A fixed
+ * value configured per instrument wins over the derived one.
+ * `FALLBACK_STOP_TICKS` is used ONLY when that budget cannot be computed
+ * (missing balance/instrument) and is a single tick, never an arbitrary
+ * "reasonable-looking" placeholder. `DEFAULT_TARGET_R`/`DEFAULT_TARGET_R_ALT`
+ * keep the BPT 2:1 / 3:1 range when an instrument has no explicit
+ * configuration. */
+const FALLBACK_STOP_TICKS = 1;
 const DEFAULT_TARGET_R = DEFAULT_MIN_RR;
 const DEFAULT_TARGET_R_ALT = DEFAULT_MIN_RR + 1;
 

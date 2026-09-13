@@ -52,9 +52,11 @@ const Store = (function () {
   const SCALING_DAYS_DEFAULT = (typeof DEFAULT_SCALING_DAYS !== 'undefined') ? DEFAULT_SCALING_DAYS : 20;
   const SCALING_DAYS_CAP = (typeof SCALING_DAYS_MAX !== 'undefined') ? SCALING_DAYS_MAX : 365;
 
-  /* Per-instrument stop/target defaults, in TICKS (from instruments.js). These
-   * are the fallbacks when an account has no explicit per-instrument config. */
-  const STOP_TICKS_DEFAULT = (typeof DEFAULT_STOP_TICKS !== 'undefined') ? DEFAULT_STOP_TICKS : 8;
+  /* Per-instrument target defaults, in TICKS (from instruments.js). The stop
+   * distance is AUTO by default (budget-derived, see `budgetStopTicks`);
+   * `FALLBACK_STOP_TICKS_DEFAULT` is used only when the budget cannot be
+   * computed (missing balance/instrument). */
+  const FALLBACK_STOP_TICKS_DEFAULT = (typeof FALLBACK_STOP_TICKS !== 'undefined') ? FALLBACK_STOP_TICKS : 1;
   const TARGET_R_DEFAULT = (typeof DEFAULT_TARGET_R !== 'undefined') ? DEFAULT_TARGET_R : 2;
   const TARGET_R_ALT_DEFAULT = (typeof DEFAULT_TARGET_R_ALT !== 'undefined') ? DEFAULT_TARGET_R_ALT : 3;
 
@@ -817,6 +819,24 @@ const Store = (function () {
   }
 
   /**
+   * Normalizes an instrument id against the catalog (pure). Returns the id
+   * when it is a known instrument, otherwise `fallback` when that is known,
+   * and '' when neither is. The UI uses this so the calculator selector and
+   * the trade form can only ever hold the same valid instrument, while an
+   * unknown legacy id being edited is preserved ('' is returned) rather than
+   * silently retargeted.
+   */
+  function normalizeInstrument(value, fallback) {
+    const instruments = (typeof INSTRUMENTS !== 'undefined' && INSTRUMENTS) ? INSTRUMENTS : {};
+    const keys = Object.keys(instruments);
+    const key = strOr(value, '');
+    if (key && keys.indexOf(key) !== -1) return key;
+    const fb = strOr(fallback, '');
+    if (fb && keys.indexOf(fb) !== -1) return fb;
+    return '';
+  }
+
+  /**
    * Resolves the micro equivalent of a full-size instrument (pure), using the
    * `MICRO_PAIRS` catalog. Returns the micro symbol, or null when the id is
    * empty/unknown, already micro, or has no mapped equivalent.
@@ -861,20 +881,41 @@ const Store = (function () {
   }
 
   /**
-   * Normalizes a raw per-instrument config to `{ stopTicks, targetR,
-   * targetRAlt }`, falling back to the BPT defaults for missing, non-numeric or
-   * non-positive values. Ticks are authoritative; the target multiples are the
-   * R/B ratios (2 and 3 by default) the exit distances are built from.
+   * Normalizes a raw per-instrument config to `{ stopTicks, stopTicksAuto,
+   * targetR, targetRAlt }`. A missing, non-numeric or non-positive
+   * `stopTicks` means AUTO: `stopTicks` is null and the effective distance is
+   * derived from the budget by `resolveInstrumentConfig`. A positive value is
+   * a fixed distance and wins over the derived one. Ticks are authoritative;
+   * the target multiples are the R/B ratios (2 and 3 by default) the exit
+   * distances are built from.
    */
   function normalizeInstrumentConfig(raw) {
     const src = (raw && typeof raw === 'object') ? raw : {};
     const stop = numOr(src.stopTicks, NaN);
     const targetR = numOr(src.targetR, NaN);
     const targetRAlt = numOr(src.targetRAlt, NaN);
+    const hasFixedStop = Number.isFinite(stop) && stop > 0;
     return {
-      stopTicks: (Number.isFinite(stop) && stop > 0) ? stop : STOP_TICKS_DEFAULT,
+      stopTicks: hasFixedStop ? stop : null,
+      stopTicksAuto: !hasFixedStop,
       targetR: (Number.isFinite(targetR) && targetR > 0) ? targetR : TARGET_R_DEFAULT,
       targetRAlt: (Number.isFinite(targetRAlt) && targetRAlt > 0) ? targetRAlt : TARGET_R_ALT_DEFAULT
+    };
+  }
+
+  /**
+   * Account-level fallback inputs for the budget-derived stop (reads state):
+   * the start-of-day balance plus the persisted risk % and daily trade limit.
+   * Used by `resolveInstrumentConfig` when the caller does not pass live
+   * calculator inputs.
+   */
+  function accountBudgetDefaults(account) {
+    const key = strOr(account, '');
+    const settings = getRiskSettings()[key] || {};
+    return {
+      balance: startOfDayBalance(key),
+      riskPct: Number.isFinite(settings.riskPct) ? settings.riskPct : RISK_PCT_DEFAULT,
+      tradesPerDay: Number.isFinite(settings.dailyTradeLimit) ? settings.dailyTradeLimit : DAILY_LIMIT_DEFAULT
     };
   }
 
@@ -890,12 +931,19 @@ const Store = (function () {
 
   /**
    * Resolves the effective config for one account + instrument, merging the
-   * explicit saved values with the defaults. The points equivalents are derived
-   * from the instrument's tick so the UI can show "40 ticks · 10.00 pts".
-   * Returns `{ valid, reason, account, instrument, tick, stopTicks, targetR,
-   * targetRAlt, stopPoints, targetPoints, targetAltPoints, hasConfig }`.
+   * explicit saved values with the defaults. When the instrument has no fixed
+   * stop (AUTO), the stop distance is derived from the per-trade budget via
+   * `budgetStopTicks`, using the optional `budgetOpts` (`{ balance, riskPct,
+   * tradesPerDay, available }`) or the account's persisted settings and
+   * start-of-day balance. A fixed configured stop always wins.
+   *
+   * The points equivalents are derived from the instrument's tick so the UI can
+   * show "40 ticks · 10.00 pts".
+   * Returns `{ valid, reason, account, instrument, tick, stopTicks,
+   * stopTicksAuto, fixedStopTicks, targetR, targetRAlt, stopPoints,
+   * targetPoints, targetAltPoints, hasConfig }`.
    */
-  function resolveInstrumentConfig(account, instrument) {
+  function resolveInstrumentConfig(account, instrument, budgetOpts) {
     const accountKey = strOr(account, '');
     const instrumentKey = strOr(instrument, '');
     const spec = instrumentSpec(instrumentKey);
@@ -906,7 +954,9 @@ const Store = (function () {
       account: accountKey,
       instrument: instrumentKey,
       tick: tick,
-      stopTicks: STOP_TICKS_DEFAULT,
+      stopTicks: 0,
+      stopTicksAuto: true,
+      fixedStopTicks: null,
       targetR: TARGET_R_DEFAULT,
       targetRAlt: TARGET_R_ALT_DEFAULT,
       stopPoints: NaN,
@@ -920,13 +970,27 @@ const Store = (function () {
     const raw = (byAccount && typeof byAccount === 'object') ? byAccount[instrumentKey] : null;
     const normalized = normalizeInstrumentConfig(raw);
 
+    /* AUTO: derive the stop from the budget. Live calculator inputs override
+     * the account-level defaults. A zero derived value (no budget) falls back
+     * to the honest one-tick minimum. */
+    let stopTicks = normalized.stopTicks;
+    if (normalized.stopTicksAuto) {
+      const inputs = Object.assign({}, accountBudgetDefaults(accountKey), budgetOpts || {});
+      inputs.account = accountKey;
+      inputs.instrument = instrumentKey;
+      const derived = budgetStopTicks(inputs);
+      stopTicks = derived > 0 ? derived : FALLBACK_STOP_TICKS_DEFAULT;
+    }
+
     result.valid = true;
-    result.stopTicks = normalized.stopTicks;
+    result.stopTicks = stopTicks;
+    result.stopTicksAuto = normalized.stopTicksAuto;
+    result.fixedStopTicks = normalized.stopTicks;
     result.targetR = normalized.targetR;
     result.targetRAlt = normalized.targetRAlt;
-    result.stopPoints = ticksToPoints(normalized.stopTicks, instrumentKey);
-    result.targetPoints = ticksToPoints(normalized.stopTicks * normalized.targetR, instrumentKey);
-    result.targetAltPoints = ticksToPoints(normalized.stopTicks * normalized.targetRAlt, instrumentKey);
+    result.stopPoints = ticksToPoints(stopTicks, instrumentKey);
+    result.targetPoints = ticksToPoints(stopTicks * normalized.targetR, instrumentKey);
+    result.targetAltPoints = ticksToPoints(stopTicks * normalized.targetRAlt, instrumentKey);
     result.hasConfig = !!(raw && typeof raw === 'object');
     return result;
   }
@@ -951,8 +1015,10 @@ const Store = (function () {
 
   /**
    * Persists a partial config for one account + instrument (ticks + target R
-   * multiples), merged over whatever was saved before. Unknown instruments are
-   * ignored so a caller can never persist junk. Returns the resolved config.
+   * multiples), merged over whatever was saved before. A `stopTicks` of null
+   * (or a non-positive value) means AUTO, clearing any fixed stop so the
+   * budget-derived value applies. Unknown instruments are ignored so a caller
+   * can never persist junk. Returns the resolved config.
    */
   function setInstrumentConfig(account, instrument, patch) {
     const accountKey = strOr(account, '');
@@ -999,6 +1065,88 @@ const Store = (function () {
     if (!Number.isFinite(n)) return DAILY_LIMIT_DEFAULT;
     if (n < 1) return 1;
     return n;
+  }
+
+  /**
+   * Effective per-trade risk budget (pure), shared by `computeRisk` and the
+   * budget-derived stop resolver so the two can never drift:
+   *
+   *   dailyBudget     = (riskPct / 100) * balance
+   *   perTradeBudget  = dailyBudget / tradesPerDay   (tradesPerDay >= 1)
+   *   available       = remaining daily budget, or dailyBudget when omitted
+   *   effectiveBudget = max(0, min(perTradeBudget, available))
+   *
+   * Returns `{ dailyBudget, perTradeBudget, perTradeRisk, perTradeRiskPct,
+   * tradesPerDay, available, hasAvailable, effectiveBudget }`.
+   */
+  function riskBudget(opts, spec) {
+    const options = opts || {};
+    const balance = numOr(options.balance, NaN);
+    const riskPct = numOr(options.riskPct, NaN);
+    const tradesPerDay = resolveTradesPerDay(options.tradesPerDay);
+    const dailyBudget = (riskPct / 100) * balance;
+    const perTradeBudget = dailyBudget / tradesPerDay;
+    const perTradeRiskPct = riskPct / tradesPerDay;
+    const perTradeRisk = (perTradeRiskPct / 100) * balance;
+    const availableRaw = numOr(options.available, NaN);
+    const hasAvailable = Number.isFinite(availableRaw);
+    const available = hasAvailable ? availableRaw : dailyBudget;
+    const effectiveBudget = Math.max(0, Math.min(perTradeBudget, available));
+    return {
+      dailyBudget: dailyBudget,
+      perTradeBudget: perTradeBudget,
+      perTradeRisk: perTradeRisk,
+      perTradeRiskPct: perTradeRiskPct,
+      tradesPerDay: tradesPerDay,
+      available: available,
+      hasAvailable: hasAvailable,
+      effectiveBudget: effectiveBudget
+    };
+  }
+
+  /**
+   * Budget-derived stop distance in TICKS (pure): the maximum stop exactly one
+   * contract can afford within the effective per-trade budget.
+   *
+   *   maxTicks = floor(effectiveBudget / tickValue)
+   *
+   * `effectiveBudget` is the same `min(perTradeBudget, available)` the
+   * calculator sizes contracts from (see `riskBudget`), so the default stop and
+   * the sizing can never disagree. Returns 0 when the instrument, balance or
+   * `riskPct` is missing/invalid or the budget cannot cover a single tick;
+   * callers fall back to the one-tick minimum in that case.
+   */
+  function budgetStopTicks(inputs) {
+    const opts = inputs || {};
+    const spec = instrumentSpec(opts.instrument);
+    if (!spec) return 0;
+    const balance = numOr(opts.balance, NaN);
+    const riskPct = numOr(opts.riskPct, NaN);
+    if (!Number.isFinite(balance) || !Number.isFinite(riskPct) || riskPct <= 0) return 0;
+    const tick = numOr(spec.tick, 0);
+    const tickValue = tick * numOr(spec.pointValue, 0);
+    if (!(tickValue > 0)) return 0;
+    const budget = riskBudget(opts, spec);
+    return maxTicksForOneContract({
+      effectiveRisk: budget.effectiveBudget,
+      tickValue: tickValue
+    });
+  }
+
+  /**
+   * Pure seeding decision for the calculator's stop-ticks input. Returns the
+   * value the UI may write, or null when the field must NOT be seeded:
+   *   - `touched === true` -> null (a user-typed stop is FINAL);
+   *   - a non-positive/non-numeric resolved value -> null;
+   *   - otherwise the resolved ticks.
+   * The UI calls this on every render so the budget-derived default adapts to
+   * instrument/capital/risk/trades changes while never overwriting a
+   * user-owned value.
+   */
+  function resolveStopTicksSeed(touched, resolvedTicks) {
+    if (touched === true) return null;
+    const n = numOr(resolvedTicks, NaN);
+    return (Number.isFinite(n) && n > 0) ? n : null;
   }
 
   /**
@@ -1060,8 +1208,6 @@ const Store = (function () {
     const pointValue = spec ? numOr(spec.pointValue, 0) : 0;
     const tickValue = tick * pointValue;
     const stopTicks = resolveStopTicks(opts, spec);
-    const availableRaw = numOr(opts.available, NaN);
-    const hasAvailable = Number.isFinite(availableRaw);
     /* Target R multiples come from the per-instrument config (2:1 / 3:1 by
      * default), so a caller can shape the exit distances without changing the
      * stop. Non-positive/missing values fall back to the BPT defaults. */
@@ -1123,19 +1269,17 @@ const Store = (function () {
 
     const capitalRaw = numOr(opts.capital, NaN);
     const capital = Number.isFinite(capitalRaw) ? capitalRaw : balance;
-    const tradesPerDay = resolveTradesPerDay(opts.tradesPerDay);
-    const dailyBudget = (riskPct / 100) * balance;
-    const perTradeBudget = dailyBudget / tradesPerDay;
-    const perTradeRiskPct = riskPct / tradesPerDay;
-    const perTradeRisk = (perTradeRiskPct / 100) * balance;
+    /* Budget math lives in `riskBudget` so the calculator's sizing and the
+     * budget-derived default stop can never drift. */
+    const budget = riskBudget(opts, spec);
+    const tradesPerDay = budget.tradesPerDay;
+    const dailyBudget = budget.dailyBudget;
+    const perTradeBudget = budget.perTradeBudget;
+    const perTradeRiskPct = budget.perTradeRiskPct;
+    const perTradeRisk = budget.perTradeRisk;
+    const available = budget.available;
+    const effectiveBudget = budget.effectiveBudget;
     const pm = stopTicks * tickValue;
-
-    /* `available` is the day's remaining budget after realized losses; without
-     * it the full daily budget applies. The EFFECTIVE budget is the smaller of
-     * the per-trade budget and what is left today, clamped to 0 so a budget can
-     * never go negative. Sizing and the suggested stop both read it. */
-    const available = hasAvailable ? availableRaw : dailyBudget;
-    const effectiveBudget = Math.max(0, Math.min(perTradeBudget, available));
     const dayLoss = Math.max(0, numOr(opts.dayLoss, 0));
     const losingStreak = Math.max(0, intOr(opts.losingStreak, 0));
     const drawdownPct = capital > 0 ? (dayLoss / capital) * 100 : 0;
@@ -1175,7 +1319,7 @@ const Store = (function () {
       effectiveRisk: effectiveBudget,
       tickValue: tickValue
     });
-    result.usedToday = hasAvailable ? Math.max(0, dailyBudget - availableRaw) : 0;
+    result.usedToday = budget.hasAvailable ? Math.max(0, dailyBudget - budget.available) : 0;
     result.available = available;
     result.presupuesto = available;
     result.exhausted = available <= 0;
@@ -2617,10 +2761,13 @@ const Store = (function () {
     riskGuard: riskGuard,
     minBalanceForOneContract: minBalanceForOneContract,
     maxTicksForOneContract: maxTicksForOneContract,
+    budgetStopTicks: budgetStopTicks,
+    resolveStopTicksSeed: resolveStopTicksSeed,
     suggestStopTarget: suggestStopTarget,
     draftAutofill: draftAutofill,
     tradePreviewGeometry: tradePreviewGeometry,
     microEquivalent: microEquivalent,
+    normalizeInstrument: normalizeInstrument,
     ticksToPoints: ticksToPoints,
     pointsToTicks: pointsToTicks,
     normalizeInstrumentConfig: normalizeInstrumentConfig,
