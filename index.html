@@ -348,76 +348,102 @@
         <div id="formErrors" class="form-errors" role="alert" hidden></div>
 
         <form id="tradeForm" class="trade-form" novalidate>
+          <!-- Grouped rows of three fields (two on tablet, one on mobile).
+               Identity/metadata first, then the plan, the three price levels
+               (entry/exit/stop) and finally how the trade closed. -->
           <div class="form-grid">
-            <div class="field">
-              <label for="tradeNumber">N.º de trade</label>
-              <input type="number" id="tradeNumber" min="1" step="1" inputmode="numeric">
-            </div>
-            <div class="field">
-              <label for="account">Cuenta</label>
-              <select id="account"></select>
-            </div>
-            <div class="field">
-              <label for="instrument">Instrumento</label>
-              <select id="instrument"></select>
-            </div>
-            <div class="field">
-              <label for="contracts">Contratos</label>
-              <input type="number" id="contracts" min="0" step="1" inputmode="decimal" value="1">
-            </div>
-            <div class="field">
-              <label for="strategy">Estrategia</label>
-              <select id="strategy"></select>
-            </div>
-            <div class="field">
-              <label for="direction">Dirección</label>
-              <select id="direction"></select>
-            </div>
-            <div class="field">
-              <label for="entryDate">Fecha de entrada</label>
-              <input type="date" id="entryDate">
-            </div>
-            <div class="field">
-              <label for="entryTime">Hora de entrada</label>
-              <input type="time" id="entryTime">
-            </div>
-            <div class="field">
-              <label for="entryPrice">Precio de entrada</label>
-              <input type="number" id="entryPrice" step="any" inputmode="decimal">
-            </div>
-            <div class="field">
-              <label for="exitDate">Fecha de salida</label>
-              <input type="date" id="exitDate">
-            </div>
-            <div class="field">
-              <label for="exitTime">Hora de salida</label>
-              <input type="time" id="exitTime">
-            </div>
-            <div class="field">
-              <label for="exitPrice">Precio de salida</label>
-              <div class="input-draft-wrap">
-                <input type="number" id="exitPrice" step="any" inputmode="decimal">
-                <span class="draft-badge" id="exitPriceDraftBadge" hidden>borrador</span>
+            <!-- Identity / metadata: which trade, on which account and instrument. -->
+            <div class="form-row">
+              <div class="field">
+                <label for="tradeNumber">N.º de trade</label>
+                <input type="number" id="tradeNumber" min="1" step="1" inputmode="numeric">
               </div>
-              <span class="field-suggestion" id="exitSuggestion" hidden></span>
-            </div>
-            <div class="field">
-              <label for="stop">Stop (precio, opcional)</label>
-              <div class="input-draft-wrap">
-                <input type="number" id="stop" step="any" inputmode="decimal">
-                <span class="draft-badge" id="stopDraftBadge" hidden>borrador</span>
+              <div class="field">
+                <label for="account">Cuenta</label>
+                <select id="account"></select>
               </div>
-              <span class="field-suggestion" id="stopSuggestion" hidden></span>
+              <div class="field">
+                <label for="instrument">Instrumento</label>
+                <select id="instrument"></select>
+              </div>
             </div>
-            <div class="field">
-              <label for="exitType">Tipo de salida</label>
-              <select id="exitType"></select>
+
+            <!-- Trade plan: size, strategy and direction. -->
+            <div class="form-row">
+              <div class="field">
+                <label for="contracts">Contratos</label>
+                <input type="number" id="contracts" min="0" step="1" inputmode="decimal" value="1">
+              </div>
+              <div class="field">
+                <label for="strategy">Estrategia</label>
+                <select id="strategy"></select>
+              </div>
+              <div class="field">
+                <label for="direction">Dirección</label>
+                <select id="direction"></select>
+              </div>
             </div>
-            <div class="field">
-              <label for="emotion">Emoción</label>
-              <div class="emotion-field">
-                <span class="emotion-dot" id="emotionDot" aria-hidden="true"></span>
-                <select id="emotion"></select>
+
+            <!-- Entry price level (accent). -->
+            <div class="form-row">
+              <div class="field field-entry">
+                <label for="entryDate">Fecha de entrada</label>
+                <input type="date" id="entryDate">
+              </div>
+              <div class="field field-entry">
+                <label for="entryTime">Hora de entrada</label>
+                <input type="time" id="entryTime">
+              </div>
+              <div class="field field-entry">
+                <label for="entryPrice">Precio de entrada</label>
+                <input type="number" id="entryPrice" step="any" inputmode="decimal">
+              </div>
+            </div>
+
+            <!-- Exit price level (positive). -->
+            <div class="form-row">
+              <div class="field field-exit">
+                <label for="exitDate">Fecha de salida</label>
+                <input type="date" id="exitDate">
+              </div>
+              <div class="field field-exit">
+                <label for="exitTime">Hora de salida</label>
+                <input type="time" id="exitTime">
+              </div>
+              <div class="field field-exit">
+                <label for="exitPrice">Precio de salida</label>
+                <div class="input-draft-wrap">
+                  <input type="number" id="exitPrice" step="any" inputmode="decimal">
+                  <span class="draft-badge" id="exitPriceDraftBadge" hidden>borrador</span>
+                </div>
+                <span class="field-suggestion" id="exitSuggestion" hidden></span>
+              </div>
+            </div>
+
+            <!-- Stop loss price level (negative). -->
+            <div class="form-row">
+              <div class="field field-stop">
+                <label for="stop">Stop (precio, opcional)</label>
+                <div class="input-draft-wrap">
+                  <input type="number" id="stop" step="any" inputmode="decimal">
+                  <span class="draft-badge" id="stopDraftBadge" hidden>borrador</span>
+                </div>
+                <span class="field-suggestion" id="stopSuggestion" hidden></span>
+              </div>
+            </div>
+
+            <!-- Outcome / context: how the trade closed and the emotion. -->
+            <div class="form-row">
+              <div class="field">
+                <label for="exitType">Tipo de salida</label>
+                <select id="exitType"></select>
+              </div>
+              <div class="field">
+                <label for="emotion">Emoción</label>
+                <div class="emotion-field">
+                  <span class="emotion-dot" id="emotionDot" aria-hidden="true"></span>
+                  <select id="emotion"></select>
+                </div>
               </div>
             </div>
           </div>

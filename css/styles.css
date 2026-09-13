@@ -433,6 +433,46 @@ section[role='tabpanel'][data-accent='purple'] { --section-accent: var(--purple)
   grid-column: 1 / -1;
 }
 
+/* Trade form grouping: coherent rows of three fields (two on tablet, one on
+ * mobile). The outer .form-grid stacks the rows; each .form-row owns the
+ * columns so the field set reads top-down instead of as a flat 12-col grid. */
+.form-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+/* Reserve the price-level rule on every field so the coloured rows keep the
+ * same box model — and therefore the same alignment — as the neutral rows. */
+.form-row > .field {
+  border-left: 2px solid transparent;
+  padding-left: 8px;
+}
+
+/* Price-level colour code: entry = accent, exit = positive, stop = negative.
+ * Colour is a secondary cue; the visible text label stays the primary one. */
+.form-row > .field-entry { border-left-color: var(--accent); }
+.form-row > .field-exit { border-left-color: var(--pos); }
+.form-row > .field-stop { border-left-color: var(--neg); }
+
+.form-row > .field-entry > label { color: var(--accent); }
+.form-row > .field-exit > label { color: var(--pos); }
+.form-row > .field-stop > label { color: var(--neg); }
+
+@media (max-width: 900px) {
+  .form-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .field {
   display: flex;
   flex-direction: column;
