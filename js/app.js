@@ -983,10 +983,11 @@
   }
 
   /**
-   * Renders the advisory stop/target price suggestions next to the form's stop
-   * and target inputs. `ticks` is the calculator's stop distance (or the max
-   * ticks that fit one contract). Purely informational: it never writes to the
-   * inputs the user is editing.
+   * Renders the advisory stop/target price suggestions next to the form's stop,
+   * exit and target inputs. `ticks` is the calculator's resolved stop distance
+   * (`ticksSL`), so the suggested stop and both R/B target prices stay in sync
+   * with the calculator's preview and R/B range row. Purely informational: it
+   * never writes to the inputs the user is editing.
    */
   function renderPriceSuggestions(ticks) {
     const instrumentEl = $('instrument');
@@ -1007,18 +1008,21 @@
 
     const stopEl = $('stopSuggestion');
     const targetEl = $('targetSuggestion');
+    const exitEl = $('exitSuggestion');
+
     if (suggestion.valid) {
+      const rangeText = 'Salida sugerida — R/B 2:1: ' + formatPrice(suggestion.target2, tick) +
+        ' · R/B 3:1: ' + formatPrice(suggestion.target3, tick);
       if (stopEl) {
         stopEl.textContent = 'Stop sugerido: ' + formatPrice(suggestion.stopPrice, tick);
         stopEl.hidden = false;
       }
-      if (targetEl) {
-        targetEl.textContent = 'Objetivo sugerido: ' + formatPrice(suggestion.targetPrice, tick) + ' (precio)';
-        targetEl.hidden = false;
-      }
+      if (targetEl) { targetEl.textContent = rangeText; targetEl.hidden = false; }
+      if (exitEl) { exitEl.textContent = rangeText; exitEl.hidden = false; }
     } else {
       if (stopEl) { stopEl.hidden = true; stopEl.textContent = ''; }
       if (targetEl) { targetEl.hidden = true; targetEl.textContent = ''; }
+      if (exitEl) { exitEl.hidden = true; exitEl.textContent = ''; }
     }
   }
 
@@ -1305,14 +1309,13 @@
       losingStreak: guard.valid ? guard.losingStreak : 0
     });
 
-    /* Advisory stop/target price suggestions. The suggested stop distance is
-     * the max ticks ONE contract can afford from the effective per-trade
-     * budget, so changing the instrument or the trades/day moves it. Rendered
-     * as text only; the form inputs are never overwritten, and a blocked
-     * calculator never suggests. */
-    renderPriceSuggestions(
-      (risk.valid && !risk.blocked) ? risk.maxTicksForOneContract : 0
-    );
+    /* Advisory stop/target price suggestions. They derive from the SAME
+     * resolved stop distance (`ticksSL`) the calculator uses for its R/B range
+     * row and preview, so the 2:1/3:1 target prices always match. They appear
+     * whenever entry price + stop ticks + instrument are present, regardless of
+     * the sizing state, and are rendered as text only: the form inputs are
+     * never overwritten. */
+    renderPriceSuggestions(stopTicks);
 
     /* The visual plan reuses the same values as the calculator, so it stays in
      * sync with the entry price, instrument, direction, stop and trades/day. */

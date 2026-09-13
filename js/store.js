@@ -1168,16 +1168,21 @@ const Store = (function () {
   /**
    * Advisory stop/target price suggestions for the entry form (pure).
    *
-   *   distance    = ticks × tick
-   *   stopPrice   = entry − distance   (Largo)  |  entry + distance   (Corto)
-   *   targetPrice = entry + 2×distance (Largo)  |  entry − 2×distance (Corto)
+   *   distance  = ticks × tick
+   *   stopPrice = entry − distance   (Largo)  |  entry + distance   (Corto)
+   *   target2   = entry + 2×distance (Largo)  |  entry − 2×distance (Corto)
+   *   target3   = entry + 3×distance (Largo)  |  entry − 3×distance (Corto)
    *
-   * `ticks` is the calculator's stop distance in ticks (or the max ticks that
-   * fit one contract). Both prices are snapped to the instrument's tick size.
+   * `ticks` is the stop distance in ticks the R/B range is built from (the
+   * calculator's `ticksSL`, so `ticksTP2 = 2×ticks` and `ticksTP3 = 3×ticks`).
+   * `target2`/`target3` are the exit prices for the 2:1 and 3:1 R/B targets,
+   * and every price is snapped to the instrument's tick grid. `targetPrice` is
+   * kept as a backward-compatible alias of `target2`.
+   *
    * This helper NEVER touches a form input: callers render the values as
    * advisory text only. Returns `{ valid, reason, ticks, stopPrice,
-   * targetPrice }`; `valid` is false when the instrument, entry price, ticks or
-   * direction is missing/invalid.
+   * targetPrice, target2, target3 }`; `valid` is false when the instrument,
+   * entry price, ticks or direction is missing/invalid.
    */
   function suggestStopTarget(inputs) {
     const opts = inputs || {};
@@ -1185,7 +1190,15 @@ const Store = (function () {
     const entryPrice = numOr(opts.entryPrice, NaN);
     const ticks = numOr(opts.ticks, NaN);
     const direction = strOr(opts.direction, '');
-    const result = { valid: false, reason: '', ticks: 0, stopPrice: NaN, targetPrice: NaN };
+    const result = {
+      valid: false,
+      reason: '',
+      ticks: 0,
+      stopPrice: NaN,
+      targetPrice: NaN,
+      target2: NaN,
+      target3: NaN
+    };
 
     if (!spec) { result.reason = 'instrument'; return result; }
     if (!Number.isFinite(entryPrice)) { result.reason = 'entryPrice'; return result; }
@@ -1195,12 +1208,15 @@ const Store = (function () {
     const tick = numOr(spec.tick, 0);
     if (!(tick > 0)) { result.reason = 'tick'; return result; }
 
-    const distance = ticks * tick;
     const sign = direction === 'Largo' ? 1 : -1;
+    const target2 = roundToTick(entryPrice + sign * 2 * ticks * tick, tick);
     result.valid = true;
     result.ticks = ticks;
-    result.stopPrice = roundToTick(entryPrice - sign * distance, tick);
-    result.targetPrice = roundToTick(entryPrice + sign * 2 * distance, tick);
+    result.stopPrice = roundToTick(entryPrice - sign * ticks * tick, tick);
+    /* `targetPrice` remains the 2:1 target for existing callers. */
+    result.targetPrice = target2;
+    result.target2 = target2;
+    result.target3 = roundToTick(entryPrice + sign * 3 * ticks * tick, tick);
     return result;
   }
 
