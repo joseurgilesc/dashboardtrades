@@ -556,6 +556,86 @@ textarea {
   font-family: var(--font-mono);
 }
 
+/* DRAFT autofill: the calculator writes a suggested stop/exit price into the
+ * field, marked with a dashed border and a small "borrador" badge. The moment
+ * the user types, the mark clears and the value becomes final. */
+.input-draft-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.input-draft-wrap input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
+input.is-draft {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+.draft-badge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: 1px dashed var(--accent);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* Per-instrument stop/target ranges (Ajustes). Ticks are authoritative; the
+ * points equivalent sits under each value because a tick is not a fixed number
+ * of points across instruments. */
+.instrument-config-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.instrument-config-table thead th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.instrument-config-table tbody td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.instrument-config-table input {
+  width: 82px;
+}
+
+.instrument-config-points {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.instrument-config-exits {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
 /* Emotion select with a small data-driven color dot (see EMOTION_COLORS). */
 .emotion-field {
   display: flex;

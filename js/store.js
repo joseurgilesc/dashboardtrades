@@ -52,6 +52,12 @@ const Store = (function () {
   const SCALING_DAYS_DEFAULT = (typeof DEFAULT_SCALING_DAYS !== 'undefined') ? DEFAULT_SCALING_DAYS : 20;
   const SCALING_DAYS_CAP = (typeof SCALING_DAYS_MAX !== 'undefined') ? SCALING_DAYS_MAX : 365;
 
+  /* Per-instrument stop/target defaults, in TICKS (from instruments.js). These
+   * are the fallbacks when an account has no explicit per-instrument config. */
+  const STOP_TICKS_DEFAULT = (typeof DEFAULT_STOP_TICKS !== 'undefined') ? DEFAULT_STOP_TICKS : 8;
+  const TARGET_R_DEFAULT = (typeof DEFAULT_TARGET_R !== 'undefined') ? DEFAULT_TARGET_R : 2;
+  const TARGET_R_ALT_DEFAULT = (typeof DEFAULT_TARGET_R_ALT !== 'undefined') ? DEFAULT_TARGET_R_ALT : 3;
+
   /* ------------------------------------------------------------------ */
   /* In-memory state                                                     */
   /* ------------------------------------------------------------------ */
@@ -825,6 +831,150 @@ const Store = (function () {
     return pairs[key] || null;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Per-instrument stop/target config (pure)                            */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Converts a distance in TICKS to its points equivalent for an instrument
+   * (`ticks × tick`). Returns NaN when the instrument or its tick is unknown.
+   */
+  function ticksToPoints(ticks, instrument) {
+    const spec = instrumentSpec(instrument);
+    const tick = spec ? numOr(spec.tick, NaN) : NaN;
+    const n = numOr(ticks, NaN);
+    if (!Number.isFinite(n) || !Number.isFinite(tick) || tick <= 0) return NaN;
+    return n * tick;
+  }
+
+  /**
+   * Converts a distance in POINTS to ticks for an instrument (`points / tick`).
+   * A tick means a different number of points per instrument, so this is the
+   * canonical bridge between the two units. Returns NaN on unknown input.
+   */
+  function pointsToTicks(points, instrument) {
+    const spec = instrumentSpec(instrument);
+    const tick = spec ? numOr(spec.tick, NaN) : NaN;
+    const n = numOr(points, NaN);
+    if (!Number.isFinite(n) || !Number.isFinite(tick) || tick <= 0) return NaN;
+    return n / tick;
+  }
+
+  /**
+   * Normalizes a raw per-instrument config to `{ stopTicks, targetR,
+   * targetRAlt }`, falling back to the BPT defaults for missing, non-numeric or
+   * non-positive values. Ticks are authoritative; the target multiples are the
+   * R/B ratios (2 and 3 by default) the exit distances are built from.
+   */
+  function normalizeInstrumentConfig(raw) {
+    const src = (raw && typeof raw === 'object') ? raw : {};
+    const stop = numOr(src.stopTicks, NaN);
+    const targetR = numOr(src.targetR, NaN);
+    const targetRAlt = numOr(src.targetRAlt, NaN);
+    return {
+      stopTicks: (Number.isFinite(stop) && stop > 0) ? stop : STOP_TICKS_DEFAULT,
+      targetR: (Number.isFinite(targetR) && targetR > 0) ? targetR : TARGET_R_DEFAULT,
+      targetRAlt: (Number.isFinite(targetRAlt) && targetRAlt > 0) ? targetRAlt : TARGET_R_ALT_DEFAULT
+    };
+  }
+
+  /**
+   * Reads the raw per-account/per-instrument config map from settings. Missing
+   * or legacy shapes collapse to `{}`, so old saved data keeps working.
+   */
+  function instrumentConfigMap() {
+    const settings = (state.settings && typeof state.settings === 'object') ? state.settings : {};
+    const map = settings.instrumentConfig;
+    return (map && typeof map === 'object') ? map : {};
+  }
+
+  /**
+   * Resolves the effective config for one account + instrument, merging the
+   * explicit saved values with the defaults. The points equivalents are derived
+   * from the instrument's tick so the UI can show "40 ticks · 10.00 pts".
+   * Returns `{ valid, reason, account, instrument, tick, stopTicks, targetR,
+   * targetRAlt, stopPoints, targetPoints, targetAltPoints, hasConfig }`.
+   */
+  function resolveInstrumentConfig(account, instrument) {
+    const accountKey = strOr(account, '');
+    const instrumentKey = strOr(instrument, '');
+    const spec = instrumentSpec(instrumentKey);
+    const tick = spec ? numOr(spec.tick, 0) : 0;
+    const result = {
+      valid: false,
+      reason: '',
+      account: accountKey,
+      instrument: instrumentKey,
+      tick: tick,
+      stopTicks: STOP_TICKS_DEFAULT,
+      targetR: TARGET_R_DEFAULT,
+      targetRAlt: TARGET_R_ALT_DEFAULT,
+      stopPoints: NaN,
+      targetPoints: NaN,
+      targetAltPoints: NaN,
+      hasConfig: false
+    };
+    if (!spec) { result.reason = 'instrument'; return result; }
+
+    const byAccount = instrumentConfigMap()[accountKey];
+    const raw = (byAccount && typeof byAccount === 'object') ? byAccount[instrumentKey] : null;
+    const normalized = normalizeInstrumentConfig(raw);
+
+    result.valid = true;
+    result.stopTicks = normalized.stopTicks;
+    result.targetR = normalized.targetR;
+    result.targetRAlt = normalized.targetRAlt;
+    result.stopPoints = ticksToPoints(normalized.stopTicks, instrumentKey);
+    result.targetPoints = ticksToPoints(normalized.stopTicks * normalized.targetR, instrumentKey);
+    result.targetAltPoints = ticksToPoints(normalized.stopTicks * normalized.targetRAlt, instrumentKey);
+    result.hasConfig = !!(raw && typeof raw === 'object');
+    return result;
+  }
+
+  /**
+   * Returns every account's resolved per-instrument config as
+   * `{ Sim: { MES: {...}, ... }, ... }`, with the defaults already applied.
+   * Used by the Ajustes form so an instrument with no saved config still shows
+   * sensible values.
+   */
+  function getInstrumentConfig() {
+    const instruments = (typeof INSTRUMENTS !== 'undefined' && INSTRUMENTS) ? INSTRUMENTS : {};
+    const out = {};
+    ACCOUNT_LIST.forEach(function (account) {
+      out[account] = {};
+      Object.keys(instruments).forEach(function (id) {
+        out[account][id] = resolveInstrumentConfig(account, id);
+      });
+    });
+    return out;
+  }
+
+  /**
+   * Persists a partial config for one account + instrument (ticks + target R
+   * multiples), merged over whatever was saved before. Unknown instruments are
+   * ignored so a caller can never persist junk. Returns the resolved config.
+   */
+  function setInstrumentConfig(account, instrument, patch) {
+    const accountKey = strOr(account, '');
+    const instrumentKey = strOr(instrument, '');
+    if (!accountKey || !instrumentSpec(instrumentKey)) {
+      return resolveInstrumentConfig(accountKey, instrumentKey);
+    }
+    const map = clone(instrumentConfigMap());
+    if (!map[accountKey] || typeof map[accountKey] !== 'object') map[accountKey] = {};
+    const current = normalizeInstrumentConfig(map[accountKey][instrumentKey]);
+    const incoming = (patch && typeof patch === 'object') ? patch : {};
+    const next = normalizeInstrumentConfig({
+      stopTicks: (incoming.stopTicks !== undefined) ? incoming.stopTicks : current.stopTicks,
+      targetR: (incoming.targetR !== undefined) ? incoming.targetR : current.targetR,
+      targetRAlt: (incoming.targetRAlt !== undefined) ? incoming.targetRAlt : current.targetRAlt
+    });
+    map[accountKey][instrumentKey] = next;
+    setSettings({ instrumentConfig: map });
+    return resolveInstrumentConfig(accountKey, instrumentKey);
+  }
+
+
   /**
    * Resolves a stop expressed in ticks from either an explicit `stopTicks`
    * input or the legacy `stopDistance` (points), converted via the
@@ -912,6 +1062,13 @@ const Store = (function () {
     const stopTicks = resolveStopTicks(opts, spec);
     const availableRaw = numOr(opts.available, NaN);
     const hasAvailable = Number.isFinite(availableRaw);
+    /* Target R multiples come from the per-instrument config (2:1 / 3:1 by
+     * default), so a caller can shape the exit distances without changing the
+     * stop. Non-positive/missing values fall back to the BPT defaults. */
+    const targetRRaw = numOr(opts.targetR, NaN);
+    const targetRAltRaw = numOr(opts.targetRAlt, NaN);
+    const targetR = (Number.isFinite(targetRRaw) && targetRRaw > 0) ? targetRRaw : TARGET_R_DEFAULT;
+    const targetRAlt = (Number.isFinite(targetRAltRaw) && targetRAltRaw > 0) ? targetRAltRaw : TARGET_R_ALT_DEFAULT;
 
     const result = {
       valid: false,
@@ -937,6 +1094,8 @@ const Store = (function () {
       ticksTP: 0,
       ticksTP2: 0,
       ticksTP3: 0,
+      targetR: targetR,
+      targetRAlt: targetRAlt,
       pm: 0,
       riskPerContract: 0,
       totalRisk: 0,
@@ -1022,9 +1181,11 @@ const Store = (function () {
     result.exhausted = available <= 0;
     result.stopTicks = stopTicks;
     result.ticksSL = stopTicks;
-    result.ticksTP = stopTicks * 2;
-    result.ticksTP2 = stopTicks * 2;
-    result.ticksTP3 = stopTicks * 3;
+    result.ticksTP = stopTicks * targetR;
+    result.ticksTP2 = stopTicks * targetR;
+    result.ticksTP3 = stopTicks * targetRAlt;
+    result.targetR = targetR;
+    result.targetRAlt = targetRAlt;
     result.tickValue = tickValue;
     result.pm = pm;
     result.riskPerContract = pm;
@@ -1174,15 +1335,18 @@ const Store = (function () {
    *   target3   = entry + 3×distance (Largo)  |  entry − 3×distance (Corto)
    *
    * `ticks` is the stop distance in ticks the R/B range is built from (the
-   * calculator's `ticksSL`, so `ticksTP2 = 2×ticks` and `ticksTP3 = 3×ticks`).
-   * `target2`/`target3` are the exit prices for the 2:1 and 3:1 R/B targets,
-   * and every price is snapped to the instrument's tick grid. `targetPrice` is
-   * kept as a backward-compatible alias of `target2`.
+   * calculator's `ticksSL`). `targetR` / `targetRAlt` are the R/B multiples
+   * (defaulting to the BPT 2 and 3), so `target2 = entry ± targetR×distance`
+   * and `target3 = entry ± targetRAlt×distance`. `target2`/`target3` are the
+   * exit prices for the primary and alternative R/B targets, and every price is
+   * snapped to the instrument's tick grid. `targetPrice` is kept as a
+   * backward-compatible alias of `target2`.
    *
    * This helper NEVER touches a form input: callers render the values as
-   * advisory text only. Returns `{ valid, reason, ticks, stopPrice,
-   * targetPrice, target2, target3 }`; `valid` is false when the instrument,
-   * entry price, ticks or direction is missing/invalid.
+   * advisory text or feed them to `draftAutofill`. Returns `{ valid, reason,
+   * ticks, stopPrice, targetPrice, target2, target3, targetR, targetRAlt }`;
+   * `valid` is false when the instrument, entry price, ticks or direction is
+   * missing/invalid.
    */
   function suggestStopTarget(inputs) {
     const opts = inputs || {};
@@ -1190,6 +1354,10 @@ const Store = (function () {
     const entryPrice = numOr(opts.entryPrice, NaN);
     const ticks = numOr(opts.ticks, NaN);
     const direction = strOr(opts.direction, '');
+    const targetRRaw = numOr(opts.targetR, NaN);
+    const targetRAltRaw = numOr(opts.targetRAlt, NaN);
+    const targetR = (Number.isFinite(targetRRaw) && targetRRaw > 0) ? targetRRaw : TARGET_R_DEFAULT;
+    const targetRAlt = (Number.isFinite(targetRAltRaw) && targetRAltRaw > 0) ? targetRAltRaw : TARGET_R_ALT_DEFAULT;
     const result = {
       valid: false,
       reason: '',
@@ -1197,7 +1365,9 @@ const Store = (function () {
       stopPrice: NaN,
       targetPrice: NaN,
       target2: NaN,
-      target3: NaN
+      target3: NaN,
+      targetR: targetR,
+      targetRAlt: targetRAlt
     };
 
     if (!spec) { result.reason = 'instrument'; return result; }
@@ -1209,14 +1379,77 @@ const Store = (function () {
     if (!(tick > 0)) { result.reason = 'tick'; return result; }
 
     const sign = direction === 'Largo' ? 1 : -1;
-    const target2 = roundToTick(entryPrice + sign * 2 * ticks * tick, tick);
+    const target2 = roundToTick(entryPrice + sign * targetR * ticks * tick, tick);
     result.valid = true;
     result.ticks = ticks;
     result.stopPrice = roundToTick(entryPrice - sign * ticks * tick, tick);
-    /* `targetPrice` remains the 2:1 target for existing callers. */
+    /* `targetPrice` remains the primary (2:1 by default) target for callers. */
     result.targetPrice = target2;
     result.target2 = target2;
-    result.target3 = roundToTick(entryPrice + sign * 3 * ticks * tick, tick);
+    result.target3 = roundToTick(entryPrice + sign * targetRAlt * ticks * tick, tick);
+    return result;
+  }
+
+  /**
+   * Pure DRAFT-autofill decision for the entry form's stop and exit fields.
+   *
+   * Given the calculator context (account, instrument, entry price, direction)
+   * it resolves the per-instrument config, derives the suggested stop and the
+   * primary R/B exit price, and returns whether each field may be written:
+   *
+   *   - a field is written ONLY when it is NOT touched (the user has not typed
+   *     in it yet);
+   *   - `touched` is supplied by the caller (UI state), never mutated here;
+   *   - `stop.value` / `exit.value` are the draft prices, `write` says whether
+   *     the caller must apply them. When `write` is false the caller keeps the
+   *     user's value untouched.
+   *
+   * `stopTicks`, `targetR` and `targetRAlt` override the resolved config when
+   * provided. Returns `{ valid, reason, stopTicks, targetR, targetRAlt, tick,
+   * stop:{value,write}, exit:{value,write}, suggestion }`; `valid` is false
+   * (nothing written) when instrument/entry/direction are missing.
+   */
+  function draftAutofill(inputs) {
+    const opts = inputs || {};
+    const touched = (opts.touched && typeof opts.touched === 'object') ? opts.touched : {};
+    const account = strOr(opts.account, '');
+    const instrument = strOr(opts.instrument, '');
+    const config = resolveInstrumentConfig(account, instrument);
+
+    const ticksRaw = numOr(opts.stopTicks, NaN);
+    const ticks = (Number.isFinite(ticksRaw) && ticksRaw > 0) ? ticksRaw : config.stopTicks;
+    const targetRRaw = numOr(opts.targetR, NaN);
+    const targetR = (Number.isFinite(targetRRaw) && targetRRaw > 0) ? targetRRaw : config.targetR;
+    const targetRAltRaw = numOr(opts.targetRAlt, NaN);
+    const targetRAlt = (Number.isFinite(targetRAltRaw) && targetRAltRaw > 0) ? targetRAltRaw : config.targetRAlt;
+
+    const suggestion = suggestStopTarget({
+      instrument: instrument,
+      entryPrice: opts.entryPrice,
+      direction: opts.direction,
+      ticks: ticks,
+      targetR: targetR,
+      targetRAlt: targetRAlt
+    });
+
+    const result = {
+      valid: false,
+      reason: suggestion.reason || '',
+      stopTicks: ticks,
+      targetR: targetR,
+      targetRAlt: targetRAlt,
+      tick: config.tick,
+      stop: { value: NaN, write: false },
+      exit: { value: NaN, write: false },
+      suggestion: suggestion
+    };
+    if (!suggestion.valid) return result;
+
+    result.valid = true;
+    result.stop.value = suggestion.stopPrice;
+    result.stop.write = touched.stop !== true;
+    result.exit.value = suggestion.target2;
+    result.exit.write = touched.exitPrice !== true;
     return result;
   }
 
@@ -2385,8 +2618,15 @@ const Store = (function () {
     minBalanceForOneContract: minBalanceForOneContract,
     maxTicksForOneContract: maxTicksForOneContract,
     suggestStopTarget: suggestStopTarget,
+    draftAutofill: draftAutofill,
     tradePreviewGeometry: tradePreviewGeometry,
     microEquivalent: microEquivalent,
+    ticksToPoints: ticksToPoints,
+    pointsToTicks: pointsToTicks,
+    normalizeInstrumentConfig: normalizeInstrumentConfig,
+    getInstrumentConfig: getInstrumentConfig,
+    resolveInstrumentConfig: resolveInstrumentConfig,
+    setInstrumentConfig: setInstrumentConfig,
     clampRiskPct: clampRiskPct,
     clampDailyLimit: clampDailyLimit,
     getMinRR: getMinRR,

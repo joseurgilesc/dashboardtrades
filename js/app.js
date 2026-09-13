@@ -43,6 +43,20 @@
    * account refreshes the default while hand-edits persist for that account. */
   let lastRiskAccount = null;
 
+  /* Last instrument the risk panel seeded its stop-ticks input for, so the
+   * per-instrument config only re-seeds when the instrument actually changes. */
+  let lastRiskInstrument = null;
+
+  /* True once the user edits the stop-ticks input by hand; blocks the
+   * per-instrument config from re-seeding it until the instrument changes. */
+  let stopTicksTouched = false;
+
+  /* Draft/touched state for the autofilled form fields. A draft is written
+   * ONLY while the field is untouched; the first `input` event flips it to
+   * touched and the user's value becomes final. Programmatic `.value =` writes
+   * never fire `input`, so a draft can never mark itself as touched. */
+  const touchedFields = { stop: false, exitPrice: false };
+
   /* Top-level regions hidden until authentication resolves. */
   const APP_REGIONS = ['.tabs', '#globalSearchBar', '#filtersToggle', '#filtersBar', '.app-main', '.app-footer'];
 
@@ -242,6 +256,8 @@
     fillSelect($('filterInstrument'), Object.keys(INSTRUMENTS), 'Todos los instrumentos');
     fillStrategySelect($('filterStrategy'), 'Todas las estrategias');
     fillSelect($('filterEmotion'), EMOTIONS, 'Todas las emociones');
+
+    fillSelect($('instrumentConfigAccount'), ACCOUNTS);
   }
 
   /* ------------------------------------------------------------------ */
@@ -984,25 +1000,34 @@
 
   /**
    * Renders the advisory stop/target price suggestions next to the form's stop,
-   * exit and target inputs. `ticks` is the calculator's resolved stop distance
-   * (`ticksSL`), so the suggested stop and both R/B target prices stay in sync
-   * with the calculator's preview and R/B range row. Purely informational: it
-   * never writes to the inputs the user is editing.
+   * exit and target inputs, then applies the DRAFT autofill. `ticks` is the
+   * calculator's resolved stop distance (`ticksSL`), so the suggested stop and
+   * both R/B target prices stay in sync with the calculator's preview and R/B
+   * range row. The advisory text is read-only; the draft writes #stop and
+   * #exitPrice only while those fields are untouched (see applyDraftAutofill).
    */
   function renderPriceSuggestions(ticks) {
     const instrumentEl = $('instrument');
     const entryEl = $('entryPrice');
     const directionEl = $('direction');
+    const accountEl = $('account');
     const instrument = instrumentEl ? instrumentEl.value : '';
     const spec = instrumentMeta(instrument);
     const tick = spec ? Number(spec.tick) : NaN;
+    const account = accountEl ? accountEl.value : '';
+
+    const cfg = (typeof Store.resolveInstrumentConfig === 'function')
+      ? Store.resolveInstrumentConfig(account, instrument)
+      : { targetR: 2, targetRAlt: 3 };
 
     const suggestion = (typeof Store.suggestStopTarget === 'function')
       ? Store.suggestStopTarget({
           instrument: instrument,
           entryPrice: entryEl ? parseFloat(entryEl.value) : NaN,
           direction: directionEl ? directionEl.value : '',
-          ticks: ticks
+          ticks: ticks,
+          targetR: cfg.targetR,
+          targetRAlt: cfg.targetRAlt
         })
       : { valid: false };
 
@@ -1011,8 +1036,15 @@
     const exitEl = $('exitSuggestion');
 
     if (suggestion.valid) {
-      const rangeText = 'Salida sugerida — R/B 2:1: ' + formatPrice(suggestion.target2, tick) +
-        ' · R/B 3:1: ' + formatPrice(suggestion.target3, tick);
+      /* The BPT 2:1 / 3:1 labels are the default config; a custom per-instrument
+       * R multiple renders its own ratio instead. */
+      const rangeText = (suggestion.targetR === 2 && suggestion.targetRAlt === 3)
+        ? 'Salida sugerida — R/B 2:1: ' + formatPrice(suggestion.target2, tick) +
+          ' · R/B 3:1: ' + formatPrice(suggestion.target3, tick)
+        : 'Salida sugerida — R/B ' + formatNumber(suggestion.targetR, 2) + ':1: ' +
+          formatPrice(suggestion.target2, tick) +
+          ' · R/B ' + formatNumber(suggestion.targetRAlt, 2) + ':1: ' +
+          formatPrice(suggestion.target3, tick);
       if (stopEl) {
         stopEl.textContent = 'Stop sugerido: ' + formatPrice(suggestion.stopPrice, tick);
         stopEl.hidden = false;
@@ -1024,6 +1056,59 @@
       if (targetEl) { targetEl.hidden = true; targetEl.textContent = ''; }
       if (exitEl) { exitEl.hidden = true; exitEl.textContent = ''; }
     }
+
+    /* DRAFT autofill: writes the suggested stop and the primary R/B exit into
+     * the form inputs while they are untouched, marked as drafts. */
+    applyDraftAutofill(account, instrument, ticks, tick);
+  }
+
+  /**
+   * Writes (or clears) a draft value on an input and toggles its draft mark.
+   * `value === null` keeps the current value and only refreshes the mark, so a
+   * user-owned field is never rewritten.
+   */
+  function setDraftField(input, badge, value, isDraft) {
+    if (input && value !== null) input.value = value;
+    if (input) input.classList.toggle('is-draft', !!isDraft);
+    if (badge) badge.hidden = !isDraft;
+  }
+
+  /**
+   * Applies the DRAFT autofill to #stop and #exitPrice. The decision comes from
+   * the pure `Store.draftAutofill`: a field is written ONLY while it is
+   * untouched; once the user types, the draft mark clears and the value is
+   * final. Recomputing therefore never clobbers a user-edited field.
+   */
+  function applyDraftAutofill(account, instrument, ticks, tick) {
+    const stopEl = $('stop');
+    const exitEl = $('exitPrice');
+    const stopBadge = $('stopDraftBadge');
+    const exitBadge = $('exitPriceDraftBadge');
+
+    const draft = (typeof Store.draftAutofill === 'function')
+      ? Store.draftAutofill({
+          account: account,
+          instrument: instrument,
+          entryPrice: $('entryPrice') ? parseFloat($('entryPrice').value) : NaN,
+          direction: $('direction') ? $('direction').value : '',
+          stopTicks: ticks,
+          touched: touchedFields
+        })
+      : { valid: false };
+
+    if (!draft.valid) {
+      /* No plan yet: clear an untouched draft, never a user value. */
+      setDraftField(stopEl, stopBadge, touchedFields.stop ? null : '', false);
+      setDraftField(exitEl, exitBadge, touchedFields.exitPrice ? null : '', false);
+      return;
+    }
+
+    setDraftField(stopEl, stopBadge,
+      touchedFields.stop ? null : formatPrice(draft.stop.value, tick),
+      !touchedFields.stop && draft.stop.write);
+    setDraftField(exitEl, exitBadge,
+      touchedFields.exitPrice ? null : formatPrice(draft.exit.value, tick),
+      !touchedFields.exitPrice && draft.exit.write);
   }
 
   /* ------------------------------------------------------------------ */
@@ -1229,6 +1314,27 @@
     const spec = instrumentMeta(instrument);
     const tick = spec ? Number(spec.tick) : NaN;
 
+    /* Per-instrument config (ticks + target R multiples), resolved for the
+     * account. Its stop distance seeds the manual tick input when the
+     * instrument changes (unless the user edited it), and its target multiples
+     * shape the exit distances. */
+    const cfg = (typeof Store.resolveInstrumentConfig === 'function')
+      ? Store.resolveInstrumentConfig(account, instrument)
+      : { stopTicks: 8, targetR: 2, targetRAlt: 3, valid: false };
+
+    const accountChanged = lastRiskAccount !== account;
+    const instrumentChanged = lastRiskInstrument !== instrument;
+
+    /* Seed the stop-ticks input from the instrument's config on an instrument
+     * change; a hand-edited value is respected until the instrument changes. */
+    if (stopEl) {
+      if (instrumentChanged) stopTicksTouched = false;
+      if ((instrumentChanged || accountChanged) && !stopTicksTouched) {
+        stopEl.value = String(cfg.stopTicks);
+      }
+    }
+    lastRiskInstrument = instrument;
+
     const manualStopTicks = stopEl ? parseFloat(stopEl.value) : NaN;
     const manualTarget = targetEl ? parseFloat(targetEl.value) : NaN;
     const formStop = formStopEl ? parseFloat(formStopEl.value) : NaN;
@@ -1236,15 +1342,20 @@
     const formPlannedRisk = formPlannedRiskEl ? parseFloat(formPlannedRiskEl.value) : NaN;
     const entryPrice = entryPriceEl ? parseFloat(entryPriceEl.value) : NaN;
 
-    /* A recorded stop price yields the stop in ticks and takes precedence
-     * over the calculator's own tick input. */
-    const derivedStopPoints = (Number.isFinite(formStop) && Number.isFinite(entryPrice) && formStop !== entryPrice)
+    /* A recorded stop price yields the stop in ticks and takes precedence over
+     * the calculator's own tick input. A DRAFT stop (written by the autofill
+     * while the field is untouched) is NOT user input, so it must not feed the
+     * calculator: only a touched stop does. */
+    const derivedStopPoints = (touchedFields.stop && Number.isFinite(formStop) &&
+      Number.isFinite(entryPrice) && formStop !== entryPrice)
       ? Math.abs(entryPrice - formStop)
       : NaN;
     const derivedStopTicks = (Number.isFinite(derivedStopPoints) && tick > 0)
       ? Number((derivedStopPoints / tick).toFixed(4))
       : NaN;
-    const stopTicks = derivedStopTicks > 0 ? derivedStopTicks : manualStopTicks;
+    const stopTicks = derivedStopTicks > 0
+      ? derivedStopTicks
+      : ((Number.isFinite(manualStopTicks) && manualStopTicks > 0) ? manualStopTicks : cfg.stopTicks);
 
     const capital = Store.startOfDayBalance(account);
     const settings = Store.getRiskSettings()[account] || {};
@@ -1252,7 +1363,6 @@
 
     /* Block 1 input: seed from the account's setting on account switch, then
      * honour (and clamp to 1–3 %) whatever the user typed. */
-    const accountChanged = lastRiskAccount !== account;
     const pctInput = $('riskDailyPctInput');
     if (pctInput && accountChanged) {
       pctInput.value = String(clampDailyRiskPct(defaultPct));
@@ -1304,6 +1414,8 @@
       tradesPerDay: tradesPerDay,
       instrument: instrument,
       stopTicks: stopTicks,
+      targetR: cfg.targetR,
+      targetRAlt: cfg.targetRAlt,
       available: usage.valid ? usage.available : undefined,
       dayLoss: guard.valid ? guard.dayLoss : 0,
       losingStreak: guard.valid ? guard.losingStreak : 0
@@ -1409,10 +1521,11 @@
     setRiskItem('riskTicksSL', formatTicks(risk.ticksSL));
     setRiskItem('riskTicksTP2', formatTicks(risk.ticksTP2));
     setRiskItem('riskTicksTP3', formatTicks(risk.ticksTP3));
-    /* BPT minimum R/B range: the same stop sized to 2:1 and 3:1, with both
-     * take-profit tick distances. */
+    /* BPT minimum R/B range: the same stop sized to the configured R multiples
+     * (2:1 and 3:1 by default), with both take-profit tick distances. */
     setRiskItem('riskRRRange',
-      '2:1 (' + formatTicks(risk.ticksTP2) + ') – 3:1 (' + formatTicks(risk.ticksTP3) + ')');
+      formatNumber(risk.targetR, 2) + ':1 (' + formatTicks(risk.ticksTP2) + ') – ' +
+      formatNumber(risk.targetRAlt, 2) + ':1 (' + formatTicks(risk.ticksTP3) + ')');
     setRiskItem('riskCommission', formatMoney(risk.commission));
 
     /* A recorded planned risk / target takes precedence over the computed
@@ -1830,6 +1943,12 @@
     $('stop').value = '';
     $('target').value = '';
     $('plannedRisk').value = '';
+    /* New trade: the stop and exit fields are draftable again, and any stale
+     * draft mark from the previous trade is cleared. */
+    touchedFields.stop = false;
+    touchedFields.exitPrice = false;
+    setDraftField($('stop'), $('stopDraftBadge'), null, false);
+    setDraftField($('exitPrice'), $('exitPriceDraftBadge'), null, false);
     /* Optional fields live behind the "Más opciones" disclosure. */
     const advanced = $('advancedOptions');
     if (advanced) advanced.open = false;
@@ -1906,6 +2025,12 @@
     $('btnCancel').hidden = false;
     /* Editing owns the contracts value; the calculator must not overwrite it. */
     contractsTouched = true;
+    /* A saved stop/exit is a user value, never a draft: the calculator must not
+     * overwrite either field while editing. */
+    touchedFields.stop = true;
+    touchedFields.exitPrice = true;
+    setDraftField($('stop'), $('stopDraftBadge'), null, false);
+    setDraftField($('exitPrice'), $('exitPriceDraftBadge'), null, false);
     /* Reveal the optional fields when the trade actually uses them. */
     const advanced = $('advancedOptions');
     if (advanced) advanced.open = trade.target > 0 || trade.plannedRisk > 0 || !!trade.notes;
@@ -1958,6 +2083,11 @@
     $('exitTime').value = now;
     /* The copied contracts value belongs to the user now. */
     contractsTouched = true;
+    /* The copied stop is user-owned (no draft); the cleared exit is draftable. */
+    touchedFields.stop = true;
+    touchedFields.exitPrice = false;
+    setDraftField($('stop'), $('stopDraftBadge'), null, false);
+    setDraftField($('exitPrice'), $('exitPriceDraftBadge'), null, false);
     const advanced = $('advancedOptions');
     if (advanced) advanced.open = last.target > 0;
     $('formTitle').textContent = 'Nuevo trade (duplicado)';
@@ -2218,6 +2348,133 @@
     setStatus('Ajustes de riesgo guardados.', 'ok');
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Per-instrument stop/target ranges (Ajustes)                         */
+  /* ------------------------------------------------------------------ */
+
+  /** Formats a ticks→points distance on the instrument's price grid. */
+  function formatPoints(value, tick) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '—';
+    return formatNumber(n, decimalsForTick(tick)) + ' pts';
+  }
+
+  /**
+   * Renders the per-instrument range table for the selected account. Values
+   * are stored in TICKS (authoritative); the points equivalent (`ticks × tick`)
+   * is shown next to each value because a tick is not a fixed number of points
+   * across instruments.
+   */
+  function renderInstrumentConfigTable() {
+    const body = $('instrumentConfigBody');
+    if (!body || typeof INSTRUMENTS === 'undefined') return;
+    const accountEl = $('instrumentConfigAccount');
+    const account = accountEl ? accountEl.value : ACCOUNTS[0];
+    const accountConfig = Store.getInstrumentConfig()[account] || {};
+
+    body.innerHTML = Object.keys(INSTRUMENTS).map(function (id) {
+      const cfg = accountConfig[id] || {};
+      const tick = Number(INSTRUMENTS[id].tick);
+      const stopPts = formatPoints(Number(cfg.stopPoints), tick);
+      const exitPts = formatPoints(Number(cfg.targetPoints), tick);
+      const exitAltPts = formatPoints(Number(cfg.targetAltPoints), tick);
+      return '<tr data-instrument="' + escapeHtml(id) + '">' +
+        '<td><span class="cell-main">' + escapeHtml(id) + '</span> ' +
+          '<span class="muted">' + escapeHtml(INSTRUMENTS[id].name) + '</span></td>' +
+        '<td><input type="number" min="0" step="any" inputmode="decimal" ' +
+          'id="cfgStop_' + account + '_' + id + '" value="' + escapeHtml(String(cfg.stopTicks)) + '">' +
+          '<span class="instrument-config-points">' + escapeHtml(stopPts) + '</span></td>' +
+        '<td><input type="number" min="0" step="0.1" inputmode="decimal" ' +
+          'id="cfgTargetR_' + account + '_' + id + '" value="' + escapeHtml(String(cfg.targetR)) + '"></td>' +
+        '<td><input type="number" min="0" step="0.1" inputmode="decimal" ' +
+          'id="cfgTargetRAlt_' + account + '_' + id + '" value="' + escapeHtml(String(cfg.targetRAlt)) + '"></td>' +
+        '<td class="instrument-config-exits">' +
+          escapeHtml(exitPts) + ' · ' + escapeHtml(exitAltPts) + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  /**
+   * Recomputes the points equivalents of one table row from its live inputs,
+   * so the display follows the ticks the user types (before saving).
+   */
+  function refreshInstrumentConfigRow(tr) {
+    if (!tr) return;
+    const spec = instrumentMeta(tr.getAttribute('data-instrument'));
+    if (!spec) return;
+    const tick = Number(spec.tick);
+    const stopInput = tr.querySelector('input[id^="cfgStop_"]');
+    const targetRInput = tr.querySelector('input[id^="cfgTargetR_"]');
+    const targetRAltInput = tr.querySelector('input[id^="cfgTargetRAlt_"]');
+    const stopTicks = stopInput ? parseFloat(stopInput.value) : NaN;
+    const targetR = targetRInput ? parseFloat(targetRInput.value) : NaN;
+    const targetRAlt = targetRAltInput ? parseFloat(targetRAltInput.value) : NaN;
+    const stopPtsEl = tr.querySelector('.instrument-config-points');
+    const exitsEl = tr.querySelector('.instrument-config-exits');
+    if (stopPtsEl) stopPtsEl.textContent = formatPoints(stopTicks * tick, tick);
+    if (exitsEl) {
+      exitsEl.textContent = formatPoints(stopTicks * targetR * tick, tick) + ' · ' +
+        formatPoints(stopTicks * targetRAlt * tick, tick);
+    }
+  }
+
+  /** Loads the per-instrument config table for the selected account. */
+  function loadInstrumentConfigIntoForm() {
+    const accountEl = $('instrumentConfigAccount');
+    if (accountEl && !accountEl.value) accountEl.value = ACCOUNTS[0];
+    renderInstrumentConfigTable();
+    const warnEl = $('instrumentConfigWarning');
+    if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
+  }
+
+  /**
+   * Validates and persists the visible account's per-instrument ranges. Values
+   * are in ticks and must be positive; the target R multiples are the exit
+   * ratios. Saved through `Store.setInstrumentConfig` so they travel with the
+   * account's other settings.
+   */
+  function handleSaveInstrumentConfig() {
+    const accountEl = $('instrumentConfigAccount');
+    const account = accountEl ? accountEl.value : ACCOUNTS[0];
+    const body = $('instrumentConfigBody');
+    if (!body) return;
+
+    const errors = [];
+    const rows = body.querySelectorAll('tr[data-instrument]');
+    Array.prototype.forEach.call(rows, function (tr) {
+      const id = tr.getAttribute('data-instrument');
+      const stopInput = tr.querySelector('input[id^="cfgStop_"]');
+      const targetRInput = tr.querySelector('input[id^="cfgTargetR_"]');
+      const targetRAltInput = tr.querySelector('input[id^="cfgTargetRAlt_"]');
+      const stopTicks = stopInput ? parseFloat(stopInput.value) : NaN;
+      const targetR = targetRInput ? parseFloat(targetRInput.value) : NaN;
+      const targetRAlt = targetRAltInput ? parseFloat(targetRAltInput.value) : NaN;
+      const valid = [stopTicks, targetR, targetRAlt].every(function (n) {
+        return Number.isFinite(n) && n > 0;
+      });
+      if (!valid) {
+        errors.push('Los rangos de ' + id + ' deben ser números mayores que 0.');
+        return;
+      }
+      Store.setInstrumentConfig(account, id, {
+        stopTicks: stopTicks,
+        targetR: targetR,
+        targetRAlt: targetRAlt
+      });
+    });
+
+    const warnEl = $('instrumentConfigWarning');
+    if (errors.length) {
+      if (warnEl) { warnEl.textContent = errors.join(' '); warnEl.hidden = false; }
+      setStatus(errors.join(' '), 'error');
+      return;
+    }
+    if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
+    renderInstrumentConfigTable();
+    renderRiskPanel();
+    setStatus('Rangos por instrumento guardados.', 'ok');
+  }
+
   function handleSeed() {
     if (Store.getTrades().length > 0) {
       if (!window.confirm('Esto reemplazará los trades actuales por 8 trades de ejemplo. ¿Continuar?')) return;
@@ -2261,6 +2518,7 @@
         resetForm();
         loadBalancesIntoForm();
         loadRiskSettingsIntoForm();
+        loadInstrumentConfigIntoForm();
         setStatus('Datos importados correctamente.', 'ok');
         renderAll();
       } catch (err) {
@@ -2281,6 +2539,7 @@
     resetForm();
     loadBalancesIntoForm();
     loadRiskSettingsIntoForm();
+    loadInstrumentConfigIntoForm();
     setStatus('Todos los datos fueron borrados.', 'ok');
     renderAll();
   }
@@ -2412,6 +2671,36 @@
       contractsField.addEventListener('change', markContractsTouched);
     }
 
+    /* Draft fields: the first user keystroke makes the value final and clears
+     * the draft mark. Registered before the live-update loop below so the flag
+     * is set before the panel re-renders. */
+    const stopField = $('stop');
+    if (stopField) {
+      const markStopTouched = function () {
+        touchedFields.stop = true;
+        setDraftField(stopField, $('stopDraftBadge'), null, false);
+      };
+      stopField.addEventListener('input', markStopTouched);
+      stopField.addEventListener('change', markStopTouched);
+    }
+    const exitField = $('exitPrice');
+    if (exitField) {
+      const markExitTouched = function () {
+        touchedFields.exitPrice = true;
+        setDraftField(exitField, $('exitPriceDraftBadge'), null, false);
+      };
+      exitField.addEventListener('input', markExitTouched);
+      exitField.addEventListener('change', markExitTouched);
+    }
+    /* The calculator's stop-ticks input is user-owned once edited; the
+     * per-instrument config stops re-seeding it until the instrument changes. */
+    const riskStopField = $('riskStopTicks');
+    if (riskStopField) {
+      const markStopTicksTouched = function () { stopTicksTouched = true; };
+      riskStopField.addEventListener('input', markStopTicksTouched);
+      riskStopField.addEventListener('change', markStopTicksTouched);
+    }
+
     ['account', 'instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
       'stop', 'target', 'plannedRisk',
       'entryDate', 'entryTime', 'exitDate', 'exitTime',
@@ -2519,6 +2808,27 @@
     $('btnSaveBalances').addEventListener('click', handleSaveBalances);
     const saveRiskButton = $('btnSaveRiskSettings');
     if (saveRiskButton) saveRiskButton.addEventListener('click', handleSaveRiskSettings);
+
+    /* Per-instrument ranges: the account selector swaps the table, the save
+     * button persists the visible account's ticks + target multiples. */
+    const instrumentConfigAccount = $('instrumentConfigAccount');
+    if (instrumentConfigAccount) {
+      instrumentConfigAccount.addEventListener('change', function () {
+        renderInstrumentConfigTable();
+      });
+    }
+    const instrumentConfigBody = $('instrumentConfigBody');
+    if (instrumentConfigBody) {
+      instrumentConfigBody.addEventListener('input', function (event) {
+        const row = event.target.closest('tr[data-instrument]');
+        if (row) refreshInstrumentConfigRow(row);
+      });
+    }
+    const saveInstrumentConfigButton = $('btnSaveInstrumentConfig');
+    if (saveInstrumentConfigButton) {
+      saveInstrumentConfigButton.addEventListener('click', handleSaveInstrumentConfig);
+    }
+
     const scalingButton = $('btnScalingCalc');
     if (scalingButton) scalingButton.addEventListener('click', renderScalingPlan);
     const duplicateButton = $('btnDuplicateLast');
@@ -2821,6 +3131,7 @@
       if (currentUid !== user.uid || attached === null) return;
       loadBalancesIntoForm();
       loadRiskSettingsIntoForm();
+      loadInstrumentConfigIntoForm();
       resetForm();
       const gate = $('authGate');
       if (gate) gate.hidden = true;

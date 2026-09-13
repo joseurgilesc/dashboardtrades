@@ -127,139 +127,6 @@
     <!-- ============================ REGISTRO ============================ -->
     <section id="tab-registro" role="tabpanel" data-accent="accent" aria-labelledby="tab-registro">
       <div class="card">
-        <div class="card-header">
-          <h2 id="formTitle">Nuevo trade</h2>
-        </div>
-
-        <div id="formErrors" class="form-errors" role="alert" hidden></div>
-
-        <form id="tradeForm" class="trade-form" novalidate>
-          <div class="form-grid">
-            <div class="field">
-              <label for="tradeNumber">N.º de trade</label>
-              <input type="number" id="tradeNumber" min="1" step="1" inputmode="numeric">
-            </div>
-            <div class="field">
-              <label for="account">Cuenta</label>
-              <select id="account"></select>
-            </div>
-            <div class="field">
-              <label for="instrument">Instrumento</label>
-              <div class="field-inline">
-                <select id="instrument"></select>
-                <button type="button" class="btn btn-ghost btn-info" id="btnInstrumentInfo" aria-expanded="false" aria-controls="instrumentInfo">Info</button>
-              </div>
-            </div>
-            <div class="field">
-              <label for="contracts">Contratos</label>
-              <input type="number" id="contracts" min="0" step="1" inputmode="decimal" value="1">
-            </div>
-            <div class="field">
-              <label for="strategy">Estrategia</label>
-              <select id="strategy"></select>
-            </div>
-            <div class="field">
-              <label for="direction">Dirección</label>
-              <select id="direction"></select>
-            </div>
-            <div class="field">
-              <label for="entryDate">Fecha de entrada</label>
-              <input type="date" id="entryDate">
-            </div>
-            <div class="field">
-              <label for="entryTime">Hora de entrada</label>
-              <input type="time" id="entryTime">
-            </div>
-            <div class="field">
-              <label for="entryPrice">Precio de entrada</label>
-              <input type="number" id="entryPrice" step="any" inputmode="decimal">
-            </div>
-            <div class="field">
-              <label for="exitDate">Fecha de salida</label>
-              <input type="date" id="exitDate">
-            </div>
-            <div class="field">
-              <label for="exitTime">Hora de salida</label>
-              <input type="time" id="exitTime">
-            </div>
-            <div class="field">
-              <label for="exitPrice">Precio de salida</label>
-              <input type="number" id="exitPrice" step="any" inputmode="decimal">
-              <span class="field-suggestion" id="exitSuggestion" hidden></span>
-            </div>
-            <div class="field">
-              <label for="stop">Stop (precio, opcional)</label>
-              <input type="number" id="stop" step="any" inputmode="decimal">
-              <span class="field-suggestion" id="stopSuggestion" hidden></span>
-            </div>
-            <div class="field">
-              <label for="exitType">Tipo de salida</label>
-              <select id="exitType"></select>
-            </div>
-            <div class="field">
-              <label for="emotion">Emoción</label>
-              <div class="emotion-field">
-                <span class="emotion-dot" id="emotionDot" aria-hidden="true"></span>
-                <select id="emotion"></select>
-              </div>
-            </div>
-          </div>
-
-          <details class="advanced-options" id="advancedOptions">
-            <summary>Más opciones</summary>
-            <div class="form-grid">
-              <div class="field">
-                <label for="target">Objetivo (USD, opcional)</label>
-                <input type="number" id="target" min="0" step="any" inputmode="decimal">
-                <span class="field-suggestion" id="targetSuggestion" hidden></span>
-              </div>
-              <div class="field">
-                <label for="plannedRisk">Riesgo planeado (USD, opcional)</label>
-                <input type="number" id="plannedRisk" min="0" step="any" inputmode="decimal">
-              </div>
-              <div class="field field-wide">
-                <label for="notes">Notas</label>
-                <textarea id="notes" rows="2" placeholder="Observaciones de la operación (opcional)"></textarea>
-              </div>
-            </div>
-          </details>
-
-          <div class="instrument-info" id="instrumentInfo" hidden></div>
-
-          <div class="preview" aria-live="polite">
-            <div class="preview-item">
-              <span class="preview-label">Valor del punto</span>
-              <span class="preview-value" id="previewPointValue">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Puntos</span>
-              <span class="preview-value" id="previewPoints">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Bruto</span>
-              <span class="preview-value" id="previewGross">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Comisión</span>
-              <span class="preview-value" id="previewCommission">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Neto</span>
-              <span class="preview-value" id="previewNet">—</span>
-            </div>
-          </div>
-
-          <p class="app-status warn app-status-inline" id="dailyLimitWarning" role="status" aria-live="polite" hidden></p>
-
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary" id="btnSave">Guardar trade</button>
-            <button type="button" class="btn btn-ghost" id="btnCancel" hidden>Cancelar edición</button>
-            <button type="button" class="btn btn-ghost" id="btnDuplicateLast">Duplicar último trade</button>
-          </div>
-        </form>
-      </div>
-
-      <div class="card">
         <div class="card-header card-header-row">
           <h2>Calculadora de riesgo</h2>
           <span class="risk-account-hint" id="riskAccountHint"></span>
@@ -441,6 +308,145 @@
             <p class="risk-preview-rb" id="riskPreviewRB">R/B —</p>
           </aside>
         </div><!-- /.risk-layout -->
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 id="formTitle">Nuevo trade</h2>
+        </div>
+
+        <div id="formErrors" class="form-errors" role="alert" hidden></div>
+
+        <form id="tradeForm" class="trade-form" novalidate>
+          <div class="form-grid">
+            <div class="field">
+              <label for="tradeNumber">N.º de trade</label>
+              <input type="number" id="tradeNumber" min="1" step="1" inputmode="numeric">
+            </div>
+            <div class="field">
+              <label for="account">Cuenta</label>
+              <select id="account"></select>
+            </div>
+            <div class="field">
+              <label for="instrument">Instrumento</label>
+              <div class="field-inline">
+                <select id="instrument"></select>
+                <button type="button" class="btn btn-ghost btn-info" id="btnInstrumentInfo" aria-expanded="false" aria-controls="instrumentInfo">Info</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="contracts">Contratos</label>
+              <input type="number" id="contracts" min="0" step="1" inputmode="decimal" value="1">
+            </div>
+            <div class="field">
+              <label for="strategy">Estrategia</label>
+              <select id="strategy"></select>
+            </div>
+            <div class="field">
+              <label for="direction">Dirección</label>
+              <select id="direction"></select>
+            </div>
+            <div class="field">
+              <label for="entryDate">Fecha de entrada</label>
+              <input type="date" id="entryDate">
+            </div>
+            <div class="field">
+              <label for="entryTime">Hora de entrada</label>
+              <input type="time" id="entryTime">
+            </div>
+            <div class="field">
+              <label for="entryPrice">Precio de entrada</label>
+              <input type="number" id="entryPrice" step="any" inputmode="decimal">
+            </div>
+            <div class="field">
+              <label for="exitDate">Fecha de salida</label>
+              <input type="date" id="exitDate">
+            </div>
+            <div class="field">
+              <label for="exitTime">Hora de salida</label>
+              <input type="time" id="exitTime">
+            </div>
+            <div class="field">
+              <label for="exitPrice">Precio de salida</label>
+              <div class="input-draft-wrap">
+                <input type="number" id="exitPrice" step="any" inputmode="decimal">
+                <span class="draft-badge" id="exitPriceDraftBadge" hidden>borrador</span>
+              </div>
+              <span class="field-suggestion" id="exitSuggestion" hidden></span>
+            </div>
+            <div class="field">
+              <label for="stop">Stop (precio, opcional)</label>
+              <div class="input-draft-wrap">
+                <input type="number" id="stop" step="any" inputmode="decimal">
+                <span class="draft-badge" id="stopDraftBadge" hidden>borrador</span>
+              </div>
+              <span class="field-suggestion" id="stopSuggestion" hidden></span>
+            </div>
+            <div class="field">
+              <label for="exitType">Tipo de salida</label>
+              <select id="exitType"></select>
+            </div>
+            <div class="field">
+              <label for="emotion">Emoción</label>
+              <div class="emotion-field">
+                <span class="emotion-dot" id="emotionDot" aria-hidden="true"></span>
+                <select id="emotion"></select>
+              </div>
+            </div>
+          </div>
+
+          <details class="advanced-options" id="advancedOptions">
+            <summary>Más opciones</summary>
+            <div class="form-grid">
+              <div class="field">
+                <label for="target">Objetivo (USD, opcional)</label>
+                <input type="number" id="target" min="0" step="any" inputmode="decimal">
+                <span class="field-suggestion" id="targetSuggestion" hidden></span>
+              </div>
+              <div class="field">
+                <label for="plannedRisk">Riesgo planeado (USD, opcional)</label>
+                <input type="number" id="plannedRisk" min="0" step="any" inputmode="decimal">
+              </div>
+              <div class="field field-wide">
+                <label for="notes">Notas</label>
+                <textarea id="notes" rows="2" placeholder="Observaciones de la operación (opcional)"></textarea>
+              </div>
+            </div>
+          </details>
+
+          <div class="instrument-info" id="instrumentInfo" hidden></div>
+
+          <div class="preview" aria-live="polite">
+            <div class="preview-item">
+              <span class="preview-label">Valor del punto</span>
+              <span class="preview-value" id="previewPointValue">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Puntos</span>
+              <span class="preview-value" id="previewPoints">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Bruto</span>
+              <span class="preview-value" id="previewGross">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Comisión</span>
+              <span class="preview-value" id="previewCommission">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Neto</span>
+              <span class="preview-value" id="previewNet">—</span>
+            </div>
+          </div>
+
+          <p class="app-status warn app-status-inline" id="dailyLimitWarning" role="status" aria-live="polite" hidden></p>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btnSave">Guardar trade</button>
+            <button type="button" class="btn btn-ghost" id="btnCancel" hidden>Cancelar edición</button>
+            <button type="button" class="btn btn-ghost" id="btnDuplicateLast">Duplicar último trade</button>
+          </div>
+        </form>
       </div>
 
       <div class="card">
@@ -663,6 +669,35 @@
         <p class="risk-warning" id="riskSettingsWarning" role="status" hidden></p>
         <div class="form-actions">
           <button type="button" class="btn btn-primary" id="btnSaveRiskSettings">Guardar riesgo</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header card-header-row">
+          <h2>Rangos por instrumento</h2>
+          <div class="field-inline">
+            <label class="sr-only" for="instrumentConfigAccount">Cuenta</label>
+            <select id="instrumentConfigAccount"></select>
+          </div>
+        </div>
+        <p class="hint">Distancia de stop por defecto y múltiplos R/B de salida, por instrumento. Los valores se guardan en TICKS (unidad autoritativa); la equivalencia en puntos se muestra al lado porque cada instrumento tiene un tick distinto.</p>
+        <div class="table-wrap">
+          <table class="instrument-config-table">
+            <thead>
+              <tr>
+                <th scope="col">Instrumento</th>
+                <th scope="col">Stop (ticks)</th>
+                <th scope="col">Objetivo R</th>
+                <th scope="col">Alternativo R</th>
+                <th scope="col">Salidas (ticks · pts)</th>
+              </tr>
+            </thead>
+            <tbody id="instrumentConfigBody"></tbody>
+          </table>
+        </div>
+        <p class="risk-warning" id="instrumentConfigWarning" role="status" hidden></p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="btnSaveInstrumentConfig">Guardar rangos</button>
         </div>
       </div>
 

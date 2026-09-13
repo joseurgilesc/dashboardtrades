@@ -7,7 +7,8 @@
  * DEFAULT_RISK_PCT, DEFAULT_DAILY_TRADE_LIMIT, RISK_PCT_MIN, RISK_PCT_MAX,
  * RISK_PCT_HARD_MAX, DEFAULT_MIN_RR, DAILY_DD_WARN_PCT, STREAK_WARN,
  * SMALL_ACCOUNT_MAX, DEFAULT_SCALING_RR, DEFAULT_SCALING_DAYS,
- * SCALING_DAYS_MAX.
+ * SCALING_DAYS_MAX, DEFAULT_STOP_TICKS, DEFAULT_TARGET_R,
+ * DEFAULT_TARGET_R_ALT.
  *
  * Instrument hours follow the exchange timezone: CME Globex uses ET,
  * Eurex uses CET/CEST. Items still pending confirmation are marked
@@ -272,6 +273,16 @@ const STREAK_WARN = 3;
 /* Small-account circuit breaker: at or below this capital the calculator is
  * forced to a single contract so a tiny account can never over-size. */
 const SMALL_ACCOUNT_MAX = 5000;
+
+/* Per-instrument stop/target defaults, expressed in TICKS (the authoritative
+ * unit) and configurable per account in Ajustes. A tick maps to a different
+ * number of points per instrument, so the UI also shows the points equivalent
+ * (`ticks × tick`). `DEFAULT_STOP_TICKS` matches the calculator's historical
+ * default input (8); `DEFAULT_TARGET_R`/`DEFAULT_TARGET_R_ALT` keep the BPT
+ * 2:1 / 3:1 range when an instrument has no explicit configuration. */
+const DEFAULT_STOP_TICKS = 8;
+const DEFAULT_TARGET_R = DEFAULT_MIN_RR;
+const DEFAULT_TARGET_R_ALT = DEFAULT_MIN_RR + 1;
 
 /* Daily scaling-plan defaults (proportional compounding projection).
  * `DEFAULT_SCALING_RR` is the R/B expectancy (2 means 2:1) and
