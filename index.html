@@ -7,6 +7,11 @@
   <meta name="theme-color" content="#0B0F14">
   <meta name="description" content="Diario de trading estático: registro de operaciones, métricas y gráficos. Tus datos se guardan en tu cuenta y se sincronizan entre dispositivos.">
   <title>Diario de Trading</title>
+  <!-- SVG favicon, referenced with a RELATIVE path so it resolves on GitHub
+       Pages under the /dashboardtrades/ base path. The alternate link is a
+       fallback for browsers that ignore the type hint. No external/CDN URL. -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="alternate icon" href="favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -152,7 +157,7 @@
               <input type="number" id="riskDailyPctInput" min="1" max="3" step="0.1" inputmode="decimal" value="2">
             </div>
             <div class="field">
-              <label for="riskStopTicks">Distancia del stop (ticks)</label>
+              <label for="riskStopTicks">Distancia del stop (ticks) — por operación</label>
               <input type="number" id="riskStopTicks" min="0" step="any" inputmode="decimal" placeholder="Auto">
               <span class="field-hint" id="riskStopHint"></span>
             </div>
@@ -218,11 +223,11 @@
               <span class="preview-value" id="riskPerContract">—</span>
             </div>
             <div class="preview-item">
-              <span class="preview-label">Presupuesto diario</span>
+              <span class="preview-label">Presupuesto diario (total del día)</span>
               <span class="preview-value" id="riskBudget">—</span>
             </div>
             <div class="preview-item">
-              <span class="preview-label">Cupo por operación</span>
+              <span class="preview-label">Cupo por operación (del presupuesto diario)</span>
               <span class="preview-value" id="riskPerTradeBudget">—</span>
             </div>
             <div class="preview-item">
@@ -238,8 +243,12 @@
               <span class="preview-value" id="riskEffectiveBudget">—</span>
             </div>
             <div class="preview-item">
-              <span class="preview-label">Máx. ticks (1 contrato)</span>
+              <span class="preview-label">Máx. stop por operación (ticks · 1 contrato)</span>
               <span class="preview-value" id="riskMaxTicks">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Stop acumulado del día (todas las operaciones)</span>
+              <span class="preview-value" id="riskStopDaily">—</span>
             </div>
             <div class="preview-item">
               <span class="preview-label">Contratos (N)</span>
@@ -250,7 +259,7 @@
               <span class="preview-value" id="riskTotal">—</span>
             </div>
             <div class="preview-item">
-              <span class="preview-label">Ticks SL</span>
+              <span class="preview-label">Ticks SL (por operación)</span>
               <span class="preview-value" id="riskTicksSL">—</span>
             </div>
             <div class="preview-item">

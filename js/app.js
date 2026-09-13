@@ -1562,8 +1562,8 @@
      * calculator outputs, so they stay OUT of this reset list: invalid input
      * must never blank a recorded loss. */
     const resultIds = ['riskTickValue', 'riskPerContract', 'riskPerTradeBudget',
-      'riskEffectiveBudget', 'riskMaxTicks', 'riskContracts', 'riskTotal',
-      'riskTicksSL', 'riskTicksTP2', 'riskRRRange', 'riskRecovery',
+      'riskEffectiveBudget', 'riskMaxTicks', 'riskStopDaily', 'riskContracts',
+      'riskTotal', 'riskTicksSL', 'riskTicksTP2', 'riskRRRange', 'riskRecovery',
       'riskRR', 'riskCommission'];
 
     /* Block 4 is always rendered, even when a required input is missing. */
@@ -1629,6 +1629,14 @@
     setRiskItem('riskEffectiveBudget', formatMoney(risk.effectiveBudget),
       risk.exhausted ? 'warn' : '');
     setRiskItem('riskMaxTicks', formatTicks(risk.maxTicksForOneContract),
+      blocked ? 'neg' : '');
+    /* Explicit per-operation vs whole-day comparison. The day figure is the
+     * SAME per-operation source (`maxTicksForOneContract`, derived from the
+     * per-trade budget) scaled by the trades/day divisor, so it can never
+     * drift from the calculator's model. It is labelled with the operation
+     * count so "por operación" and "total del día" cannot be confused. */
+    setRiskItem('riskStopDaily',
+      formatTicks(risk.maxTicksForOneContract * tradesPerDay) + ' · ' + tradesPerDay + ' op',
       blocked ? 'neg' : '');
     setRiskItem('riskContracts', String(risk.contracts));
     setRiskItem('riskTotal', formatMoney(risk.totalRisk));
