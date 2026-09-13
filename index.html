@@ -251,12 +251,20 @@
               <span class="preview-value" id="riskStopDaily">—</span>
             </div>
             <div class="preview-item">
-              <span class="preview-label">Contratos (N)</span>
-              <span class="preview-value" id="riskContracts">—</span>
+              <label class="preview-label" for="riskContracts">Contratos (N) — manual</label>
+              <input type="number" id="riskContracts" class="preview-input" min="0" step="1" inputmode="numeric" value="">
             </div>
             <div class="preview-item">
-              <span class="preview-label">Riesgo monetario total (N × P_m)</span>
+              <span class="preview-label">Riesgo sugerido (N × P_m)</span>
               <span class="preview-value" id="riskTotal">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Riesgo real (contratos × stop)</span>
+              <span class="preview-value" id="riskRealRisk">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">% del capital (riesgo real)</span>
+              <span class="preview-value" id="riskRealRiskPct">—</span>
             </div>
             <div class="preview-item">
               <span class="preview-label">Ticks SL (por operación)</span>
@@ -283,6 +291,9 @@
               <span class="preview-value" id="riskCommission">—</span>
             </div>
           </div>
+          <!-- Advisory (never blocking) when the manual contracts make the real
+               risk exceed the per-operation cupo. -->
+          <p class="risk-hint warn" id="riskContractsWarning" role="status" aria-live="polite" hidden></p>
         </div>
 
         <!-- Bloque 4 — Reglas de control y bloqueo -->

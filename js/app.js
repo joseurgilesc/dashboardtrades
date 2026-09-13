@@ -831,6 +831,25 @@
     return next;
   }
 
+  /**
+   * Single source of truth for the contracts count. `#contracts` (the trade
+   * form) is canonical because the save path (`readForm`) reads it;
+   * `#riskContracts` (the calculator's manual override) is a view over the
+   * SAME value. Both are written together on every change, so the two views
+   * can never diverge and exactly one value reaches the save payload.
+   *
+   * The value only REPORTS risk: it is never fed back into the sizing chain
+   * (stop distance, daily budget, per-trade cupo, max-ticks-one-contract).
+   */
+  function syncContracts(value) {
+    const formEl = $('contracts');
+    const calcEl = $('riskContracts');
+    const next = (value === null || value === undefined) ? '' : String(value);
+    if (formEl) formEl.value = next;
+    if (calcEl) calcEl.value = next;
+    return next;
+  }
+
   function readForm() {
     return {
       id: state.editingId || undefined,
@@ -1614,9 +1633,9 @@
      * calculator outputs, so they stay OUT of this reset list: invalid input
      * must never blank a recorded loss. */
     const resultIds = ['riskTickValue', 'riskPerContract', 'riskPerTradeBudget',
-      'riskEffectiveBudget', 'riskMaxTicks', 'riskStopDaily', 'riskContracts',
+      'riskEffectiveBudget', 'riskMaxTicks', 'riskStopDaily',
       'riskTotal', 'riskTicksSL', 'riskTicksTP2', 'riskRRRange', 'riskRecovery',
-      'riskRR', 'riskCommission'];
+      'riskRR', 'riskCommission', 'riskRealRisk', 'riskRealRiskPct'];
 
     /* Block 4 is always rendered, even when a required input is missing. */
     setRiskItem('riskDayLoss', formatMoney(guard.valid ? guard.dayLoss : 0),
@@ -1665,14 +1684,57 @@
       resultIds.forEach(function (id) { setRiskItem(id, '—'); });
       if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
       if (suitabilityEl) { suitabilityEl.hidden = true; suitabilityEl.textContent = ''; }
+      const invalidContractsWarnEl = $('riskContractsWarning');
+      if (invalidContractsWarnEl) {
+        invalidContractsWarnEl.hidden = true;
+        invalidContractsWarnEl.textContent = '';
+      }
       return;
     }
 
-    /* Default the contracts field to the calculator's suggestion while the
-     * user has not edited it by hand and the calculator is not blocked. */
+    /* Contracts: one canonical value (`#contracts`, read by the save path)
+     * mirrored into the calculator's editable override (`#riskContracts`).
+     * While the field is untouched the calculator prefills its suggestion;
+     * once the user types, their value is FINAL and is only mirrored, never
+     * recomputed. This NEVER feeds the sizing chain: the stop, the daily
+     * budget, the per-trade cupo and the max-ticks stay budget-derived. */
     const contractsEl = $('contracts');
-    if (contractsEl && !contractsTouched && !blocked && risk.contracts > 0) {
-      contractsEl.value = String(risk.contracts);
+    const riskContractsEl = $('riskContracts');
+    if (!contractsTouched) {
+      /* Guarded so the render stays callable when the helper is not in scope
+       * (e.g. an isolated harness that extracts this function alone). */
+      if (typeof syncContracts === 'function') syncContracts(risk.contracts);
+    } else if (contractsEl && riskContractsEl) {
+      riskContractsEl.value = contractsEl.value;
+    }
+
+    /* Reported REAL risk for the contracts the user actually holds. It is a
+     * pure report derived FROM the sizing chain, never an input to it. An
+     * empty/non-numeric field reports zero (transient while retyping). */
+    const contractsRaw = contractsEl ? parseFloat(contractsEl.value) : NaN;
+    const reportedContracts = (Number.isFinite(contractsRaw) && contractsRaw >= 0)
+      ? contractsRaw
+      : 0;
+    const realRisk = reportedContracts * stopTicks * risk.tickValue;
+    const realRiskPct = capital > 0 ? (realRisk / capital) * 100 : 0;
+    const exceedsCupo = realRisk > risk.perTradeBudget + 1e-9;
+    setRiskItem('riskRealRisk', formatMoney(realRisk), exceedsCupo ? 'warn' : '');
+    setRiskItem('riskRealRiskPct', formatNumber(realRiskPct, 2) + ' %',
+      exceedsCupo ? 'warn' : '');
+
+    /* Advisory only: never blocks or zeroes the calculation. The circuit
+     * breakers in Block 4 are untouched. */
+    const contractsWarnEl = $('riskContractsWarning');
+    if (contractsWarnEl) {
+      if (exceedsCupo) {
+        contractsWarnEl.textContent = 'Riesgo real ' + formatMoney(realRisk) +
+          ' supera el cupo por operación (' + formatMoney(risk.perTradeBudget) +
+          '). Es solo un aviso: puedes seguir registrando.';
+        contractsWarnEl.hidden = false;
+      } else {
+        contractsWarnEl.hidden = true;
+        contractsWarnEl.textContent = '';
+      }
     }
 
     setRiskItem('riskTickValue', formatMoney(risk.tickValue));
@@ -1690,7 +1752,6 @@
     setRiskItem('riskStopDaily',
       formatTicks(risk.maxTicksForOneContract * tradesPerDay) + ' · ' + tradesPerDay + ' op',
       blocked ? 'neg' : '');
-    setRiskItem('riskContracts', String(risk.contracts));
     setRiskItem('riskTotal', formatMoney(risk.totalRisk));
     setRiskItem('riskTicksSL', formatTicks(risk.ticksSL));
     /* The take-profit distance and the R/B row both follow the SELECTED ratio. */
@@ -2874,14 +2935,32 @@
       refreshTableAndKpis();
     });
 
-    /* Mark the contracts field as user-owned as soon as it is edited, so the
-     * risk calculator stops prefilling it. Registered before the live-update
-     * loop below so the flag is set before the panel re-renders. */
+    /* Both contracts views are the SAME value. Typing in EITHER one marks the
+     * field user-owned and mirrors the value to the other, so the calculator
+     * stops prefilling and the two can never diverge. Registered before the
+     * live-update loop below so the flag is set before the panel re-renders on
+     * the same keystroke. */
     const contractsField = $('contracts');
     if (contractsField) {
-      const markContractsTouched = function () { contractsTouched = true; };
+      const markContractsTouched = function () {
+        contractsTouched = true;
+        syncContracts(contractsField.value);
+      };
       contractsField.addEventListener('input', markContractsTouched);
       contractsField.addEventListener('change', markContractsTouched);
+    }
+    /* The calculator's contracts input is the other view: on change it writes
+     * the canonical #contracts FIRST, then the shared render pass mirrors it
+     * back and updates the reported real risk. */
+    const riskContractsField = $('riskContracts');
+    if (riskContractsField) {
+      const onRiskContracts = function () {
+        contractsTouched = true;
+        syncContracts(riskContractsField.value);
+        updatePreview();
+      };
+      riskContractsField.addEventListener('input', onRiskContracts);
+      riskContractsField.addEventListener('change', onRiskContracts);
     }
 
     /* Draft fields: the first user keystroke makes the value final and clears

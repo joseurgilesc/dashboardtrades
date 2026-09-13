@@ -778,6 +778,17 @@ input.is-draft {
   color: var(--text);
 }
 
+/* Editable value inside a preview row (the contracts manual override).
+ * Reuses the global input tokens, tightened to sit in the preview grid. */
+.preview-input {
+  width: 100%;
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ------------------------------------------------------------------ */
 /* Risk calculator panel                                               */
 /* ------------------------------------------------------------------ */
