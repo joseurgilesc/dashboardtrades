@@ -3,10 +3,11 @@
  * Plain script (no modules) so it works from file:// and GitHub Pages.
  * Exposes global consts: INSTRUMENTS, ACCOUNTS, DIRECTIONS, STRATEGIES,
  * STRATEGY_IDS, STRATEGY_GROUPS, MICRO_PAIRS, EXIT_TYPES, EMOTIONS,
- * DEFAULT_BALANCES, DEFAULT_RISK_PCT, DEFAULT_DAILY_TRADE_LIMIT,
- * RISK_PCT_MIN, RISK_PCT_MAX, RISK_PCT_HARD_MAX, DEFAULT_MIN_RR,
- * DAILY_DD_WARN_PCT, STREAK_WARN, SMALL_ACCOUNT_MAX, DEFAULT_SCALING_RR,
- * DEFAULT_SCALING_DAYS, SCALING_DAYS_MAX.
+ * EMOTION_COLORS, DEFAULT_INSTRUMENT, DEFAULT_EMOTION, DEFAULT_BALANCES,
+ * DEFAULT_RISK_PCT, DEFAULT_DAILY_TRADE_LIMIT, RISK_PCT_MIN, RISK_PCT_MAX,
+ * RISK_PCT_HARD_MAX, DEFAULT_MIN_RR, DAILY_DD_WARN_PCT, STREAK_WARN,
+ * SMALL_ACCOUNT_MAX, DEFAULT_SCALING_RR, DEFAULT_SCALING_DAYS,
+ * SCALING_DAYS_MAX.
  *
  * Instrument hours follow the exchange timezone: CME Globex uses ET,
  * Eurex uses CET/CEST. Items still pending confirmation are marked
@@ -22,6 +23,9 @@ const INSTRUMENTS = {
     size: 'full',
     pointValue: 20,
     commission: 4.18,
+    type: 'Índice (Nasdaq-100)',
+    volatility: 'Alta',
+    tip: 'Movimientos amplios; ajusta el tamaño',
     note: 'Full-size del Nasdaq-100; 20 USD por punto.'
   },
   MNQ: {
@@ -32,6 +36,9 @@ const INSTRUMENTS = {
     size: 'micro',
     pointValue: 2,
     commission: 1.22,
+    type: 'Índice (Nasdaq-100)',
+    volatility: 'Alta',
+    tip: 'Movimientos amplios; ajusta el tamaño',
     note: 'Micro del Nasdaq-100; 1/10 del valor por punto del NQ.'
   },
   ES: {
@@ -42,6 +49,9 @@ const INSTRUMENTS = {
     size: 'full',
     pointValue: 50,
     commission: 4.18,
+    type: 'Índice (S&P 500)',
+    volatility: 'Media-alta',
+    tip: 'El más líquido; ideal para empezar',
     note: 'Full-size del S&P 500; 50 USD por punto.'
   },
   MES: {
@@ -52,6 +62,9 @@ const INSTRUMENTS = {
     size: 'micro',
     pointValue: 5,
     commission: 1.22,
+    type: 'Índice (S&P 500)',
+    volatility: 'Media-alta',
+    tip: 'El más líquido; ideal para empezar',
     note: 'Micro del S&P 500; 1/10 del valor por punto del ES.'
   },
   YM: {
@@ -62,6 +75,9 @@ const INSTRUMENTS = {
     size: 'full',
     pointValue: 5,
     commission: 4.08,
+    type: 'Índice (Dow Jones)',
+    volatility: 'Media',
+    tip: 'Movimientos más suaves; ojo con el tick de 1 punto',
     note: 'Full-size del Dow; 5 USD por punto.'
   },
   MYM: {
@@ -72,6 +88,9 @@ const INSTRUMENTS = {
     size: 'micro',
     pointValue: 0.5,
     commission: 1.12,
+    type: 'Índice (Dow Jones)',
+    volatility: 'Media',
+    tip: 'Movimientos más suaves; ojo con el tick de 1 punto',
     note: 'Micro del Dow; 0,50 USD por punto.'
   },
   '6E': {
@@ -82,6 +101,9 @@ const INSTRUMENTS = {
     size: 'full',
     pointValue: 125000,
     commission: 4.72,
+    type: 'Divisa (EUR/USD)',
+    volatility: 'Media-baja',
+    tip: 'Suele respetar niveles redondos (00)',
     note: 'Full-size EUR/USD; 125.000 USD por punto; tick 0,0001 (12,50 USD por tick).'
   },
   M6E: {
@@ -92,6 +114,9 @@ const INSTRUMENTS = {
     size: 'micro',
     pointValue: 12500,
     commission: 1.52,
+    type: 'Divisa (EUR/USD)',
+    volatility: 'Media-baja',
+    tip: 'Suele respetar niveles redondos (00)',
     note: 'Micro EUR/USD; 1/10 del valor por punto del 6E.'
   },
   CL: {
@@ -102,6 +127,9 @@ const INSTRUMENTS = {
     size: 'full',
     pointValue: 1000,
     commission: 4.52,
+    type: 'Commodity (Petróleo WTI)',
+    volatility: 'Alta',
+    tip: 'Atento a inventarios y noticias',
     note: 'Full-size WTI; 1.000 USD por punto.'
   },
   MCL: {
@@ -112,6 +140,9 @@ const INSTRUMENTS = {
     size: 'micro',
     pointValue: 100,
     commission: 1.52,
+    type: 'Commodity (Petróleo WTI)',
+    volatility: 'Alta',
+    tip: 'Atento a inventarios y noticias',
     note: 'Micro WTI; 100 USD por punto.'
   },
   FDAX: {
@@ -123,6 +154,9 @@ const INSTRUMENTS = {
     pointValue: 25,
     currency: 'EUR',
     commission: 4.08,
+    type: 'Índice (DAX)',
+    volatility: 'Alta',
+    tip: 'Sesión europea; spreads más amplios fuera de horario',
     note: 'Full-size DAX; 25 EUR por punto; tick 0,50 (12,50 EUR por tick). Horario en CET/CEST; inicio de mañana por verificar.'
   },
   FDXM: {
@@ -134,6 +168,9 @@ const INSTRUMENTS = {
     pointValue: 5,
     currency: 'EUR',
     commission: 2.26,
+    type: 'Índice (DAX)',
+    volatility: 'Alta',
+    tip: 'Sesión europea; spreads más amplios fuera de horario',
     note: 'Micro-DAX; 5 EUR por punto; tick 0,50 (2,50 EUR por tick). El símbolo FDXM es del bróker (Eurex: FDXS); horario por verificar.'
   }
 };
@@ -191,6 +228,31 @@ const EMOTIONS = [
   'Miedo',
   'Venganza'
 ];
+
+/* Default entry-form selections when nothing has been remembered yet. MES is
+ * the intended starting instrument and Confianza the intended emotion. */
+const DEFAULT_INSTRUMENT = 'MES';
+const DEFAULT_EMOTION = 'Confianza';
+
+/* Per-emotion color tokens. This is data, not scattered CSS: the UI reads the
+ * map to tint the emotion dot/badge. Values reference the dark palette custom
+ * properties so the theme stays sober and centralized.
+ *   positive/controlled (Confianza, Control)  -> green / blue
+ *   negative (Miedo, FOMO, Venganza, ...)     -> red / amber
+ *   neutral (Duda, Impaciencia)               -> muted grey
+ * Unknown emotions fall back to the neutral token. */
+const EMOTION_COLORS = {
+  Ansiedad: 'var(--amber)',
+  Codicia: 'var(--amber)',
+  Confianza: 'var(--pos)',
+  Control: 'var(--accent)',
+  Duda: 'var(--text-faint)',
+  FOMO: 'var(--neg)',
+  'Frustración': 'var(--neg)',
+  Impaciencia: 'var(--text-faint)',
+  Miedo: 'var(--neg)',
+  Venganza: 'var(--neg)'
+};
 
 const DEFAULT_BALANCES = { Sim: 5000, Real: 5000, Fondeo: 50000 };
 

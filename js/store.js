@@ -425,6 +425,14 @@ const Store = (function () {
   /* The primary form selections remembered across sessions. */
   const LAST_ENTRY_FIELDS = ['account', 'instrument', 'strategy', 'direction', 'emotion'];
 
+  /* Preferred fallback per remembered field when nothing valid is stored.
+   * Instrument defaults to MES and emotion to Confianza (see instruments.js);
+   * every other field keeps the first catalog value. */
+  const LAST_ENTRY_DEFAULTS = {
+    instrument: (typeof DEFAULT_INSTRUMENT !== 'undefined') ? DEFAULT_INSTRUMENT : '',
+    emotion: (typeof DEFAULT_EMOTION !== 'undefined') ? DEFAULT_EMOTION : ''
+  };
+
   function listOrDefault(value, fallback) {
     return (Array.isArray(value) && value.length) ? value : fallback;
   }
@@ -464,7 +472,9 @@ const Store = (function () {
     LAST_ENTRY_FIELDS.forEach(function (field) {
       const list = allowed[field] || [];
       const key = strOr(source[field], '');
-      out[field] = (list.length && list.indexOf(key) !== -1) ? key : (list[0] || '');
+      const preferred = LAST_ENTRY_DEFAULTS[field];
+      const fallback = (preferred && list.indexOf(preferred) !== -1) ? preferred : (list[0] || '');
+      out[field] = (list.length && list.indexOf(key) !== -1) ? key : fallback;
     });
     return out;
   }
@@ -1130,6 +1140,51 @@ const Store = (function () {
     if (!Number.isFinite(effectiveRisk) || effectiveRisk <= 0) return 0;
     if (!Number.isFinite(tickValue) || tickValue <= 0) return 0;
     return Math.floor(effectiveRisk / tickValue);
+  }
+
+  /** Snaps a price to the nearest whole tick, killing floating-point noise. */
+  function roundToTick(value, tick) {
+    const steps = Math.round(value / tick);
+    return Number((steps * tick).toFixed(10));
+  }
+
+  /**
+   * Advisory stop/target price suggestions for the entry form (pure).
+   *
+   *   distance    = ticks × tick
+   *   stopPrice   = entry − distance   (Largo)  |  entry + distance   (Corto)
+   *   targetPrice = entry + 2×distance (Largo)  |  entry − 2×distance (Corto)
+   *
+   * `ticks` is the calculator's stop distance in ticks (or the max ticks that
+   * fit one contract). Both prices are snapped to the instrument's tick size.
+   * This helper NEVER touches a form input: callers render the values as
+   * advisory text only. Returns `{ valid, reason, ticks, stopPrice,
+   * targetPrice }`; `valid` is false when the instrument, entry price, ticks or
+   * direction is missing/invalid.
+   */
+  function suggestStopTarget(inputs) {
+    const opts = inputs || {};
+    const spec = instrumentSpec(opts.instrument);
+    const entryPrice = numOr(opts.entryPrice, NaN);
+    const ticks = numOr(opts.ticks, NaN);
+    const direction = strOr(opts.direction, '');
+    const result = { valid: false, reason: '', ticks: 0, stopPrice: NaN, targetPrice: NaN };
+
+    if (!spec) { result.reason = 'instrument'; return result; }
+    if (!Number.isFinite(entryPrice)) { result.reason = 'entryPrice'; return result; }
+    if (!Number.isFinite(ticks) || ticks <= 0) { result.reason = 'ticks'; return result; }
+    if (direction !== 'Largo' && direction !== 'Corto') { result.reason = 'direction'; return result; }
+
+    const tick = numOr(spec.tick, 0);
+    if (!(tick > 0)) { result.reason = 'tick'; return result; }
+
+    const distance = ticks * tick;
+    const sign = direction === 'Largo' ? 1 : -1;
+    result.valid = true;
+    result.ticks = ticks;
+    result.stopPrice = roundToTick(entryPrice - sign * distance, tick);
+    result.targetPrice = roundToTick(entryPrice + sign * 2 * distance, tick);
+    return result;
   }
 
   /**
@@ -2202,6 +2257,7 @@ const Store = (function () {
     riskGuard: riskGuard,
     minBalanceForOneContract: minBalanceForOneContract,
     maxTicksForOneContract: maxTicksForOneContract,
+    suggestStopTarget: suggestStopTarget,
     microEquivalent: microEquivalent,
     clampRiskPct: clampRiskPct,
     clampDailyLimit: clampDailyLimit,

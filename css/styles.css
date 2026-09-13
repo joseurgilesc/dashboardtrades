@@ -239,6 +239,7 @@ textarea {
 }
 
 .tab-button {
+  --tab-accent: var(--accent);
   position: relative;
   padding: 9px 16px;
   background: transparent;
@@ -250,6 +251,13 @@ textarea {
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
+
+/* Data-driven section identity: the active underline reads the tab's accent.
+ * The accent is a visual cue only; `aria-selected` and the weight change keep
+ * the state meaningful without relying on color. */
+.tab-button[data-accent='accent'] { --tab-accent: var(--accent); }
+.tab-button[data-accent='cyan'] { --tab-accent: var(--cyan); }
+.tab-button[data-accent='purple'] { --tab-accent: var(--purple); }
 
 .tab-button:hover {
   color: var(--text);
@@ -270,7 +278,7 @@ textarea {
   bottom: -1px;
   height: 2px;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--tab-accent);
 }
 
 /* ------------------------------------------------------------------ */
@@ -338,6 +346,13 @@ textarea {
   justify-content: flex-end;
 }
 
+/* Filters disclosure: the bar starts collapsed and this button toggles it. */
+.filters-toggle {
+  display: flex;
+  justify-content: flex-end;
+  margin: 12px 20px 0;
+}
+
 /* ------------------------------------------------------------------ */
 /* Main layout + cards                                                 */
 /* ------------------------------------------------------------------ */
@@ -350,10 +365,19 @@ textarea {
 }
 
 section[role='tabpanel'] {
+  --section-accent: var(--border);
   display: flex;
   flex-direction: column;
   gap: 16px;
+  /* Subtle section identity: a thin data-driven left rule, not a redesign.
+   * The heading text stays the primary label, so color is never the only cue. */
+  border-left: 2px solid var(--section-accent);
+  padding-left: 14px;
 }
+
+section[role='tabpanel'][data-accent='accent'] { --section-accent: var(--accent); }
+section[role='tabpanel'][data-accent='cyan'] { --section-accent: var(--cyan); }
+section[role='tabpanel'][data-accent='purple'] { --section-accent: var(--purple); }
 
 .card {
   background: var(--panel);
@@ -524,6 +548,47 @@ textarea {
   padding: 0 12px 12px;
 }
 
+/* Advisory suggested price next to the stop/target inputs. Text only: it
+ * never writes into the input the user is editing. */
+.field-suggestion {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+/* Emotion select with a small data-driven color dot (see EMOTION_COLORS). */
+.emotion-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.emotion-field select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.emotion-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  box-shadow: 0 0 0 1px rgba(230, 237, 243, 0.12);
+}
+
+/* Emotion cell in the trades table: dot + label, kept on one line. */
+.emotion-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.emotion-cell .emotion-dot {
+  width: 8px;
+  height: 8px;
+}
+
 /* ------------------------------------------------------------------ */
 /* Buttons                                                             */
 /* ------------------------------------------------------------------ */
@@ -677,6 +742,40 @@ textarea {
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text);
+}
+
+/* Collapsible reference block inside the calculator, styled like the form's
+ * "Más opciones" disclosure. Block 2 starts closed. */
+.risk-block-collapsible > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  list-style: none;
+  cursor: pointer;
+}
+
+.risk-block-collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.risk-block-collapsible > summary::before {
+  content: '▸';
+  display: inline-block;
+  color: var(--text-muted);
+  transition: transform 0.12s ease;
+}
+
+.risk-block-collapsible[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.risk-block-collapsible > summary:hover {
+  color: var(--text);
+}
+
+.risk-block-content {
+  margin-top: 10px;
 }
 
 /* The inner preview sits on the card background so it reads as a result
@@ -1211,6 +1310,7 @@ textarea {
   }
 
   .filters,
+  .filters-toggle,
   .app-main {
     margin-left: 0;
     margin-right: 0;

@@ -74,9 +74,9 @@
   </section>
 
   <nav class="tabs" role="tablist" aria-label="Secciones">
-    <button type="button" class="tab-button active" role="tab" data-tab="registro" aria-selected="true" aria-controls="tab-registro">Registro</button>
-    <button type="button" class="tab-button" role="tab" data-tab="dashboard" aria-selected="false" aria-controls="tab-dashboard">Dashboard</button>
-    <button type="button" class="tab-button" role="tab" data-tab="ajustes" aria-selected="false" aria-controls="tab-ajustes">Ajustes</button>
+    <button type="button" class="tab-button active" role="tab" data-tab="registro" data-accent="accent" aria-selected="true" aria-controls="tab-registro">Registro</button>
+    <button type="button" class="tab-button" role="tab" data-tab="dashboard" data-accent="cyan" aria-selected="false" aria-controls="tab-dashboard">Dashboard</button>
+    <button type="button" class="tab-button" role="tab" data-tab="ajustes" data-accent="purple" aria-selected="false" aria-controls="tab-ajustes">Ajustes</button>
   </nav>
 
   <div class="global-search-bar" id="globalSearchBar">
@@ -89,7 +89,11 @@
 
   <p id="appStatus" class="app-status" role="status" aria-live="polite" hidden></p>
 
-  <div class="filters" id="filtersBar" aria-label="Filtros">
+  <div class="filters-toggle" id="filtersToggle">
+    <button type="button" class="btn btn-ghost" id="btnToggleFilters" aria-expanded="false" aria-controls="filtersBar">Filtros</button>
+  </div>
+
+  <div class="filters" id="filtersBar" aria-label="Filtros" hidden>
     <div class="filter-field">
       <label for="filterAccount">Cuenta</label>
       <select id="filterAccount"></select>
@@ -121,7 +125,7 @@
 
   <main class="app-main">
     <!-- ============================ REGISTRO ============================ -->
-    <section id="tab-registro" role="tabpanel" aria-labelledby="tab-registro">
+    <section id="tab-registro" role="tabpanel" data-accent="accent" aria-labelledby="tab-registro">
       <div class="card">
         <div class="card-header">
           <h2 id="formTitle">Nuevo trade</h2>
@@ -185,6 +189,7 @@
             <div class="field">
               <label for="stop">Stop (precio, opcional)</label>
               <input type="number" id="stop" step="any" inputmode="decimal">
+              <span class="field-suggestion" id="stopSuggestion" hidden></span>
             </div>
             <div class="field">
               <label for="exitType">Tipo de salida</label>
@@ -192,7 +197,10 @@
             </div>
             <div class="field">
               <label for="emotion">Emoción</label>
-              <select id="emotion"></select>
+              <div class="emotion-field">
+                <span class="emotion-dot" id="emotionDot" aria-hidden="true"></span>
+                <select id="emotion"></select>
+              </div>
             </div>
           </div>
 
@@ -202,6 +210,7 @@
               <div class="field">
                 <label for="target">Objetivo (USD, opcional)</label>
                 <input type="number" id="target" min="0" step="any" inputmode="decimal">
+                <span class="field-suggestion" id="targetSuggestion" hidden></span>
               </div>
               <div class="field">
                 <label for="plannedRisk">Riesgo planeado (USD, opcional)</label>
@@ -281,27 +290,30 @@
           </div>
         </div>
 
-        <!-- Bloque 2 — Instrumento y parámetros de mercado -->
-        <div class="risk-block">
-          <h3 class="risk-block-title">2. Instrumento</h3>
-          <div class="field">
-            <label for="riskInstrument">Instrumento</label>
-            <select id="riskInstrument"></select>
+        <!-- Bloque 2 — Instrumento y parámetros de mercado. Reference data, so
+             it starts collapsed behind a "like Más opciones" disclosure. -->
+        <details class="risk-block risk-block-collapsible" id="riskInstrumentBlock">
+          <summary class="risk-block-title">2. Instrumento</summary>
+          <div class="risk-block-content">
+            <div class="field">
+              <label for="riskInstrument">Instrumento</label>
+              <select id="riskInstrument"></select>
+            </div>
+            <div class="table-wrap">
+              <table class="risk-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Instrumento</th>
+                    <th scope="col" class="num">Valor por tick</th>
+                    <th scope="col" class="num">Tamaño de tick</th>
+                  </tr>
+                </thead>
+                <tbody id="riskMarketBody"></tbody>
+              </table>
+            </div>
+            <p class="risk-hint" id="riskInstrumentHint" hidden></p>
           </div>
-          <div class="table-wrap">
-            <table class="risk-table">
-              <thead>
-                <tr>
-                  <th scope="col">Instrumento</th>
-                  <th scope="col" class="num">Valor por tick</th>
-                  <th scope="col" class="num">Tamaño de tick</th>
-                </tr>
-              </thead>
-              <tbody id="riskMarketBody"></tbody>
-            </table>
-          </div>
-          <p class="risk-hint" id="riskInstrumentHint" hidden></p>
-        </div>
+        </details>
 
         <!-- Bloque 3 — Motor de cálculo -->
         <div class="risk-block">
@@ -416,7 +428,7 @@
     </section>
 
     <!-- ============================ DASHBOARD =========================== -->
-    <section id="tab-dashboard" role="tabpanel" aria-labelledby="tab-dashboard" hidden>
+    <section id="tab-dashboard" role="tabpanel" data-accent="cyan" aria-labelledby="tab-dashboard" hidden>
       <!-- Equity curve is the dashboard protagonist: first and slightly taller. -->
       <div class="card chart-card chart-hero">
         <h3>Curva de equity</h3>
@@ -549,7 +561,7 @@
     </section>
 
     <!-- ============================= AJUSTES ============================ -->
-    <section id="tab-ajustes" role="tabpanel" aria-labelledby="tab-ajustes" hidden>
+    <section id="tab-ajustes" role="tabpanel" data-accent="purple" aria-labelledby="tab-ajustes" hidden>
       <div class="card">
         <div class="card-header">
           <h2>Saldos iniciales</h2>

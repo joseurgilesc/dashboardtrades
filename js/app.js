@@ -25,6 +25,8 @@
       dateFrom: '',
       dateTo: ''
     },
+    /* Filters bar disclosure, remembered for the browser session. */
+    filtersOpen: false,
     chartsDirty: true
   };
 
@@ -42,7 +44,7 @@
   let lastRiskAccount = null;
 
   /* Top-level regions hidden until authentication resolves. */
-  const APP_REGIONS = ['.tabs', '#globalSearchBar', '#filtersBar', '.app-main', '.app-footer'];
+  const APP_REGIONS = ['.tabs', '#globalSearchBar', '#filtersToggle', '#filtersBar', '.app-main', '.app-footer'];
 
   const moneyFmt = new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -505,7 +507,7 @@
       '<td class="num">' + escapeHtml(t.entryPrice) + '</td>' +
       '<td class="num">' + escapeHtml(t.exitPrice) + '</td>' +
       '<td>' + escapeHtml(t.exitType) + '</td>' +
-      '<td>' + escapeHtml(t.emotion) + '</td>' +
+      '<td><span class="emotion-cell">' + emotionDotHtml(t.emotion) + escapeHtml(t.emotion) + '</span></td>' +
       '<td class="num ' + signClass(t.points) + '">' + formatNumber(t.points) + '</td>' +
       '<td class="num ' + signClass(t.net) + '">' + formatMoney(t.net) + '</td>' +
       '<td class="num ' + signClass(t.cumulative) + '">' + formatMoney(t.cumulative) + '</td>' +
@@ -779,6 +781,27 @@
     return size === 'micro' ? 'Micro' : 'Full';
   }
 
+  /** Color token for an emotion, from the shared EMOTION_COLORS data map. */
+  function emotionColor(emotion) {
+    if (typeof EMOTION_COLORS !== 'undefined' && EMOTION_COLORS && EMOTION_COLORS[emotion]) {
+      return EMOTION_COLORS[emotion];
+    }
+    return 'var(--text-faint)';
+  }
+
+  /** Small token-colored dot for an emotion (form + trades table). */
+  function emotionDotHtml(emotion) {
+    return '<span class="emotion-dot" style="background:' + escapeHtml(emotionColor(emotion)) + '"></span>';
+  }
+
+  /** Keeps the form's emotion dot in sync with the selected emotion. */
+  function renderEmotionDot() {
+    const dot = $('emotionDot');
+    const select = $('emotion');
+    if (!dot || !select) return;
+    dot.style.background = emotionColor(select.value);
+  }
+
   /** Renders the per-instrument reference panel (hidden until toggled). */
   function renderInstrumentInfo() {
     const panel = $('instrumentInfo');
@@ -792,12 +815,15 @@
     }
     const rows = [
       { label: 'Producto', value: spec.name },
+      { label: 'Tipo', value: spec.type || '—' },
+      { label: 'Volatilidad', value: spec.volatility || '—' },
       { label: 'Exchange', value: spec.exchange },
       { label: 'Horario', value: spec.hours },
       { label: 'Valor del punto', value: formatNumber(spec.pointValue, 2) },
       { label: 'Tick', value: String(spec.tick) },
       { label: 'Comisión (ida y vuelta)', value: formatMoney(spec.commission) },
-      { label: 'Tamaño', value: sizeLabel(spec.size) }
+      { label: 'Tamaño', value: sizeLabel(spec.size) },
+      { label: 'Tip', value: spec.tip || '—' }
     ].map(function (row) {
       return '<div class="instrument-info-item">' +
         '<span class="instrument-info-label">' + escapeHtml(row.label) + '</span>' +
@@ -829,6 +855,7 @@
     renderInstrumentInfo();
     renderRiskPanel();
     renderEntryWarnings();
+    renderEmotionDot();
     const spec = INSTRUMENTS[$('instrument').value];
     const pointValueEl = $('previewPointValue');
     if (pointValueEl) pointValueEl.textContent = spec ? formatNumber(spec.pointValue, 2) : '—';
@@ -925,6 +952,63 @@
         '<td class="num">' + escapeHtml(String(spec.tick)) + '</td>' +
       '</tr>';
     }).join('');
+  }
+
+  /** Decimal places needed to render a price on the instrument's tick grid. */
+  function decimalsForTick(tick) {
+    const t = Number(tick);
+    if (!Number.isFinite(t) || t <= 0) return 2;
+    const text = String(t);
+    const dot = text.indexOf('.');
+    if (dot === -1) return 0;
+    return Math.min(6, text.length - dot - 1);
+  }
+
+  /** Formats a suggested price snapped to the instrument's tick grid. */
+  function formatPrice(value, tick) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '—';
+    return n.toFixed(decimalsForTick(tick));
+  }
+
+  /**
+   * Renders the advisory stop/target price suggestions next to the form's stop
+   * and target inputs. `ticks` is the calculator's stop distance (or the max
+   * ticks that fit one contract). Purely informational: it never writes to the
+   * inputs the user is editing.
+   */
+  function renderPriceSuggestions(ticks) {
+    const instrumentEl = $('instrument');
+    const entryEl = $('entryPrice');
+    const directionEl = $('direction');
+    const instrument = instrumentEl ? instrumentEl.value : '';
+    const spec = instrumentMeta(instrument);
+    const tick = spec ? Number(spec.tick) : NaN;
+
+    const suggestion = (typeof Store.suggestStopTarget === 'function')
+      ? Store.suggestStopTarget({
+          instrument: instrument,
+          entryPrice: entryEl ? parseFloat(entryEl.value) : NaN,
+          direction: directionEl ? directionEl.value : '',
+          ticks: ticks
+        })
+      : { valid: false };
+
+    const stopEl = $('stopSuggestion');
+    const targetEl = $('targetSuggestion');
+    if (suggestion.valid) {
+      if (stopEl) {
+        stopEl.textContent = 'Stop sugerido: ' + formatPrice(suggestion.stopPrice, tick);
+        stopEl.hidden = false;
+      }
+      if (targetEl) {
+        targetEl.textContent = 'Objetivo sugerido: ' + formatPrice(suggestion.targetPrice, tick) + ' (precio)';
+        targetEl.hidden = false;
+      }
+    } else {
+      if (stopEl) { stopEl.hidden = true; stopEl.textContent = ''; }
+      if (targetEl) { targetEl.hidden = true; targetEl.textContent = ''; }
+    }
   }
 
   /**
@@ -1037,13 +1121,27 @@
       losingStreak: guard.valid ? guard.losingStreak : 0
     });
 
+    /* Advisory stop/target price suggestions. Ticks come from the calculator's
+     * stop-tick input, falling back to the max ticks that fit one contract.
+     * Rendered as text only; the form inputs are never overwritten. */
+    const suggestionTicks = parseFloat($('riskStopTicks').value);
+    const fallbackTicks = Store.maxTicksForOneContract({
+      effectiveRisk: usage.valid ? usage.available : NaN,
+      tickValue: risk.tickValue
+    });
+    renderPriceSuggestions(
+      (Number.isFinite(suggestionTicks) && suggestionTicks > 0) ? suggestionTicks : fallbackTicks
+    );
+
     const warnEl = $('riskViabilityWarning');
     const suitabilityEl = $('riskSuitabilityHint');
     const blockEl = $('riskBlockAlert');
     const smallEl = $('riskSmallAccountHint');
-    const resultIds = ['riskTickValue', 'riskPerContract', 'riskBudget', 'riskUsedToday',
-      'riskAvailable', 'riskContracts', 'riskTotal', 'riskTicksSL', 'riskTicksTP2',
-      'riskTicksTP3', 'riskRecovery', 'riskRR', 'riskCommission'];
+    /* `riskBudget`/`riskUsedToday`/`riskAvailable` are realized-usage rows, not
+     * calculator outputs, so they stay OUT of this reset list: invalid input
+     * must never blank a recorded loss. */
+    const resultIds = ['riskTickValue', 'riskPerContract', 'riskContracts', 'riskTotal',
+      'riskTicksSL', 'riskTicksTP2', 'riskTicksTP3', 'riskRecovery', 'riskRR', 'riskCommission'];
 
     /* Block 4 is always rendered, even when a required input is missing. */
     setRiskItem('riskDayLoss', formatMoney(guard.valid ? guard.dayLoss : 0),
@@ -1079,6 +1177,15 @@
       }
     }
 
+    /* Realized usage is rendered before the validity gate so recording a losing
+     * trade always moves "Usado hoy" and "Disponible", even if the calculator's
+     * stop/size inputs are still incomplete. */
+    setRiskItem('riskBudget', usage.valid ? formatMoney(usage.dailyBudget) : '—');
+    setRiskItem('riskUsedToday', usage.valid ? formatMoney(usage.used) : '—',
+      usage.valid && usage.used > 0 ? 'warn' : '');
+    setRiskItem('riskAvailable', usage.valid ? formatMoney(usage.available) : '—',
+      usage.valid && usage.exhausted ? 'warn' : '');
+
     if (!risk.valid) {
       resultIds.forEach(function (id) { setRiskItem(id, '—'); });
       if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
@@ -1095,10 +1202,6 @@
 
     setRiskItem('riskTickValue', formatMoney(risk.tickValue));
     setRiskItem('riskPerContract', formatMoney(risk.pm));
-    setRiskItem('riskBudget', formatMoney(usage.valid ? usage.dailyBudget : risk.dailyBudget));
-    setRiskItem('riskUsedToday', formatMoney(usage.valid ? usage.used : 0),
-      usage.valid && usage.used > 0 ? 'warn' : '');
-    setRiskItem('riskAvailable', formatMoney(risk.presupuesto), risk.exhausted ? 'warn' : '');
     setRiskItem('riskContracts', String(risk.contracts));
     setRiskItem('riskTotal', formatMoney(risk.totalRisk));
     setRiskItem('riskTicksSL', formatTicks(risk.ticksSL));
@@ -1697,6 +1800,46 @@
     refreshTableAndKpis();
   }
 
+  /* Filters disclosure state, remembered for the browser session. */
+  const FILTERS_SESSION_KEY = 'bpt.filters.open';
+
+  function readFiltersSession() {
+    try {
+      return window.sessionStorage.getItem(FILTERS_SESSION_KEY) === 'true';
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function persistFiltersSession(open) {
+    try {
+      window.sessionStorage.setItem(FILTERS_SESSION_KEY, open ? 'true' : 'false');
+    } catch (err) {
+      /* Private mode / disabled storage: the toggle still works in-memory. */
+    }
+  }
+
+  /**
+   * Applies the filters bar visibility from the session-remembered state and
+   * the active tab. The bar is hidden on Ajustes and whenever the user left it
+   * collapsed; the toggle button mirrors the state through `aria-expanded`.
+   */
+  function applyFiltersVisibility() {
+    const onAjustes = state.activeTab === 'ajustes';
+    const toggle = $('filtersToggle');
+    const bar = $('filtersBar');
+    const button = $('btnToggleFilters');
+    if (toggle) toggle.hidden = onAjustes;
+    if (bar) bar.hidden = onAjustes || !state.filtersOpen;
+    if (button) button.setAttribute('aria-expanded', state.filtersOpen ? 'true' : 'false');
+  }
+
+  function toggleFilters() {
+    state.filtersOpen = !state.filtersOpen;
+    persistFiltersSession(state.filtersOpen);
+    applyFiltersVisibility();
+  }
+
   /* ------------------------------------------------------------------ */
   /* Tabs                                                                */
   /* ------------------------------------------------------------------ */
@@ -1715,8 +1858,7 @@
       if (section) section.hidden = name !== tab;
     });
 
-    const filtersBar = $('filtersBar');
-    if (filtersBar) filtersBar.hidden = tab === 'ajustes';
+    applyFiltersVisibility();
 
     if (tab === 'dashboard') {
       renderGamification();
@@ -2064,7 +2206,7 @@
       contractsField.addEventListener('change', markContractsTouched);
     }
 
-    ['account', 'instrument', 'contracts', 'direction', 'entryPrice', 'exitPrice',
+    ['account', 'instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
       'stop', 'target', 'plannedRisk',
       'entryDate', 'entryTime', 'exitDate', 'exitTime',
       'riskStopTicks', 'riskTarget', 'riskDailyPctInput'].forEach(function (id) {
@@ -2168,6 +2310,9 @@
     });
 
     $('btnClearFilters').addEventListener('click', clearFilters);
+
+    const filtersButton = $('btnToggleFilters');
+    if (filtersButton) filtersButton.addEventListener('click', toggleFilters);
 
     document.querySelectorAll('.tab-button').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -2549,6 +2694,9 @@
     buildDangerZone();
     buildVerificationActions();
     setAuthMode('signin');
+    state.filtersOpen = readFiltersSession();
+    applyFiltersVisibility();
+    /* Hide the whole shell last so the pre-auth gate never leaks the toggle. */
     setAppVisible(false);
     showAuthError('');
 
