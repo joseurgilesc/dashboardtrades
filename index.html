@@ -265,6 +265,9 @@
         </div>
         <p class="hint">Sigue los 4 bloques: define tus entradas, elige el instrumento, revisa el cálculo y comprueba los controles de bloqueo. El presupuesto sale del capital de inicio del día menos las pérdidas ya realizadas hoy en la cuenta seleccionada.</p>
 
+        <div class="risk-layout">
+          <div class="risk-main">
+
         <!-- Bloque 1 — Entradas -->
         <div class="risk-block">
           <h3 class="risk-block-title">1. Entradas</h3>
@@ -276,6 +279,10 @@
             <div class="field">
               <label for="riskStopTicks">Distancia del stop (ticks)</label>
               <input type="number" id="riskStopTicks" min="0" step="any" inputmode="decimal" value="8">
+            </div>
+            <div class="field">
+              <label for="riskTradesPerDayInput">Operaciones por día</label>
+              <input type="number" id="riskTradesPerDayInput" min="1" step="1" inputmode="numeric" value="3">
             </div>
           </div>
           <div class="preview">
@@ -291,14 +298,11 @@
         </div>
 
         <!-- Bloque 2 — Instrumento y parámetros de mercado. Reference data, so
-             it starts collapsed behind a "like Más opciones" disclosure. -->
+             it starts collapsed behind a "like Más opciones" disclosure. The
+             instrument comes from the trade form; the table highlights it. -->
         <details class="risk-block risk-block-collapsible" id="riskInstrumentBlock">
           <summary class="risk-block-title">2. Instrumento</summary>
           <div class="risk-block-content">
-            <div class="field">
-              <label for="riskInstrument">Instrumento</label>
-              <select id="riskInstrument"></select>
-            </div>
             <div class="table-wrap">
               <table class="risk-table">
                 <thead>
@@ -336,12 +340,24 @@
               <span class="preview-value" id="riskBudget">—</span>
             </div>
             <div class="preview-item">
+              <span class="preview-label">Cupo por operación</span>
+              <span class="preview-value" id="riskPerTradeBudget">—</span>
+            </div>
+            <div class="preview-item">
               <span class="preview-label">Usado hoy</span>
               <span class="preview-value" id="riskUsedToday">—</span>
             </div>
             <div class="preview-item">
               <span class="preview-label">Disponible (presupuesto)</span>
               <span class="preview-value" id="riskAvailable">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Presupuesto efectivo (mín.)</span>
+              <span class="preview-value" id="riskEffectiveBudget">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">Máx. ticks (1 contrato)</span>
+              <span class="preview-value" id="riskMaxTicks">—</span>
             </div>
             <div class="preview-item">
               <span class="preview-label">Contratos (N)</span>
@@ -362,6 +378,10 @@
             <div class="preview-item">
               <span class="preview-label">Ticks TP alternativo (×3)</span>
               <span class="preview-value" id="riskTicksTP3">—</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label">R/B mínimo (BPT)</span>
+              <span class="preview-value" id="riskRRRange">—</span>
             </div>
             <div class="preview-item">
               <span class="preview-label">Recuperación requerida</span>
@@ -406,6 +426,20 @@
         <p class="risk-warning" id="riskViabilityWarning" role="alert" hidden></p>
         <p class="risk-hint" id="riskSuitabilityHint" role="status" aria-live="polite" hidden></p>
         <p class="risk-warning" id="disciplineWarning" role="status" aria-live="polite" hidden></p>
+          </div><!-- /.risk-main -->
+
+          <!-- Compact visual plan: the SVG levels are rendered by app.js from
+               the calculator's current values (no chart library). -->
+          <aside class="risk-preview" id="riskPreview" aria-label="Vista previa del plan">
+            <div class="risk-preview-head">
+              <span class="risk-preview-title">Vista previa</span>
+              <span class="risk-preview-tag" title="Grupo de órdenes ATM">ATM</span>
+            </div>
+            <div class="risk-preview-chart" id="riskPreviewChart" aria-live="polite" hidden></div>
+            <p class="risk-preview-empty" id="riskPreviewEmpty">Introduce el precio de entrada para ver el plan.</p>
+            <p class="risk-preview-rb" id="riskPreviewRB">R/B —</p>
+          </aside>
+        </div><!-- /.risk-layout -->
       </div>
 
       <div class="card">

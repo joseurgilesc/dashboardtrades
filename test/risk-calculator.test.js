@@ -7,7 +7,7 @@
  * Proves:
  *   [1] Market lookup: valor_tick = tick × pointValue for ES/MES/6E/FDAX/FDXM
  *   [2] P_m = ticks × valor_tick (ES 8 -> 100, MES 8 -> 10)
- *   [3] N = floor(disponible / P_m) and the small-account filter (<= 5000 -> 1)
+ *   [3] N = floor(effectiveBudget / P_m) and the small-account filter (<= 5000 -> 1)
  *   [4] 5% daily drawdown + 3-loss streak circuit breakers (0 contracts + alert)
  *   [5] Ticks_TP = 2 × ticks (and ×3) and %Recuperacion = p / (1 - p)
  *
@@ -140,17 +140,23 @@ check('MES P_m equals stopTicks x tickValue', mes.pm === mes.stopTicks * mes.tic
 /* [3] N = floor(disponible / P_m) + small-account filter              */
 /* ------------------------------------------------------------------ */
 
-console.log('\n[3] Contract sizing (available budget) + small account');
+console.log('\n[3] Contract sizing (effective per-trade budget) + small account');
 
-/* No losses: available = dailyBudget = 2% of 100000 = 2000. ES P_m 100 -> 20. */
-eq('ES: floor(2000 / 100) = 20 contracts', es.contracts, 20);
-check('ES contracts = floor(available / P_m)', es.contracts === Math.floor(es.available / es.pm));
+/* No losses: available = dailyBudget = 2% of 100000 = 2000. With the default
+ * 3 trades/day, perTradeBudget = 2000 / 3 = 666.67 and effectiveBudget =
+ * min(666.67, 2000) = 666.67; ES P_m 100 -> 6 contracts. */
+eq('ES: floor(666.67 / 100) = 6 contracts', es.contracts, 6);
+check('ES contracts = floor(effectiveBudget / P_m)',
+  es.contracts === Math.floor(es.effectiveBudget / es.pm));
 eq('ES: available defaults to the daily budget', es.available, 2000);
+close('ES: per-trade budget = dailyBudget / tradesPerDay', es.perTradeBudget, 2000 / 3, 1e-9);
+close('ES: effective budget = min(perTrade, available)', es.effectiveBudget, 2000 / 3, 1e-9);
 
 /* Explicit remaining budget binds. */
 const es250 = Store.computeRisk({ balance: 100000, capital: 100000, riskPct: 2, instrument: 'ES', stopTicks: 8, available: 250 });
 eq('ES: floor(250 / 100) = 2 contracts', es250.contracts, 2);
 eq('ES: presupuesto mirrors available', es250.presupuesto, 250);
+eq('ES: effective budget is capped by available', es250.effectiveBudget, 250);
 
 const mes250 = Store.computeRisk({ balance: 100000, capital: 100000, riskPct: 2, instrument: 'MES', stopTicks: 8, available: 250 });
 eq('MES: floor(250 / 10) = 25 contracts', mes250.contracts, 25);
@@ -161,7 +167,7 @@ eq('small account (5000) -> forced 1 contract', small.contracts, 1);
 eq('small account flag set', small.smallAccount, true);
 const justAbove = Store.computeRisk({ balance: 5001, capital: 5001, riskPct: 2, instrument: 'MES', stopTicks: 8 });
 eq('capital 5001 is not small', justAbove.smallAccount, false);
-eq('capital 5001 -> floor(100.02 / 10) = 10 contracts', justAbove.contracts, 10);
+eq('capital 5001 -> floor(33.34 / 10) = 3 contracts', justAbove.contracts, 3);
 
 /* Reconciliation: the day's realized losses consume the budget. */
 const losers = [
@@ -175,7 +181,7 @@ const reconciled = Store.computeRisk({
   balance: 100000, capital: 100000, riskPct: 2, instrument: 'ES', stopTicks: 8,
   available: usage.available
 });
-eq('reconciled contracts = floor(1791.64 / 100) = 17', reconciled.contracts, 17);
+eq('reconciled contracts = floor(666.67 / 100) = 6', reconciled.contracts, 6);
 
 /* ------------------------------------------------------------------ */
 /* [4] Circuit breakers: 5% drawdown and 3-loss streak                 */
@@ -196,7 +202,7 @@ const ddBelow = Store.computeRisk({
   balance: 10000, capital: 10000, riskPct: 2, instrument: 'MES', stopTicks: 8, dayLoss: 499.99
 });
 eq('drawdown just below 5% -> not blocked', ddBelow.blocked, false);
-eq('drawdown just below 5% -> sizes normally (floor(200 / 10) = 20)', ddBelow.contracts, 20);
+eq('drawdown just below 5% -> sizes per-trade (floor(66.67 / 10) = 6)', ddBelow.contracts, 6);
 
 /* 3 consecutive losses today, drawdown well under 5% (capital 100000). */
 const threeLosers = [
@@ -245,10 +251,10 @@ eq('Ticks SL = stop ticks', es.ticksSL, 8);
 close('recovery(0.5) = 1 (100%)', Store.recoveryPct(0.5), 1, 1e-12);
 close('recovery(0.02) = 0.020408...', Store.recoveryPct(0.02), 0.02 / 0.98, 1e-12);
 
-/* Position-level recovery from computeRisk: capital 100000, budget 2000,
- * MES P_m 10 -> 200 contracts, totalRisk 2000, lossPct 0.02. */
-close('computeRisk lossPct', mes.lossPct, 0.02, 1e-12);
-close('computeRisk recoveryPct = lossPct/(1-lossPct)', mes.recoveryPct, 0.02 / 0.98, 1e-12);
+/* Position-level recovery from computeRisk: capital 100000, per-trade budget
+ * 666.67, MES P_m 10 -> 66 contracts, totalRisk 660, lossPct 0.0066. */
+close('computeRisk lossPct', mes.lossPct, 0.0066, 1e-12);
+close('computeRisk recoveryPct = lossPct/(1-lossPct)', mes.recoveryPct, 0.0066 / (1 - 0.0066), 1e-12);
 eq('computeRisk totalRisk = N x P_m', mes.totalRisk, mes.contracts * mes.pm);
 
 /* Invalid input never sizes silently. */

@@ -855,21 +855,27 @@ const Store = (function () {
    * Pure BPT/Francisca Serrano risk calculation (works in ticks, commission
    * kept separate).
    *
-   *   tickValue     = tick * pointValue
-   *   P_m           = stopTicks * tickValue
-   *   dailyBudget   = (riskPct / 100) * balance
-   *   available     = remaining daily budget (dailyBudget - dayLoss)
-   *   presupuesto   = available
-   *   contracts     = floor(available / P_m)
-   *   ticksTP2      = stopTicks * 2
-   *   ticksTP3      = stopTicks * 3
-   *   lossPct       = (P_m * contracts) / capital
-   *   recoveryPct   = lossPct / (1 - lossPct)
+   *   tickValue       = tick * pointValue
+   *   P_m             = stopTicks * tickValue
+   *   dailyBudget     = (riskPct / 100) * balance
+   *   perTradeBudget  = dailyBudget / tradesPerDay   (tradesPerDay >= 1)
+   *   available       = remaining daily budget (dailyBudget - dayLoss)
+   *   effectiveBudget = min(perTradeBudget, available)
+   *   contracts       = floor(effectiveBudget / P_m)
+   *   maxTicksOneContract = floor(effectiveBudget / tickValue)
+   *   ticksTP2        = stopTicks * 2
+   *   ticksTP3        = stopTicks * 3
+   *   lossPct         = (P_m * contracts) / capital
+   *   recoveryPct     = lossPct / (1 - lossPct)
    *
-   * Sizing uses the AVAILABLE daily budget only (NOT the model-B per-trade
-   * division). The user required that the day's REALIZED LOSSES consume the
-   * daily budget, so `available` is passed in from `dailyRiskUsage` (daily
-   * budget minus the sum of |net| of today's losers for the account).
+   * Sizing and the suggested stop distance both read the EFFECTIVE PER-TRADE
+   * budget (`min(perTradeBudget, available)`), not the whole daily budget.
+   * `perTradeBudget` divides the daily budget by the trades-per-day divisor,
+   * so planning more trades for the day shrinks both the contract count and
+   * the stop distance one contract can afford. The day's REALIZED LOSSES
+   * consume the daily budget, so `available` is passed in from
+   * `dailyRiskUsage` (daily budget minus the sum of |net| of today's losers
+   * for the account) and caps the per-trade budget when smaller.
    *
    * Circuit breakers (Block 4):
    *   - Daily drawdown: `dayLoss / capital >= 5%`  -> blocked, 0 contracts.
@@ -879,15 +885,18 @@ const Store = (function () {
    * breaker(s); the UI must show the red alert and never compute silently.
    *
    * Returns `{ valid, reason, dailyBudget, budget, dailyRiskPct, tradesPerDay,
-   * perTradeRisk, perTradeRiskPct, perTradeCap, effectiveRisk,
-   * maxTicksForOneContract, usedToday, available, presupuesto, exhausted,
-   * tickValue, stopTicks, ticksSL, ticksTP, ticksTP2, ticksTP3, pm,
-   * riskPerContract, totalRisk, lossPct, recoveryPct, commission, contracts,
-   * viable, minBalanceForOneContract, size, capital, dayLoss, drawdownPct,
-   * losingStreak, smallAccount, blocked, blockReasons }`.
+   * perTradeBudget, effectiveBudget, perTradeRisk, perTradeRiskPct,
+   * perTradeCap, effectiveRisk, maxTicksForOneContract, usedToday, available,
+   * presupuesto, exhausted, tickValue, stopTicks, ticksSL, ticksTP, ticksTP2,
+   * ticksTP3, pm, riskPerContract, totalRisk, lossPct, recoveryPct, commission,
+   * contracts, viable, minBalanceForOneContract, size, capital, dayLoss,
+   * drawdownPct, losingStreak, smallAccount, blocked, blockReasons }`.
    * `budget`/`riskPerContract` stay backward-compatible aliases for
-   * `dailyBudget`/`pm`; `perTradeCap`/`perTradeRisk`/`effectiveRisk` are kept
-   * for callers that still read them but no longer size contracts.
+   * `dailyBudget`/`pm`; `perTradeCap`/`perTradeRisk` mirror `perTradeBudget`
+   * and `effectiveRisk` mirrors `effectiveBudget`, kept for callers that still
+   * read the older names. `effectiveBudget` is clamped to 0 (a budget can
+   * never be negative) while `available` keeps the raw, possibly negative,
+   * remaining amount so `exhausted` stays meaningful.
    * `valid` is false (and `contracts` 0) when an input is missing/non-numeric
    * or `stopTicks <= 0`; `reason` names the first failing input.
    */
@@ -911,6 +920,8 @@ const Store = (function () {
       budget: 0,
       dailyRiskPct: 0,
       tradesPerDay: DAILY_LIMIT_DEFAULT,
+      perTradeBudget: 0,
+      effectiveBudget: 0,
       perTradeRisk: 0,
       perTradeRiskPct: 0,
       perTradeCap: 0,
@@ -955,13 +966,17 @@ const Store = (function () {
     const capital = Number.isFinite(capitalRaw) ? capitalRaw : balance;
     const tradesPerDay = resolveTradesPerDay(opts.tradesPerDay);
     const dailyBudget = (riskPct / 100) * balance;
+    const perTradeBudget = dailyBudget / tradesPerDay;
     const perTradeRiskPct = riskPct / tradesPerDay;
     const perTradeRisk = (perTradeRiskPct / 100) * balance;
     const pm = stopTicks * tickValue;
 
     /* `available` is the day's remaining budget after realized losses; without
-     * it the full daily budget applies. Sizing reads ONLY this value. */
+     * it the full daily budget applies. The EFFECTIVE budget is the smaller of
+     * the per-trade budget and what is left today, clamped to 0 so a budget can
+     * never go negative. Sizing and the suggested stop both read it. */
     const available = hasAvailable ? availableRaw : dailyBudget;
+    const effectiveBudget = Math.max(0, Math.min(perTradeBudget, available));
     const dayLoss = Math.max(0, numOr(opts.dayLoss, 0));
     const losingStreak = Math.max(0, intOr(opts.losingStreak, 0));
     const drawdownPct = capital > 0 ? (dayLoss / capital) * 100 : 0;
@@ -978,8 +993,8 @@ const Store = (function () {
     } else if (smallAccount) {
       /* Small-account filter: force exactly one contract (never more). */
       contracts = 1;
-    } else if (pm > 0 && available > 0) {
-      contracts = Math.floor(available / pm);
+    } else if (pm > 0 && effectiveBudget > 0) {
+      contracts = Math.floor(effectiveBudget / pm);
     }
 
     const totalRisk = pm * contracts;
@@ -991,12 +1006,14 @@ const Store = (function () {
     result.budget = dailyBudget;
     result.dailyRiskPct = riskPct;
     result.tradesPerDay = tradesPerDay;
+    result.perTradeBudget = perTradeBudget;
+    result.effectiveBudget = effectiveBudget;
     result.perTradeRisk = perTradeRisk;
     result.perTradeRiskPct = perTradeRiskPct;
     result.perTradeCap = perTradeRisk;
-    result.effectiveRisk = available;
+    result.effectiveRisk = effectiveBudget;
     result.maxTicksForOneContract = maxTicksForOneContract({
-      effectiveRisk: available,
+      effectiveRisk: effectiveBudget,
       tickValue: tickValue
     });
     result.usedToday = hasAvailable ? Math.max(0, dailyBudget - availableRaw) : 0;
@@ -1184,6 +1201,100 @@ const Store = (function () {
     result.ticks = ticks;
     result.stopPrice = roundToTick(entryPrice - sign * distance, tick);
     result.targetPrice = roundToTick(entryPrice + sign * 2 * distance, tick);
+    return result;
+  }
+
+  /**
+   * Pure geometry for the compact trade-preview chart (no DOM, no SVG).
+   *
+   * Prices are derived from the calculator's tick distances and the
+   * instrument's tick SIZE (not the monetary tick value):
+   *
+   *   distance_i = ticks_i × tick
+   *   stop       = entry − distanceStop   (Largo)  |  entry + distanceStop   (Corto)
+   *   target_i   = entry + distance_i      (Largo)  |  entry − distance_i      (Corto)
+   *
+   * `ticksTP` is the array of take-profit distances in TICKS (e.g. the
+   * calculator's `ticksTP2` / `ticksTP3`); it defaults to `[2×, 3×]` of the
+   * stop distance so the chart is useful with a stop alone.
+   *
+   * Every level is also returned as a normalised y in `[0, 1]` where 0 is the
+   * TOP of the chart (highest price) and 1 is the BOTTOM (lowest price), so a
+   * renderer only has to scale to pixels. For a long, `stopY > entryY >
+   * targetY`; for a short the order is inverted. An 12% pad is added to the
+   * price range so the extreme lines never sit glued to the chart edges.
+   *
+   * Returns `{ valid, reason, entry, stop, targets, stopTicks, ticksTP, tick,
+   * direction, min, max, entryY, stopY, targetYs }`. `valid` is false when the
+   * entry price, stop ticks, tick size or direction is missing/invalid;
+   * `reason` names the first failing input (the UI turns it into placeholder
+   * copy).
+   */
+  function tradePreviewGeometry(inputs) {
+    const opts = inputs || {};
+    const entry = numOr(opts.entry, NaN);
+    const stopTicks = numOr(opts.stopTicks, NaN);
+    const tick = numOr(opts.tick, NaN);
+    const direction = strOr(opts.direction, '');
+    const result = {
+      valid: false,
+      reason: '',
+      entry: NaN,
+      stop: NaN,
+      targets: [],
+      stopTicks: 0,
+      ticksTP: [],
+      tick: 0,
+      direction: '',
+      min: NaN,
+      max: NaN,
+      entryY: 0,
+      stopY: 0,
+      targetYs: []
+    };
+
+    if (!Number.isFinite(entry)) { result.reason = 'entry'; return result; }
+    if (!Number.isFinite(stopTicks) || stopTicks <= 0) { result.reason = 'stopTicks'; return result; }
+    if (!Number.isFinite(tick) || tick <= 0) { result.reason = 'tick'; return result; }
+    if (direction !== 'Largo' && direction !== 'Corto') { result.reason = 'direction'; return result; }
+
+    const tpList = Array.isArray(opts.ticksTP)
+      ? opts.ticksTP
+      : [stopTicks * 2, stopTicks * 3];
+    const tpTicks = [];
+    tpList.forEach(function (value) {
+      const t = numOr(value, NaN);
+      if (Number.isFinite(t) && t > 0) tpTicks.push(t);
+    });
+
+    const sign = direction === 'Largo' ? 1 : -1;
+    const stop = roundToTick(entry - sign * stopTicks * tick, tick);
+    const targets = tpTicks.map(function (t) {
+      return roundToTick(entry + sign * t * tick, tick);
+    });
+
+    const prices = [entry, stop].concat(targets);
+    let min = Math.min.apply(null, prices);
+    let max = Math.max.apply(null, prices);
+    if (max === min) { max += tick; min -= tick; }
+    const pad = (max - min) * 0.12;
+    const lo = min - pad;
+    const hi = max + pad;
+    const yOf = function (price) { return (hi - price) / (hi - lo); };
+
+    result.valid = true;
+    result.entry = entry;
+    result.stop = stop;
+    result.targets = targets;
+    result.stopTicks = stopTicks;
+    result.ticksTP = tpTicks;
+    result.tick = tick;
+    result.direction = direction;
+    result.min = min;
+    result.max = max;
+    result.entryY = yOf(entry);
+    result.stopY = yOf(stop);
+    result.targetYs = targets.map(yOf);
     return result;
   }
 
@@ -2258,6 +2369,7 @@ const Store = (function () {
     minBalanceForOneContract: minBalanceForOneContract,
     maxTicksForOneContract: maxTicksForOneContract,
     suggestStopTarget: suggestStopTarget,
+    tradePreviewGeometry: tradePreviewGeometry,
     microEquivalent: microEquivalent,
     clampRiskPct: clampRiskPct,
     clampDailyLimit: clampDailyLimit,

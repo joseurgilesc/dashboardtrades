@@ -237,8 +237,6 @@
     fillSelect($('direction'), DIRECTIONS);
     fillSelect($('exitType'), EXIT_TYPES);
     fillSelect($('emotion'), EMOTIONS);
-    /* Block 2 of the risk calculator mirrors the form's instrument. */
-    fillSelect($('riskInstrument'), Object.keys(INSTRUMENTS));
 
     fillSelect($('filterAccount'), ACCOUNTS, 'Todas las cuentas');
     fillSelect($('filterInstrument'), Object.keys(INSTRUMENTS), 'Todos los instrumentos');
@@ -936,13 +934,13 @@
 
   /**
    * Renders Block 2's market-parameter lookup table from instruments.js and
-   * highlights the selected instrument. `valor_tick = tick × pointValue`.
+   * highlights the instrument selected in the trade form. `valor_tick =
+   * tick × pointValue`. The calculator has no instrument select of its own.
    */
   function renderRiskMarketTable() {
     const body = $('riskMarketBody');
     if (!body || typeof INSTRUMENTS === 'undefined') return;
-    const selected = ($('riskInstrument') && $('riskInstrument').value) ||
-      ($('instrument') && $('instrument').value) || '';
+    const selected = ($('instrument') && $('instrument').value) || '';
     body.innerHTML = Object.keys(INSTRUMENTS).map(function (id) {
       const spec = INSTRUMENTS[id];
       return '<tr' + (id === selected ? ' class="risk-row-active"' : '') + '>' +
@@ -952,6 +950,19 @@
         '<td class="num">' + escapeHtml(String(spec.tick)) + '</td>' +
       '</tr>';
     }).join('');
+
+    const hint = $('riskInstrumentHint');
+    if (hint) {
+      const spec = selected ? INSTRUMENTS[selected] : null;
+      if (spec) {
+        hint.textContent = 'Mostrando ' + selected + ' · ' + spec.name +
+          '. Cambia el instrumento en el formulario del trade.';
+        hint.hidden = false;
+      } else {
+        hint.hidden = true;
+        hint.textContent = '';
+      }
+    }
   }
 
   /** Decimal places needed to render a price on the instrument's tick grid. */
@@ -1011,6 +1022,160 @@
     }
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Risk preview (compact SVG plan)                                     */
+  /* ------------------------------------------------------------------ */
+
+  /** Spanish placeholder copy for a missing geometry input. */
+  function previewPlaceholder(reason) {
+    if (reason === 'stopTicks') return 'Indica la distancia del stop para ver el plan.';
+    if (reason === 'direction') return 'Selecciona la dirección (Largo o Corto) para ver el plan.';
+    if (reason === 'tick') return 'Selecciona un instrumento válido para ver el plan.';
+    return 'Introduce el precio de entrada para ver el plan.';
+  }
+
+  /**
+   * Builds the compact SVG plan from the pure geometry returned by
+   * `Store.tradePreviewGeometry`. Labels use NinjaTrader terminology
+   * (Entry (Market) / Stop Loss (Stop Market) / Target (Limit)) with the
+   * Spanish label above each one. The price axis sits on the right and the
+   * tick distances are labelled between the levels.
+   */
+  function riskPreviewSvg(geometry, ctx) {
+    const W = 340;
+    const H = 224;
+    const top = 26;
+    const bottom = H - 22;
+    const span = bottom - top;
+    const plotX1 = 124;
+    const plotX2 = 266;
+    const priceX = 270;
+    const labelX = 118;
+    const midX = (plotX1 + plotX2) / 2;
+    const decimals = Number.isFinite(ctx.decimals) ? ctx.decimals : 2;
+
+    const yOf = function (ny) { return top + ny * span; };
+    const fmtPrice = function (price) { return Number(price).toFixed(decimals); };
+
+    const entryY = yOf(geometry.entryY);
+    const stopY = yOf(geometry.stopY);
+    const targetYs = geometry.targetYs.map(yOf);
+    const parts = [];
+
+    parts.push('<svg class="risk-preview-svg" viewBox="0 0 ' + W + ' ' + H + '" ' +
+      'role="img" aria-label="' +
+      escapeHtml('Vista previa del plan ' + ctx.direction + ' ' + ctx.instrument) + '">');
+    parts.push('<text class="rp-dir" x="' + plotX1 + '" y="12">' +
+      escapeHtml(ctx.direction + ' · ' + ctx.instrument) + '</text>');
+
+    /* One horizontal level: line + Spanish/NinjaTrader label + axis price. */
+    const level = function (y, o) {
+      const dash = o.dash ? ' stroke-dasharray="4 4"' : '';
+      const width = o.strong ? 2 : 1.5;
+      return '<line x1="' + plotX1 + '" y1="' + y.toFixed(1) + '" x2="' + plotX2 +
+        '" y2="' + y.toFixed(1) + '" stroke="' + o.color + '" stroke-width="' + width + '"' + dash + ' />' +
+        '<text class="rp-label-es" x="' + labelX + '" y="' + (y - 2).toFixed(1) +
+          '" text-anchor="end">' + escapeHtml(o.es) + '</text>' +
+        '<text class="rp-label-nt" x="' + labelX + '" y="' + (y + 9).toFixed(1) +
+          '" text-anchor="end">' + escapeHtml(o.nt) + '</text>' +
+        '<text class="rp-price" x="' + priceX + '" y="' + (y + 3).toFixed(1) + '">' +
+          escapeHtml(fmtPrice(o.price)) + '</text>';
+    };
+
+    /* Tick-distance caption centred between two levels. */
+    const tickLabel = function (y1, y2, text, cls) {
+      const mid = (y1 + y2) / 2;
+      return '<text class="rp-ticks ' + cls + '" x="' + midX + '" y="' + (mid + 3).toFixed(1) +
+        '" text-anchor="middle">' + escapeHtml(text) + '</text>';
+    };
+
+    /* Secondary (dashed) target first, then the primary levels, so the entry
+     * line always wins any overlap. */
+    if (targetYs.length > 1) {
+      parts.push(level(targetYs[1], {
+        color: 'var(--pos)', dash: true, strong: false,
+        es: 'Objetivo 3', nt: 'TP3 (Limit)', price: geometry.targets[1]
+      }));
+    }
+    if (targetYs.length > 0) {
+      parts.push(level(targetYs[0], {
+        color: 'var(--pos)', dash: false, strong: true,
+        es: 'Objetivo', nt: 'Target (Limit)', price: geometry.targets[0]
+      }));
+    }
+    parts.push(level(entryY, {
+      color: 'var(--text)', dash: false, strong: true,
+      es: 'Entrada', nt: 'Entry (Market)', price: geometry.entry
+    }));
+    parts.push(level(stopY, {
+      color: 'var(--neg)', dash: false, strong: true,
+      es: 'Stop', nt: 'Stop Loss (Stop Market)', price: geometry.stop
+    }));
+
+    parts.push(tickLabel(stopY, entryY, formatTicks(geometry.stopTicks), 'rp-ticks-neg'));
+    if (targetYs.length > 0) {
+      parts.push(tickLabel(entryY, targetYs[0], formatTicks(geometry.ticksTP[0]), 'rp-ticks-pos'));
+    }
+    if (targetYs.length > 1) {
+      parts.push(tickLabel(targetYs[0], targetYs[1],
+        formatTicks(geometry.ticksTP[1] - geometry.ticksTP[0]), 'rp-ticks-pos'));
+    }
+
+    parts.push('</svg>');
+    return parts.join('');
+  }
+
+  /**
+   * Renders the live trade preview beside the calculator. Reads the same
+   * values the calculator uses (entry price, stop ticks, tick size,
+   * direction), so any calculator change re-renders it. Falls back to a
+   * placeholder when there is not enough data (e.g. no entry price yet).
+   */
+  function renderRiskPreview(ctx) {
+    const chart = $('riskPreviewChart');
+    if (!chart) return;
+    const emptyEl = $('riskPreviewEmpty');
+    const rbEl = $('riskPreviewRB');
+
+    const geometry = (typeof Store.tradePreviewGeometry === 'function')
+      ? Store.tradePreviewGeometry({
+          entry: ctx.entry,
+          stopTicks: ctx.stopTicks,
+          tick: ctx.tick,
+          direction: ctx.direction,
+          ticksTP: ctx.ticksTP
+        })
+      : { valid: false, reason: 'entry' };
+
+    if (!geometry.valid) {
+      chart.hidden = true;
+      chart.innerHTML = '';
+      if (emptyEl) {
+        emptyEl.textContent = previewPlaceholder(geometry.reason);
+        emptyEl.hidden = false;
+      }
+      if (rbEl) rbEl.textContent = 'R/B —';
+      return;
+    }
+
+    chart.innerHTML = riskPreviewSvg(geometry, {
+      instrument: ctx.instrument,
+      direction: ctx.direction,
+      decimals: decimalsForTick(ctx.tick)
+    });
+    chart.hidden = false;
+    if (emptyEl) { emptyEl.hidden = true; emptyEl.textContent = ''; }
+
+    if (rbEl) {
+      const ratios = geometry.ticksTP.map(function (t) {
+        return String(Math.round((t / geometry.stopTicks) * 100) / 100);
+      });
+      rbEl.textContent = ratios.length
+        ? 'R/B ' + ratios.map(function (r) { return r + ':1'; }).join(' – ')
+        : 'R/B —';
+    }
+  }
+
   /**
    * Renders the 4-block BPT/Francisca Serrano risk calculator for the form's
    * selected account and instrument.
@@ -1018,11 +1183,18 @@
    *   tickValue   = tick * pointValue            (from the instrument)
    *   P_m         = stopTicks * tickValue
    *   dailyBudget = dailyRiskPct% * startOfDayBalance
+   *   perTrade    = dailyBudget / tradesPerDay
    *   used        = sum of |net| of today's losers for the account
-   *   presupuesto = disponible = dailyBudget - used
-   *   contracts   = floor(presupuesto / P_m)     (small account -> 1)
+   *   disponible  = dailyBudget - used
+   *   effective   = min(perTrade, disponible)
+   *   contracts   = floor(effective / P_m)       (small account -> 1)
+   *   maxTicks    = floor(effective / tickValue) (suggested stop distance)
    *   ticksTP2    = stopTicks * 2   /   ticksTP3 = stopTicks * 3
    *   recovery    = lossPct / (1 - lossPct)
+   *
+   * The instrument and the trades/day come from the form and Block 1
+   * respectively. The suggested stop/target prices use `maxTicks`, so both
+   * change with the instrument and the trades/day.
    *
    * Block 4 blocks the calculation (0 contracts + red alert) on a >= 5% daily
    * drawdown or >= 3 consecutive losses today, and forces 1 contract when the
@@ -1036,14 +1208,12 @@
     if (!accountEl) return;
 
     const account = accountEl.value || ACCOUNTS[0];
+    /* The calculator has no instrument of its own: it always follows the
+     * instrument selected in the trade form. */
     const formInstrumentEl = $('instrument');
-    const panelInstrumentEl = $('riskInstrument');
-    /* Keep the Block 2 select mirrored with the form's instrument. */
-    if (panelInstrumentEl && formInstrumentEl && panelInstrumentEl.value !== formInstrumentEl.value) {
-      panelInstrumentEl.value = formInstrumentEl.value;
-    }
-    const instrument = (panelInstrumentEl && panelInstrumentEl.value)
-      || (formInstrumentEl ? formInstrumentEl.value : '');
+    const instrument = formInstrumentEl ? formInstrumentEl.value : '';
+    const formDirectionEl = $('direction');
+    const direction = formDirectionEl ? formDirectionEl.value : '';
 
     const stopEl = $('riskStopTicks');
     const targetEl = $('riskTarget');
@@ -1078,19 +1248,33 @@
 
     /* Block 1 input: seed from the account's setting on account switch, then
      * honour (and clamp to 1–3 %) whatever the user typed. */
+    const accountChanged = lastRiskAccount !== account;
     const pctInput = $('riskDailyPctInput');
-    if (pctInput && lastRiskAccount !== account) {
+    if (pctInput && accountChanged) {
       pctInput.value = String(clampDailyRiskPct(defaultPct));
     }
     let riskPct = pctInput ? parseFloat(pctInput.value) : NaN;
     if (!Number.isFinite(riskPct)) riskPct = clampDailyRiskPct(defaultPct);
     riskPct = clampDailyRiskPct(riskPct);
     if (pctInput && pctInput.value !== String(riskPct)) pctInput.value = String(riskPct);
-    lastRiskAccount = account;
 
-    const tradesPerDay = Number.isFinite(settings.dailyTradeLimit)
+    /* Block 1 input: trades per day drives the per-trade budget (and therefore
+     * the suggested stop). Seeded from the account's daily limit, then the
+     * user can change it; it is a calculator input, not persisted here. */
+    const defaultTrades = Number.isFinite(settings.dailyTradeLimit)
       ? settings.dailyTradeLimit
       : DEFAULT_DAILY_TRADE_LIMIT;
+    const tradesInput = $('riskTradesPerDayInput');
+    if (tradesInput && accountChanged) {
+      tradesInput.value = String(defaultTrades);
+    }
+    let tradesPerDay = tradesInput ? parseInt(tradesInput.value, 10) : NaN;
+    if (!Number.isFinite(tradesPerDay) || tradesPerDay < 1) tradesPerDay = Math.max(1, defaultTrades);
+    if (tradesInput && tradesInput.value !== String(tradesPerDay)) {
+      tradesInput.value = String(tradesPerDay);
+    }
+    lastRiskAccount = account;
+
     const minRR = Store.getMinRR();
 
     /* Remaining daily budget: the account's daily risk budget minus the sum of
@@ -1121,17 +1305,25 @@
       losingStreak: guard.valid ? guard.losingStreak : 0
     });
 
-    /* Advisory stop/target price suggestions. Ticks come from the calculator's
-     * stop-tick input, falling back to the max ticks that fit one contract.
-     * Rendered as text only; the form inputs are never overwritten. */
-    const suggestionTicks = parseFloat($('riskStopTicks').value);
-    const fallbackTicks = Store.maxTicksForOneContract({
-      effectiveRisk: usage.valid ? usage.available : NaN,
-      tickValue: risk.tickValue
-    });
+    /* Advisory stop/target price suggestions. The suggested stop distance is
+     * the max ticks ONE contract can afford from the effective per-trade
+     * budget, so changing the instrument or the trades/day moves it. Rendered
+     * as text only; the form inputs are never overwritten, and a blocked
+     * calculator never suggests. */
     renderPriceSuggestions(
-      (Number.isFinite(suggestionTicks) && suggestionTicks > 0) ? suggestionTicks : fallbackTicks
+      (risk.valid && !risk.blocked) ? risk.maxTicksForOneContract : 0
     );
+
+    /* The visual plan reuses the same values as the calculator, so it stays in
+     * sync with the entry price, instrument, direction, stop and trades/day. */
+    renderRiskPreview({
+      entry: entryPrice,
+      stopTicks: stopTicks,
+      tick: tick,
+      direction: direction,
+      instrument: instrument,
+      ticksTP: (risk.valid ? [risk.ticksTP2, risk.ticksTP3] : undefined)
+    });
 
     const warnEl = $('riskViabilityWarning');
     const suitabilityEl = $('riskSuitabilityHint');
@@ -1140,8 +1332,10 @@
     /* `riskBudget`/`riskUsedToday`/`riskAvailable` are realized-usage rows, not
      * calculator outputs, so they stay OUT of this reset list: invalid input
      * must never blank a recorded loss. */
-    const resultIds = ['riskTickValue', 'riskPerContract', 'riskContracts', 'riskTotal',
-      'riskTicksSL', 'riskTicksTP2', 'riskTicksTP3', 'riskRecovery', 'riskRR', 'riskCommission'];
+    const resultIds = ['riskTickValue', 'riskPerContract', 'riskPerTradeBudget',
+      'riskEffectiveBudget', 'riskMaxTicks', 'riskContracts', 'riskTotal',
+      'riskTicksSL', 'riskTicksTP2', 'riskTicksTP3', 'riskRRRange', 'riskRecovery',
+      'riskRR', 'riskCommission'];
 
     /* Block 4 is always rendered, even when a required input is missing. */
     setRiskItem('riskDayLoss', formatMoney(guard.valid ? guard.dayLoss : 0),
@@ -1202,11 +1396,20 @@
 
     setRiskItem('riskTickValue', formatMoney(risk.tickValue));
     setRiskItem('riskPerContract', formatMoney(risk.pm));
+    setRiskItem('riskPerTradeBudget', formatMoney(risk.perTradeBudget));
+    setRiskItem('riskEffectiveBudget', formatMoney(risk.effectiveBudget),
+      risk.exhausted ? 'warn' : '');
+    setRiskItem('riskMaxTicks', formatTicks(risk.maxTicksForOneContract),
+      blocked ? 'neg' : '');
     setRiskItem('riskContracts', String(risk.contracts));
     setRiskItem('riskTotal', formatMoney(risk.totalRisk));
     setRiskItem('riskTicksSL', formatTicks(risk.ticksSL));
     setRiskItem('riskTicksTP2', formatTicks(risk.ticksTP2));
     setRiskItem('riskTicksTP3', formatTicks(risk.ticksTP3));
+    /* BPT minimum R/B range: the same stop sized to 2:1 and 3:1, with both
+     * take-profit tick distances. */
+    setRiskItem('riskRRRange',
+      '2:1 (' + formatTicks(risk.ticksTP2) + ') – 3:1 (' + formatTicks(risk.ticksTP3) + ')');
     setRiskItem('riskCommission', formatMoney(risk.commission));
 
     /* A recorded planned risk / target takes precedence over the computed
@@ -2209,21 +2412,11 @@
     ['account', 'instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
       'stop', 'target', 'plannedRisk',
       'entryDate', 'entryTime', 'exitDate', 'exitTime',
-      'riskStopTicks', 'riskTarget', 'riskDailyPctInput'].forEach(function (id) {
+      'riskStopTicks', 'riskTarget', 'riskDailyPctInput', 'riskTradesPerDayInput'].forEach(function (id) {
       const el = $(id);
       if (el) el.addEventListener('input', updatePreview);
       if (el) el.addEventListener('change', updatePreview);
     });
-
-    /* Block 2's instrument select drives the form's instrument (two-way sync:
-     * the reverse happens inside renderRiskPanel). */
-    const panelInstrument = $('riskInstrument');
-    if (panelInstrument) {
-      panelInstrument.addEventListener('change', function () {
-        if ($('instrument')) $('instrument').value = panelInstrument.value;
-        updatePreview();
-      });
-    }
 
     $('tradesBody').addEventListener('click', function (event) {
       const button = event.target.closest('button[data-action]');
