@@ -2143,11 +2143,24 @@
     if ($('emotion')) $('emotion').value = last.emotion;
   }
 
+  /**
+   * Keeps the form's #tradeNumber in sync with the store while the form is in
+   * "new trade" mode. The store derives the next number as max(existing) + 1,
+   * so deleting the trailing trades frees their numbers and this makes the
+   * freed number visible immediately (delete all -> 1). While an existing
+   * trade is being edited the field belongs to that trade and is never touched.
+   */
+  function refreshNextTradeNumber() {
+    if (state.editingId) return;
+    const el = $('tradeNumber');
+    if (el) el.value = String(Store.nextTradeNumber());
+  }
+
   function resetForm() {
     state.editingId = null;
     const form = $('tradeForm');
     if (form) form.reset();
-    $('tradeNumber').value = String(Store.nextTradeNumber());
+    refreshNextTradeNumber();
     /* Primary selects come from the last-used entry preferences. */
     applyLastEntry();
     $('exitType').value = EXIT_TYPES[0];
@@ -2346,7 +2359,14 @@
     const label = trade ? '#' + trade.tradeNumber : '';
     if (!window.confirm('¿Eliminar el trade ' + label + '? Esta acción no se puede deshacer.')) return;
     Store.deleteTrade(id);
-    if (state.editingId === id) resetForm();
+    if (state.editingId === id) {
+      /* The deleted trade was being edited: leave edit mode and reset. */
+      resetForm();
+    } else {
+      /* New-trade mode: show the number the next trade will get. No-op while
+       * editing a different trade, whose number must not be clobbered. */
+      refreshNextTradeNumber();
+    }
     showToast('Trade eliminado', 'ok');
     renderAll();
   }
@@ -2811,6 +2831,8 @@
     if (!window.confirm('¿Borrar TODOS los trades y restablecer los saldos iniciales? Esta acción no se puede deshacer.')) return;
     Store.clearAll();
     resetForm();
+    /* Deletion path: the store is empty, so the next new trade is #1. */
+    refreshNextTradeNumber();
     loadBalancesIntoForm();
     loadRiskSettingsIntoForm();
     loadInstrumentConfigIntoForm();
