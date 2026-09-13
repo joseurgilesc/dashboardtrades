@@ -48,6 +48,14 @@
    * when the instrument or the account changes. */
   let stopTicksTouched = false;
 
+  /* True once the user edits the calculator's trades-per-day input by hand.
+   * A user-typed value is FINAL: the account default never re-seeds over it
+   * again, not even when the account changes. While the field is transiently
+   * empty (backspacing to retype, or a mobile numeric keyboard) the calculator
+   * keeps the user's in-progress edit and uses the account default for the
+   * math WITHOUT writing it back to the DOM. */
+  let tradesPerDayTouched = false;
+
   /* Draft/touched state for the autofilled form fields. A draft is written
    * ONLY while the field is untouched; the first `input` event flips it to
    * touched and the user's value becomes final. Programmatic `.value =` writes
@@ -1358,6 +1366,46 @@
   }
 
   /**
+   * Persists the calculator's trades-per-day value to the selected account's
+   * `dailyTradeLimit` and mirrors it into the matching Ajustes field, so the
+   * value survives a reload and stays consistent with Ajustes. Any positive
+   * integer is accepted (floored). Empty/invalid input (a transient backspace)
+   * is ignored so the last valid limit is preserved. The other accounts are
+   * carried over untouched: `dailyTradeLimit` is a single top-level object, so
+   * a partial patch would drop them.
+   */
+  function persistTradesPerDay(raw) {
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n) || n < 1) return;
+    const accountEl = $('account');
+    const account = accountEl && accountEl.value ? accountEl.value : ACCOUNTS[0];
+    const current = Store.getRiskSettings();
+    const limits = {};
+    ACCOUNTS.forEach(function (name) {
+      const stored = current[name] || {};
+      limits[name] = Number.isFinite(stored.dailyTradeLimit)
+        ? stored.dailyTradeLimit
+        : DEFAULT_DAILY_TRADE_LIMIT;
+    });
+    limits[account] = n;
+    Store.setSettings({ dailyTradeLimit: limits });
+    const limitEl = $('dailyLimit' + account);
+    if (limitEl) limitEl.value = String(n);
+  }
+
+  /**
+   * Marks the trades-per-day input user-owned on the first input/change and
+   * persists a valid value. The touched flag is set BEFORE the live-update
+   * loop re-renders the panel, so `renderRiskPanel` can never re-seed over the
+   * user's value on that same keystroke.
+   */
+  function onTradesPerDayChanged() {
+    tradesPerDayTouched = true;
+    const el = $('riskTradesPerDayInput');
+    if (el) persistTradesPerDay(el.value);
+  }
+
+  /**
    * Renders the 4-block BPT/Francisca Serrano risk calculator for the form's
    * selected account and instrument.
    *
@@ -1427,20 +1475,24 @@
     if (pctInput && pctInput.value !== String(riskPct)) pctInput.value = String(riskPct);
 
     /* Block 1 input: trades per day drives the per-trade budget (and therefore
-     * the budget-derived stop). Seeded from the account's daily limit, then the
-     * user can change it; it is a calculator input, not persisted here. */
+     * the budget-derived stop). Seeded from the account's daily limit on an
+     * account switch while the user has NOT edited it; once edited, the user's
+     * value is FINAL and is never re-seeded (same rule as the stop input). A
+     * transiently empty field keeps the in-progress edit: the math falls back
+     * to the account default WITHOUT writing it back to the DOM, so backspacing
+     * to retype (or a mobile numeric keyboard) cannot clobber the value. */
     const defaultTrades = Number.isFinite(settings.dailyTradeLimit)
       ? settings.dailyTradeLimit
       : DEFAULT_DAILY_TRADE_LIMIT;
+    /* The calculator needs a divisor >= 1 even though Ajustes accepts a daily
+     * limit of 0 (which only affects the discipline warning). */
+    const tradesFallback = Math.max(1, defaultTrades);
     const tradesInput = $('riskTradesPerDayInput');
-    if (tradesInput && accountChanged) {
-      tradesInput.value = String(defaultTrades);
+    if (tradesInput && accountChanged && !tradesPerDayTouched) {
+      tradesInput.value = String(tradesFallback);
     }
     let tradesPerDay = tradesInput ? parseInt(tradesInput.value, 10) : NaN;
-    if (!Number.isFinite(tradesPerDay) || tradesPerDay < 1) tradesPerDay = Math.max(1, defaultTrades);
-    if (tradesInput && tradesInput.value !== String(tradesPerDay)) {
-      tradesInput.value = String(tradesPerDay);
-    }
+    if (!Number.isFinite(tradesPerDay) || tradesPerDay < 1) tradesPerDay = tradesFallback;
     lastRiskAccount = account;
 
     const minRR = Store.getMinRR();
@@ -2060,6 +2112,19 @@
     touchedFields.exitPrice = false;
     setDraftField($('stop'), $('stopDraftBadge'), null, false);
     setDraftField($('exitPrice'), $('exitPriceDraftBadge'), null, false);
+    /* New trade: the calculator's trades-per-day input is draftable again and
+     * re-seeds from the selected account's stored limit (the last value the
+     * user committed, or the account default). */
+    tradesPerDayTouched = false;
+    const tradesSeedEl = $('riskTradesPerDayInput');
+    if (tradesSeedEl) {
+      const seedAccount = $('account') && $('account').value ? $('account').value : ACCOUNTS[0];
+      const seedStored = Store.getRiskSettings()[seedAccount] || {};
+      const seedTrades = Number.isFinite(seedStored.dailyTradeLimit)
+        ? seedStored.dailyTradeLimit
+        : DEFAULT_DAILY_TRADE_LIMIT;
+      tradesSeedEl.value = String(Math.max(1, seedTrades));
+    }
     /* Optional fields live behind the "Más opciones" disclosure. */
     const advanced = $('advancedOptions');
     if (advanced) advanced.open = false;
@@ -2440,6 +2505,19 @@
       }
     }
     loadRiskSettingsIntoForm();
+    /* Mirror the just-saved daily limit into the calculator's trades-per-day
+     * input while the user has NOT edited it, so the two surfaces stay
+     * consistent immediately (not only after a reload). A touched value is
+     * final and is left alone. */
+    if (!tradesPerDayTouched) {
+      const activeAccountEl = $('account');
+      const activeAccount = activeAccountEl && activeAccountEl.value ? activeAccountEl.value : ACCOUNTS[0];
+      const savedLimit = limits[activeAccount];
+      const tradesMirrorEl = $('riskTradesPerDayInput');
+      if (tradesMirrorEl && Number.isFinite(savedLimit)) {
+        tradesMirrorEl.value = String(Math.max(1, savedLimit));
+      }
+    }
     renderRiskPanel();
     renderGamification();
 
@@ -2834,6 +2912,17 @@
       const markStopTicksTouched = function () { stopTicksTouched = true; };
       riskStopField.addEventListener('input', markStopTicksTouched);
       riskStopField.addEventListener('change', markStopTicksTouched);
+    }
+
+    /* The calculator's trades-per-day input is user-owned once edited: it is
+     * never re-seeded while touched, and a valid positive integer is persisted
+     * to the account's daily trade limit so it survives a reload and stays in
+     * sync with Ajustes. Registered before the live-update loop below so the
+     * flag is set before the panel re-renders on the same keystroke. */
+    const riskTradesField = $('riskTradesPerDayInput');
+    if (riskTradesField) {
+      riskTradesField.addEventListener('input', onTradesPerDayChanged);
+      riskTradesField.addEventListener('change', onTradesPerDayChanged);
     }
 
     /* The calculator's instrument selector is the other view of the same

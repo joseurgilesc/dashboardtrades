@@ -152,6 +152,7 @@ const uiContext = vm.createContext({
 const stubs = [
   'var lastRiskAccount = null;',
   'var stopTicksTouched = false;',
+  'var tradesPerDayTouched = false;',
   'var contractsTouched = false;',
   'var touchedFields = { stop: false, exitPrice: false };',
   'var editingTarget = 0;',
