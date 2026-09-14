@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Client-side rules that record, compute, and warn on risk percentage, risk/reward, recovery, stop usage, intraday drawdown, and scaling. The journal flags recorded data; it does not execute orders.
+Client-side rules that record, compute, and warn on risk percentage, risk/reward, recovery, stop usage, and intraday drawdown. The journal flags recorded data; it does not execute orders.
 
 ## Requirements
 
@@ -108,7 +108,7 @@ The system MUST compute the selected account's current-day drawdown and losing-t
 
 ### Requirement: Risk Budget Scaling Base
 
-The system MUST derive the daily risk budget from the account's start-of-day capital (initial balance plus the net of trades dated before today), so prior-day gains scale size and today's losses are counted once via the remaining-budget model. The compounding projection is provided by the `daily-scaling-plan` capability.
+The system MUST derive the daily risk budget from the account's start-of-day capital (initial balance plus the net of trades dated before today), so prior-day gains scale size and today's losses are counted once via the remaining-budget model.
 
 #### Scenario: Prior gains scale the base
 

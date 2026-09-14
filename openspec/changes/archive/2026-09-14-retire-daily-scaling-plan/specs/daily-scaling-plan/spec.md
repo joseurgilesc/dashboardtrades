@@ -1,5 +1,12 @@
 # daily-scaling-plan Specification
 
+> **RETIRED — 2026-09-14.** This capability was retired because the "Plan de escalado
+> diario" feature was removed from the codebase (Dashboard HTML card, `renderScalingPlan`
+> / `loadScalingDefaults` in `js/app.js`, `Store.dailyScalingPlan` plus its
+> `DEFAULT_SCALING_RR` / `DEFAULT_SCALING_DAYS` / `SCALING_DAYS_MAX` constants, and its
+> CSS). This file is retained as a historical record only and MUST NOT be read as a live
+> capability. See `../../proposal.md` for the retirement rationale.
+
 ## Purpose
 
 Define the proportional daily scaling projection: a compounding forecast of capital over a chosen horizon at a fixed daily risk percentage and reward ratio.

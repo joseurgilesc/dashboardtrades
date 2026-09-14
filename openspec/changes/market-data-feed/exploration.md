@@ -25,8 +25,8 @@ by Firestore for persistence and by pure synchronous calculations. Prices
   the `users/{uid}/trades` + `users/{uid}/meta/*` adapter, localStorage migration,
   account deletion.
 - `js/store.js` — `Store` IIFE: synchronous read API, optimistic async Firestore
-  writes via the adapter, pure calculations (`computeTrade`, `computeRisk`, KPIs,
-  scaling plan), import/export.
+  writes via the adapter, pure calculations (`computeTrade`, `computeRisk`, KPIs),
+  import/export.
 - `js/app.js` — DOM/UI controller: form, trades table (`TABLE_COLUMNS`), KPIs,
   charts, instrument info panel (`renderInstrumentInfo`), risk panel.
 - `firestore.rules` — only `allowlist/{email}` (get for self) and
