@@ -6,8 +6,7 @@
  * EMOTION_COLORS, DEFAULT_INSTRUMENT, DEFAULT_EMOTION, DEFAULT_BALANCES,
  * DEFAULT_RISK_PCT, DEFAULT_DAILY_TRADE_LIMIT, RISK_PCT_MIN, RISK_PCT_MAX,
  * RISK_PCT_HARD_MAX, DEFAULT_MIN_RR, DAILY_DD_WARN_PCT, STREAK_WARN,
- * SMALL_ACCOUNT_MAX, DEFAULT_SCALING_RR, DEFAULT_SCALING_DAYS,
- * SCALING_DAYS_MAX, FALLBACK_STOP_TICKS, DEFAULT_TARGET_R,
+ * SMALL_ACCOUNT_MAX, FALLBACK_STOP_TICKS, DEFAULT_TARGET_R,
  * DEFAULT_TARGET_R_ALT, RATIO_OPTIONS, DEFAULT_RATIO.
  *
  * Instrument hours follow the exchange timezone: CME Globex uses ET,
@@ -298,11 +297,3 @@ const DEFAULT_TARGET_R_ALT = DEFAULT_MIN_RR + 1;
  * UI must show and the first entry is the default. */
 const RATIO_OPTIONS = [2, 2.5, 3, 3.5, 4];
 const DEFAULT_RATIO = RATIO_OPTIONS[0];
-
-/* Daily scaling-plan defaults (proportional compounding projection).
- * `DEFAULT_SCALING_RR` is the R/B expectancy (2 means 2:1) and
- * `DEFAULT_SCALING_DAYS` the projection horizon. `SCALING_DAYS_MAX` caps the
- * horizon so a mistyped day count cannot freeze the UI. */
-const DEFAULT_SCALING_RR = 2;
-const DEFAULT_SCALING_DAYS = 20;
-const SCALING_DAYS_MAX = 365;

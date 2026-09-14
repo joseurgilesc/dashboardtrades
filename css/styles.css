@@ -1369,11 +1369,6 @@ input.is-draft {
   white-space: nowrap;
 }
 
-/* Daily scaling-plan table reuses the trades table look but is static. */
-.scaling-table thead th {
-  cursor: default;
-}
-
 .cell-main {
   font-weight: 500;
 }
@@ -1760,21 +1755,19 @@ input.is-draft {
   }
 
   /* Mobile density: keep identity/price/P&L columns, drop secondary ones.
-   * Scoped to the main trades table only (`:not(.scaling-table)`) so the daily
-   * scaling plan keeps all five of its columns.
    * Column order: 1 #, 2 Fecha, 3 Cuenta, 4 Instrumento, 5 Dirección,
    * 6 Contratos, 7 Entrada, 8 Salida, 9 Tipo de salida, 10 Emoción,
    * 11 Puntos, 12 Neto, 13 Acumulado, 14 Acciones. */
-  .trades-table:not(.scaling-table) th:nth-child(3),
-  .trades-table:not(.scaling-table) td:nth-child(3),
-  .trades-table:not(.scaling-table) th:nth-child(6),
-  .trades-table:not(.scaling-table) td:nth-child(6),
-  .trades-table:not(.scaling-table) th:nth-child(9),
-  .trades-table:not(.scaling-table) td:nth-child(9),
-  .trades-table:not(.scaling-table) th:nth-child(10),
-  .trades-table:not(.scaling-table) td:nth-child(10),
-  .trades-table:not(.scaling-table) th:nth-child(13),
-  .trades-table:not(.scaling-table) td:nth-child(13) {
+  .trades-table th:nth-child(3),
+  .trades-table td:nth-child(3),
+  .trades-table th:nth-child(6),
+  .trades-table td:nth-child(6),
+  .trades-table th:nth-child(9),
+  .trades-table td:nth-child(9),
+  .trades-table th:nth-child(10),
+  .trades-table td:nth-child(10),
+  .trades-table th:nth-child(13),
+  .trades-table td:nth-child(13) {
     display: none;
   }
 }

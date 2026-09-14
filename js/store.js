@@ -47,11 +47,6 @@ const Store = (function () {
   const STREAK_WARN_COUNT = (typeof STREAK_WARN !== 'undefined') ? STREAK_WARN : 3;
   const SMALL_ACCOUNT_LIMIT = (typeof SMALL_ACCOUNT_MAX !== 'undefined') ? SMALL_ACCOUNT_MAX : 5000;
 
-  /* Daily scaling-plan defaults (from instruments.js). */
-  const SCALING_RR_DEFAULT = (typeof DEFAULT_SCALING_RR !== 'undefined') ? DEFAULT_SCALING_RR : 2;
-  const SCALING_DAYS_DEFAULT = (typeof DEFAULT_SCALING_DAYS !== 'undefined') ? DEFAULT_SCALING_DAYS : 20;
-  const SCALING_DAYS_CAP = (typeof SCALING_DAYS_MAX !== 'undefined') ? SCALING_DAYS_MAX : 365;
-
   /* Per-instrument target defaults, in TICKS (from instruments.js). The stop
    * distance is AUTO by default (budget-derived, see `budgetStopTicks`);
    * `FALLBACK_STOP_TICKS_DEFAULT` is used only when the budget cannot be
@@ -2137,77 +2132,6 @@ const Store = (function () {
   }
 
   /* ------------------------------------------------------------------ */
-  /* Daily scaling plan (pure)                                           */
-  /* ------------------------------------------------------------------ */
-
-  /**
-   * Pure proportional daily scaling plan (a compounding projection).
-   *
-   *   risk_d    = (riskPct / 100) * capital_{d-1}
-   *   gain_d    = risk_d * rr
-   *   capital_d = capital_{d-1} + gain_d
-   *
-   * `rr` is the R/B expectancy as a ratio (2 means 2:1). Returns
-   * `{ valid, reason, days, rr, clampedDays, rows, finalCapital }`, where
-   * `rows` is an array of `{ day, startCapital, risk, gain, endCapital }` for
-   * days 1..N and `finalCapital` is the capital after the last day.
-   *
-   * `rr` defaults to DEFAULT_SCALING_RR and `days` to DEFAULT_SCALING_DAYS;
-   * `days` is clamped to SCALING_DAYS_MAX. `valid` is false (with empty
-   * `rows`) when `capital` is missing/non-numeric or negative, or `riskPct`
-   * is missing/non-numeric or <= 0; `reason` names the failing input.
-   */
-  function dailyScalingPlan(inputs) {
-    const opts = inputs || {};
-    const capital = numOr(opts.capital, NaN);
-    const riskPct = numOr(opts.riskPct, NaN);
-    const rrRaw = numOr(opts.rr, NaN);
-    const daysRaw = intOr(opts.days, NaN);
-
-    const rr = (Number.isFinite(rrRaw) && rrRaw >= 0) ? rrRaw : SCALING_RR_DEFAULT;
-    let days = (Number.isFinite(daysRaw) && daysRaw >= 1) ? daysRaw : SCALING_DAYS_DEFAULT;
-    let clampedDays = false;
-    if (days > SCALING_DAYS_CAP) {
-      days = SCALING_DAYS_CAP;
-      clampedDays = true;
-    }
-
-    const result = {
-      valid: false,
-      reason: '',
-      days: days,
-      rr: rr,
-      clampedDays: clampedDays,
-      rows: [],
-      finalCapital: 0
-    };
-
-    if (!Number.isFinite(capital) || capital < 0) { result.reason = 'capital'; return result; }
-    if (!Number.isFinite(riskPct) || riskPct <= 0) { result.reason = 'riskPct'; return result; }
-
-    const rows = [];
-    let current = capital;
-    for (let day = 1; day <= days; day += 1) {
-      const risk = (riskPct / 100) * current;
-      const gain = risk * rr;
-      const endCapital = current + gain;
-      rows.push({
-        day: day,
-        startCapital: current,
-        risk: risk,
-        gain: gain,
-        endCapital: endCapital
-      });
-      current = endCapital;
-    }
-
-    result.valid = true;
-    result.rows = rows;
-    result.finalCapital = current;
-    return result;
-  }
-
-  /* ------------------------------------------------------------------ */
   /* Discipline gamification (pure)                                      */
   /* ------------------------------------------------------------------ */
   /*
@@ -2903,7 +2827,6 @@ const Store = (function () {
     dailyLimitStatus: dailyLimitStatus,
     dailyRiskUsage: dailyRiskUsage,
     startOfDayBalance: startOfDayBalance,
-    dailyScalingPlan: dailyScalingPlan,
     SMALL_ACCOUNT_MAX: SMALL_ACCOUNT_LIMIT,
 
     /* Discipline gamification (pure except getDisciplineSummary/syncGamification). */

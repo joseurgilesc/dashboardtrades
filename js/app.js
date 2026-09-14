@@ -1858,100 +1858,6 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Daily scaling plan (Dashboard)                                      */
-  /* ------------------------------------------------------------------ */
-
-  /**
-   * Fills the scaling-plan inputs from the entry form's selected account:
-   * its current balance and configured risk percentage. The R/B and day
-   * count fall back to the defaults from instruments.js. The user can
-   * override every value before pressing "Calcular".
-   */
-  function loadScalingDefaults() {
-    const capitalEl = $('scalingCapital');
-    if (!capitalEl) return;
-
-    const accountEl = $('account');
-    const account = (accountEl && accountEl.value) ? accountEl.value : ACCOUNTS[0];
-    const balance = Store.getAccountBalances()[account];
-    const settings = Store.getRiskSettings()[account] || {};
-
-    capitalEl.value = String(Number.isFinite(balance) ? Math.round(balance * 100) / 100 : 0);
-    const riskEl = $('scalingRiskPct');
-    if (riskEl) {
-      riskEl.value = String(Number.isFinite(settings.riskPct) ? settings.riskPct : DEFAULT_RISK_PCT);
-    }
-    const rrEl = $('scalingRR');
-    if (rrEl) rrEl.value = String(DEFAULT_SCALING_RR);
-    const daysEl = $('scalingDays');
-    if (daysEl) daysEl.value = String(DEFAULT_SCALING_DAYS);
-    const hint = $('scalingHint');
-    if (hint) hint.textContent = 'Cuenta de referencia: ' + account;
-  }
-
-  /**
-   * Renders the proportional daily scaling table for the panel inputs. Shows
-   * the compounded capital day by day plus a summary of the final capital,
-   * total gain and growth. Invalid input hides the table and shows a warning;
-   * it never blocks anything.
-   */
-  function renderScalingPlan() {
-    const body = $('scalingBody');
-    if (!body) return;
-
-    const capitalEl = $('scalingCapital');
-    const riskEl = $('scalingRiskPct');
-    const rrEl = $('scalingRR');
-    const daysEl = $('scalingDays');
-    const warnEl = $('scalingWarning');
-    const wrapEl = $('scalingTableWrap');
-    const summaryEl = $('scalingSummary');
-
-    const plan = Store.dailyScalingPlan({
-      capital: capitalEl ? parseFloat(capitalEl.value) : NaN,
-      riskPct: riskEl ? parseFloat(riskEl.value) : NaN,
-      rr: rrEl ? parseFloat(rrEl.value) : NaN,
-      days: daysEl ? parseInt(daysEl.value, 10) : NaN
-    });
-
-    if (!plan.valid) {
-      body.innerHTML = '';
-      if (wrapEl) wrapEl.hidden = true;
-      if (summaryEl) { summaryEl.textContent = ''; summaryEl.className = 'table-discipline'; }
-      if (warnEl) {
-        warnEl.textContent = plan.reason === 'riskPct'
-          ? 'El % de riesgo diario debe ser un número mayor que 0.'
-          : 'El capital inicial debe ser un número no negativo.';
-        warnEl.hidden = false;
-      }
-      return;
-    }
-
-    if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
-
-    body.innerHTML = plan.rows.map(function (row) {
-      return '<tr>' +
-        '<td>' + escapeHtml(row.day) + '</td>' +
-        '<td class="num">' + formatMoney(row.startCapital) + '</td>' +
-        '<td class="num">' + formatMoney(row.risk) + '</td>' +
-        '<td class="num pos">' + formatMoney(row.gain) + '</td>' +
-        '<td class="num">' + formatMoney(row.endCapital) + '</td>' +
-      '</tr>';
-    }).join('');
-    if (wrapEl) wrapEl.hidden = false;
-
-    if (summaryEl) {
-      const totalGain = plan.finalCapital - plan.rows[0].startCapital;
-      const growth = plan.rows[0].startCapital > 0 ? (totalGain / plan.rows[0].startCapital) * 100 : 0;
-      summaryEl.textContent = 'Capital final tras ' + plan.days + ' días: ' + formatMoney(plan.finalCapital) +
-        ' (' + (totalGain >= 0 ? '+' : '') + formatMoney(totalGain) + ' · ' +
-        formatNumber(growth, 1) + ' %)' +
-        (plan.clampedDays ? ' · limitado a ' + plan.days + ' días.' : '');
-      summaryEl.className = 'table-discipline';
-    }
-  }
-
-  /* ------------------------------------------------------------------ */
   /* Discipline gamification (Dashboard)                                 */
   /* ------------------------------------------------------------------ */
 
@@ -3169,8 +3075,6 @@
       saveInstrumentConfigButton.addEventListener('click', handleSaveInstrumentConfig);
     }
 
-    const scalingButton = $('btnScalingCalc');
-    if (scalingButton) scalingButton.addEventListener('click', renderScalingPlan);
     const duplicateButton = $('btnDuplicateLast');
     if (duplicateButton) duplicateButton.addEventListener('click', duplicateLastTrade);
     $('btnSeed').addEventListener('click', handleSeed);
@@ -3480,8 +3384,6 @@
       setAppVisible(true);
       switchTab('registro');
       renderAll();
-      loadScalingDefaults();
-      renderScalingPlan();
     }).catch(function () {
       if (currentUid !== user.uid) return;
       showAuthError('No se pudieron cargar tus datos. Inténtalo de nuevo.');
