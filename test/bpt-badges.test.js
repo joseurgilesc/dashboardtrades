@@ -481,6 +481,10 @@ function extractFunction(src, signature) {
 }
 
 const uiCode = [
+  extractFunction(appSrc, 'function familyLabelFallback(family)'),
+  extractFunction(appSrc, 'function achievementCardHtml(a)'),
+  extractFunction(appSrc, 'function outcomeCardHtml(a)'),
+  extractFunction(appSrc, 'function badgeFamilyHtml(rungs, meta, cardHtml)'),
   extractFunction(appSrc, 'function renderAchievements(summary)'),
   extractFunction(appSrc, 'function renderOutcomeBadges(summary)')
 ].join('\n');
@@ -509,11 +513,13 @@ const uiSummary = {
     target: 1, value: 1, earned: true, progressPct: 100
   }],
   processBadges: [{
-    id: 'bpt-700-trades-t1', label: '50 trades completados', description: 'Entrada y salida.',
+    id: 'bpt-700-trades-t1', family: 'bpt-700-trades', familyLabel: 'Trades completados', color: 'accent',
+    label: '50 trades completados', description: 'Entrada y salida.',
     target: 50, value: 50, earned: true, xp: 25, progressPct: 100
   }],
   outcomeBadges: [{
-    id: 'bpt-green-range-t1', label: 'Rango verde', description: 'Ventana de 100+ trades.',
+    id: 'bpt-green-range-t1', family: 'bpt-green-range', familyLabel: 'Rango verde', color: 'pos',
+    label: 'Rango verde', description: 'Ventana de 100+ trades.',
     target: 70, value: 70, earned: false, qualifies: true, xp: 0, progressPct: 100,
     stat: { label: 'Mejor ventana (100+ trades)', value: 72.5, unit: '%' }
   }]
@@ -522,6 +528,25 @@ const uiSummary = {
 uiContext.renderAchievements(uiSummary);
 uiContext.renderOutcomeBadges(uiSummary);
 
+/* New structure: family blocks with the catalog accent + ladder counts. */
+check('process list groups rungs into .badge-family blocks',
+  elements.achievementsList.innerHTML.indexOf('.badge-family') === -1 &&
+  elements.achievementsList.innerHTML.indexOf('badge-family') !== -1,
+  elements.achievementsList.innerHTML);
+check('process list carries the family data-color',
+  elements.achievementsList.innerHTML.indexOf('data-color="accent"') !== -1);
+check('process list counts the ladder length',
+  elements.achievementsList.innerHTML.indexOf('badge-family-count">1/1<') !== -1);
+check('legacy achievements render under Fundamentos',
+  elements.achievementsList.innerHTML.indexOf('Fundamentos') !== -1);
+check('outcome list groups into .badge-family blocks',
+  elements.outcomeList.innerHTML.indexOf('badge-family') !== -1);
+check('outcome family keeps its token (pos)',
+  elements.outcomeList.innerHTML.indexOf('data-color="pos"') !== -1);
+check('outcome ladder count uses qualifies (1/1)',
+  elements.outcomeList.innerHTML.indexOf('badge-family-count">1/1<') !== -1);
+
+/* Value semantics stay untouched. */
 check('process list shows the fixed XP tag', elements.achievementsList.innerHTML.indexOf('+25 XP') !== -1);
 check('outcome list is labelled Estadística', elements.outcomeList.innerHTML.indexOf('Estadística') !== -1);
 check('outcome list never uses the earned class',
@@ -530,9 +555,13 @@ check('outcome list uses the outcome class',
   elements.outcomeList.innerHTML.indexOf('achievement outcome') !== -1);
 check('outcome stat shows the informational value',
   elements.outcomeList.innerHTML.indexOf('72.5') !== -1);
+check('outcome never carries an XP chip', elements.outcomeList.innerHTML.indexOf('XP') === -1);
 check('process summary counts process logros only',
-  elements.achievementsSummary.textContent.indexOf('logros de proceso') !== -1,
+  elements.achievementsSummary.textContent.indexOf('2 / 2 logros de proceso') !== -1,
   elements.achievementsSummary.textContent);
+check('outcome summary counts en rango',
+  elements.outcomeSummary.textContent.indexOf('1 / 1 en rango') !== -1,
+  elements.outcomeSummary.textContent);
 
 /* ------------------------------------------------------------------ */
 /* Result                                                              */

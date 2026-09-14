@@ -758,6 +758,15 @@
           <button type="button" class="btn btn-danger" id="btnClearAll">Borrar todo</button>
         </div>
         <input type="file" id="importJSONFile" accept=".json,application/json" hidden>
+        <div class="ninja-import-row">
+          <button type="button" class="btn" id="btnImportNinja">Importar NinjaTrader (CSV)</button>
+          <label class="field ninja-import-account">
+            <span class="sr-only">Cuenta destino</span>
+            <select id="ninjaImportAccount"></select>
+          </label>
+        </div>
+        <p class="hint">Sube el archivo exportado por NinjaTrader (formato Grid): columnas separadas por ;, precio con coma decimal, dirección Long/Short. Los trades se AÑADEN al diario en la cuenta seleccionada.</p>
+        <input type="file" id="importNinjaFile" accept=".csv,text/csv" hidden>
       </div>
     </section>
   </main>

@@ -327,6 +327,9 @@ const Store = (function () {
       stop: numOr(raw.stop, 0),
       target: numOr(raw.target, 0),
       plannedRisk: numOr(raw.plannedRisk, 0),
+      /* Per-contract commission override (NinjaTrader imports). Zero means
+       * "use the catalog commission"; kept so `computeTrade` can honor it. */
+      commission: numOr(raw.commission, 0),
       exitType: strOr(raw.exitType, ''),
       emotion: strOr(raw.emotion, ''),
       notes: strOr(raw.notes, '')
@@ -628,7 +631,14 @@ const Store = (function () {
 
     const pointValue = spec.pointValue;
     const gross = points * contracts * pointValue;
-    const commission = spec.commission * contracts;
+    /* Per-contract commission: a trade-recorded value (NinjaTrader imports
+     * carry the broker's real fees) wins over the catalog default. Trades
+     * without one keep the catalog commission, so existing behavior is
+     * unchanged. */
+    const perContract = numOr(trade.commission, 0) > 0
+      ? numOr(trade.commission, 0)
+      : spec.commission;
+    const commission = perContract * contracts;
     const net = gross - commission;
 
     const entryDt = parseDateTime(trade.entryDate, trade.entryTime);
@@ -2157,14 +2167,15 @@ const Store = (function () {
   const BADGE_OUTCOME = 'outcome';
 
   /* Process achievements. Each is earned from recorded data; `target` is the
-   * count required and is also the progress-bar denominator. */
+   * count required and is also the progress-bar denominator. `color` is the
+   * family accent token used by the UI (see BADGES below). */
   const ACHIEVEMENTS = [
-    { id: 'first-stop', label: 'Primer stop registrado', description: 'Registra tu primer trade con stop.', target: 1 },
-    { id: 'disciplined-day', label: 'Día bajo el límite', description: 'Cierra un día sin superar el límite de operaciones.', target: 1 },
-    { id: 'risk-10', label: '10 trades dentro del riesgo', description: '10 trades que respetan el riesgo configurado por cuenta.', target: 10 },
-    { id: 'rr-10', label: '10 trades con R/R ≥ mínimo', description: '10 trades que cumplen el R/R mínimo configurado.', target: 10 },
-    { id: 'streak-5', label: 'Racha de 5 días', description: '5 días consecutivos sin superar el límite.', target: 5 },
-    { id: 'streak-10', label: 'Racha de 10 días', description: '10 días consecutivos sin superar el límite.', target: 10 }
+    { id: 'first-stop', color: 'accent', label: 'Primer stop registrado', description: 'Registra tu primer trade con stop.', target: 1 },
+    { id: 'disciplined-day', color: 'accent', label: 'Día bajo el límite', description: 'Cierra un día sin superar el límite de operaciones.', target: 1 },
+    { id: 'risk-10', color: 'accent', label: '10 trades dentro del riesgo', description: '10 trades que respetan el riesgo configurado por cuenta.', target: 10 },
+    { id: 'rr-10', color: 'accent', label: '10 trades con R/R ≥ mínimo', description: '10 trades que cumplen el R/R mínimo configurado.', target: 10 },
+    { id: 'streak-5', color: 'accent', label: 'Racha de 5 días', description: '5 días consecutivos sin superar el límite.', target: 5 },
+    { id: 'streak-10', color: 'accent', label: 'Racha de 10 días', description: '10 días consecutivos sin superar el límite.', target: 10 }
   ];
 
   /** Trades for one account (or every account when `account` is empty). */
@@ -2380,6 +2391,7 @@ const Store = (function () {
       const raw = metrics[a.id] || 0;
       return {
         id: a.id,
+        color: a.color || 'accent',
         label: a.label,
         description: a.description,
         target: a.target,
@@ -2599,46 +2611,47 @@ const Store = (function () {
   }
 
   /* Badge catalog. Each `ladder` entry becomes its own rung (own id, target
-   * and label), so a lower rung never grants a higher one. `metric` returns
-   * the raw value; `stat` (outcome badges) returns the informational figure. */
+ * and label), so a lower rung never grants a higher one. `metric` returns
+ * the raw value; `stat` (outcome badges) returns the informational figure.
+ * `color` is the family accent token consumed by the UI renderer. */
   const BADGES = [
-    { id: 'bpt-700-trades', category: BADGE_PROCESS,
+    { id: 'bpt-700-trades', category: BADGE_PROCESS, color: 'accent',
       label: 'Trades completados',
       description: 'Trades de la cuenta con entrada y salida registradas.',
       ladder: [50, 150, 300, 500, 700],
       rungLabel: function (n) { return n + ' trades completados'; },
       metric: completedTradeCount },
-    { id: 'bpt-capital-guardian', category: BADGE_PROCESS,
+    { id: 'bpt-capital-guardian', category: BADGE_PROCESS, color: 'cyan',
       label: 'Guardia de capital',
       description: 'Trades consecutivos arriesgando entre 0,5 % y 2 % del saldo.',
       ladder: [5, 10, 20, 30],
       rungLabel: function (n) { return n + ' trades seguidos con riesgo 0,5 %-2 %'; },
       metric: capitalGuardianStreak },
-    { id: 'bpt-mosquito-repellent', category: BADGE_PROCESS,
+    { id: 'bpt-mosquito-repellent', category: BADGE_PROCESS, color: 'amber',
       label: 'Repelente de mosquitos',
       description: 'Días que cerraron con una pérdida diaria entre el 3 % y el 5 %.',
       ladder: [1, 3, 5, 10],
       rungLabel: function (n) { return n + (n === 1 ? ' día' : ' días') + ' con pérdida diaria 3 %-5 %'; },
       metric: mosquitoRepellentDays },
-    { id: 'bpt-emergency-stop', category: BADGE_PROCESS,
+    { id: 'bpt-emergency-stop', category: BADGE_PROCESS, color: 'neg',
       label: 'Parada de emergencia',
       description: 'Días que terminaron tras 3 pérdidas consecutivas.',
       ladder: [1, 3, 5, 10],
       rungLabel: function (n) { return n + (n === 1 ? ' día' : ' días') + ' con racha de 3 pérdidas'; },
       metric: emergencyStopDays },
-    { id: 'bpt-crocodile', category: BADGE_PROCESS,
+    { id: 'bpt-crocodile', category: BADGE_PROCESS, color: 'purple',
       label: 'Cocodrilo',
       description: 'Días con 3 entradas o menos (paciencia de cocodrilo).',
       ladder: [10, 25, 50, 100],
       rungLabel: function (n) { return n + ' días con 3 entradas o menos'; },
       metric: crocodileDays },
-    { id: 'bpt-earned-step', category: BADGE_PROCESS,
+    { id: 'bpt-earned-step', category: BADGE_PROCESS, color: 'pos',
       label: 'Escalón ganado',
       description: 'Trade de 2+ contratos con el capital en camino a doblarse.',
       ladder: [25, 50, 75, 100],
       rungLabel: function (n) { return n + ' % del doble de capital'; },
       metric: earnedStepLevel },
-    { id: 'bpt-green-range', category: BADGE_OUTCOME,
+    { id: 'bpt-green-range', category: BADGE_OUTCOME, color: 'pos',
       label: 'Rango verde',
       description: 'Ventana de 100+ trades con ≥70 % de aciertos.',
       ladder: [70],
@@ -2647,7 +2660,7 @@ const Store = (function () {
       stat: function (trades, account) {
         return { label: 'Mejor ventana (100+ trades)', value: bestRollingWinPct(trades, account), unit: '%' };
       } },
-    { id: 'bpt-hot-bath', category: BADGE_OUTCOME,
+    { id: 'bpt-hot-bath', category: BADGE_OUTCOME, color: 'cyan',
       label: 'Baño caliente',
       description: 'Los primeros 700 trades con ≥70 % de aciertos.',
       ladder: [70],
@@ -2663,7 +2676,7 @@ const Store = (function () {
           span: (s.start && s.end) ? (s.start + ' → ' + s.end) : ''
         };
       } },
-    { id: 'bpt-positive-math', category: BADGE_OUTCOME,
+    { id: 'bpt-positive-math', category: BADGE_OUTCOME, color: 'amber',
       label: 'Matemática positiva',
       description: 'Trades ganadores con R/R realizado ≥ 2.',
       ladder: [20],
@@ -2694,6 +2707,8 @@ const Store = (function () {
         out.push({
           id: badge.id + '-t' + (i + 1),
           family: badge.id,
+          familyLabel: badge.label,
+          color: badge.color || 'accent',
           tier: i + 1,
           category: badge.category,
           label: badge.rungLabel(threshold),
@@ -3077,6 +3092,160 @@ const Store = (function () {
   }
 
   /* ------------------------------------------------------------------ */
+  /* NinjaTrader "Grid" CSV import (ADD mode, account-scoped)            */
+  /* ------------------------------------------------------------------ */
+  /*
+   * Parses the CSV exported from NinjaTrader with the "Grid" format: rows
+   * delimited by `;`, decimal commas, `$` in money columns, dates as
+   * `DD/MM/YYYY HH:MM:SS`. The file's `Profit` column is ALREADY net
+   * (gross minus commission). The mapping below reconstructs that net
+   * through `computeTrade` by storing the broker's real per-contract fee
+   * (total fees / qty) in `trade.commission`.
+   */
+
+  const NINJA_FEE_COLUMNS = ['Commission', 'Clearing Fee', 'Exchange Fee', 'IP Fee', 'NFA Fee'];
+
+  /** Strips a NinjaTrader expiry token (DEC26, SEP26) from an instrument. */
+  function normalizeNinjaInstrument(raw) {
+    const tokens = String(raw === null || raw === undefined ? '' : raw).trim().split(/\s+/);
+    const kept = [];
+    tokens.forEach(function (token) {
+      if (/^[A-Z]{2,3}\d{2}$/i.test(token)) return;
+      kept.push(token);
+    });
+    return kept.join(' ').trim();
+  }
+
+  /** `1.234,56` / `$1.234,56` -> 1234.56, or NaN when unparsable. */
+  function ninjaNumber(value) {
+    const cleaned = String(value === null || value === undefined ? '' : value)
+      .replace(/[$€£\s]/g, '')
+      .replace(/,/g, '.');
+    const n = parseFloat(cleaned);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  /**
+   * `DD/MM/YYYY HH:MM:SS` (or `DD/MM/YYYY`) -> `{ date: 'YYYY-MM-DD',
+   * time: 'HH:MM:SS' }`, zero-padded. Returns null on any other shape.
+   */
+  function ninjaDateTime(value) {
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\D+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?\s*$/
+      .exec(String(value === null || value === undefined ? '' : value).trim());
+    if (!m) return null;
+    const pad = function (n) { return String(n).padStart(2, '0'); };
+    const hh = m[4] === undefined ? '00' : pad(m[4]);
+    const mm = m[5] === undefined ? '00' : pad(m[5]);
+    const ss = m[6] === undefined ? '00' : pad(m[6]);
+    return { date: m[3] + '-' + pad(m[2]) + '-' + pad(m[1]), time: hh + ':' + mm + ':' + ss };
+  }
+
+  /**
+   * Parses a NinjaTrader "Grid" CSV into sanitized trades for `account`.
+   * Returns `{ trades, skipped, skippedRows }`. Every row that cannot be
+   * mapped (no header, missing date, unknown direction, unknown instrument,
+   * zero qty, unparsable price) is skipped and counted.
+   */
+  function parseNinjaTraderCSV(text, account) {
+    const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/);
+    const skippedRows = [];
+
+    /* Build a column-name index from the first row containing the header
+     * markers, so column order never matters. */
+    let headerIndex = -1;
+    let index = {};
+    for (let i = 0; i < lines.length; i += 1) {
+      const cells = lines[i].split(';');
+      if (cells.indexOf('Trade number') !== -1 && cells.indexOf('Market pos.') !== -1) {
+        headerIndex = i;
+        cells.forEach(function (name, col) { index[String(name).trim()] = col; });
+        break;
+      }
+    }
+    if (headerIndex === -1) {
+      lines.forEach(function (line) {
+        if (String(line).trim() !== '') skippedRows.push(line);
+      });
+      return { trades: [], skipped: skippedRows.length, skippedRows: skippedRows };
+    }
+
+    const trades = [];
+    for (let i = headerIndex + 1; i < lines.length; i += 1) {
+      const row = lines[i].split(';');
+      if (row.length === 1 && String(row[0]).trim() === '') continue;
+      const raw = {};
+      Object.keys(index).forEach(function (name) {
+        raw[name] = row[index[name]] !== undefined ? row[index[name]].trim() : '';
+      });
+
+      const direction = raw['Market pos.'] === 'Long' ? 'Largo'
+        : raw['Market pos.'] === 'Short' ? 'Corto' : '';
+      if (!direction) { skippedRows.push(lines[i]); continue; }
+
+      const entryDt = ninjaDateTime(raw['Entry time']);
+      const exitDt = ninjaDateTime(raw['Exit time']);
+      if (!entryDt || !exitDt) { skippedRows.push(lines[i]); continue; }
+
+      const instrument = normalizeNinjaInstrument(raw['Instrument']);
+      if (!instrument || !Object.prototype.hasOwnProperty.call(INSTRUMENTS, instrument)) {
+        skippedRows.push(lines[i]);
+        continue;
+      }
+
+      const contracts = ninjaNumber(raw['Qty']);
+      const entryPrice = ninjaNumber(raw['Entry price']);
+      const exitPrice = ninjaNumber(raw['Exit price']);
+      if (!Number.isFinite(contracts) || contracts <= 0 ||
+        !Number.isFinite(entryPrice) || !Number.isFinite(exitPrice)) {
+        skippedRows.push(lines[i]);
+        continue;
+      }
+
+      /* Broker fee total split per contract (max 4 decimals). */
+      const totalFees = NINJA_FEE_COLUMNS.reduce(function (sum, name) {
+        const v = ninjaNumber(raw[name]);
+        return sum + (Number.isFinite(v) ? v : 0);
+      }, 0);
+      const commission = Math.round((totalFees / contracts) * 10000) / 10000;
+
+      const trade = sanitizeTrade({
+        account: account,
+        instrument: instrument,
+        contracts: contracts,
+        direction: direction,
+        entryDate: entryDt.date,
+        entryTime: entryDt.time,
+        entryPrice: entryPrice,
+        exitDate: exitDt.date,
+        exitTime: exitDt.time,
+        exitPrice: exitPrice,
+        commission: commission,
+        /* tradeNumber, strategy, exitType, emotion and notes are left empty:
+         * addTrade assigns the next trade number when the trade is added. */
+        stop: 0,
+        target: 0,
+        plannedRisk: 0
+      });
+      if (trade) trades.push(trade);
+    }
+    return { trades: trades, skipped: skippedRows.length, skippedRows: skippedRows };
+  }
+
+  /**
+   * Adds a list of parsed trades through the normal persistent path
+   * (`addTrade` -> `persistTrade`, so each one syncs to Firestore).
+   * Returns `{ added, skipped }`.
+   */
+  function addNinjaTrades(list) {
+    const trades = Array.isArray(list) ? list : [];
+    let added = 0;
+    trades.forEach(function (t) {
+      if (addTrade(t)) added += 1;
+    });
+    return { added: added, skipped: trades.length - added };
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Sample data (only inserted when explicitly requested)               */
   /* ------------------------------------------------------------------ */
 
@@ -3214,6 +3383,9 @@ const Store = (function () {
     exportJSON: exportJSON,
     exportCSV: exportCSV,
     parseCSV: parseCSV,
+    parseNinjaTraderCSV: parseNinjaTraderCSV,
+    addNinjaTrades: addNinjaTrades,
+    normalizeNinjaInstrument: normalizeNinjaInstrument,
     seedSample: seedSample,
 
     /* Exposed so the Phase 3 localStorage migration can reuse the exact

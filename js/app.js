@@ -307,6 +307,7 @@
     fillSelect($('filterEmotion'), EMOTIONS, 'Todas las emociones');
 
     fillSelect($('instrumentConfigAccount'), ACCOUNTS);
+    fillSelect($('ninjaImportAccount'), ACCOUNTS);
   }
 
   /* ------------------------------------------------------------------ */
@@ -558,6 +559,17 @@
     return html.join('');
   }
 
+  /** Direction pill with arrow + signal color; unknown values stay plain. */
+  function directionCellHtml(direction) {
+    if (direction === 'Largo') {
+      return '<span class="dir-pill dir-long" title="Largo">▲ Largo</span>';
+    }
+    if (direction === 'Corto') {
+      return '<span class="dir-pill dir-short" title="Corto">▼ Corto</span>';
+    }
+    return escapeHtml(direction);
+  }
+
   function tradeRowHtml(t) {
     const editing = state.editingId && t.id === state.editingId;
     return '<tr' + (editing ? ' class="editing"' : '') + '>' +
@@ -565,7 +577,7 @@
       '<td><span class="cell-main">' + escapeHtml(t.entryDate) + '</span> <span class="muted">' + escapeHtml(t.entryTime) + '</span></td>' +
       '<td>' + escapeHtml(t.account) + '</td>' +
       '<td>' + escapeHtml(t.instrument) + missingStopBadge(t) + '</td>' +
-      '<td>' + escapeHtml(t.direction) + '</td>' +
+      '<td>' + directionCellHtml(t.direction) + '</td>' +
       '<td class="num">' + escapeHtml(t.contracts) + '</td>' +
       '<td class="num">' + escapeHtml(t.entryPrice) + '</td>' +
       '<td class="num">' + escapeHtml(t.exitPrice) + '</td>' +
@@ -1927,73 +1939,148 @@
     el.innerHTML = parts.join('');
   }
 
+  /** Fallback family names for summaries that do not carry a familyLabel. */
+  function familyLabelFallback(family) {
+    const labels = {
+      'bpt-700-trades': 'Trades completados',
+      'bpt-capital-guardian': 'Guardia de capital',
+      'bpt-mosquito-repellent': 'Repelente de mosquitos',
+      'bpt-emergency-stop': 'Parada de emergencia',
+      'bpt-crocodile': 'Cocodrilo',
+      'bpt-earned-step': 'Escalón ganado',
+      'bpt-green-range': 'Rango verde',
+      'bpt-hot-bath': 'Baño caliente',
+      'bpt-positive-math': 'Matemática positiva',
+      legacy: 'Fundamentos'
+    };
+    return labels[family] || family;
+  }
+
+  /** One process-achievement card (rung). `--family-color` tints the accents. */
+  function achievementCardHtml(a) {
+    const earned = !!a.earned;
+    const stateText = earned ? 'Conseguido' : a.value + ' / ' + a.target;
+    const xpTag = Number.isFinite(a.xp) && a.xp > 0
+      ? '<span class="achievement-xp">+' + a.xp + ' XP</span>'
+      : '';
+    return '<div class="achievement' + (earned ? ' earned' : '') + '">' +
+      '<div class="achievement-head">' +
+        '<span class="achievement-label">' + escapeHtml(a.label) + '</span>' +
+        '<span class="achievement-state">' + escapeHtml(stateText) + '</span>' +
+      '</div>' +
+      '<p class="achievement-desc">' + escapeHtml(a.description) + '</p>' +
+      '<div class="progress-track"><div class="progress-fill" style="width:' +
+        a.progressPct.toFixed(1) + '%"></div></div>' +
+      xpTag +
+      '</div>';
+  }
+
+  /** One outcome card (informational statistic, never "earned"). */
+  function outcomeCardHtml(a) {
+    const stat = a.stat || {};
+    const valueText = Number.isFinite(stat.value)
+      ? (stat.unit === '%' ? formatNumber(stat.value, 1) + ' %' : String(stat.value))
+      : '-';
+    const span = stat.span
+      ? '<span class="outcome-span">' + escapeHtml(stat.span) + '</span>'
+      : '';
+    return '<div class="achievement outcome">' +
+      '<div class="achievement-head">' +
+        '<span class="achievement-label">' + escapeHtml(a.label) + '</span>' +
+        '<span class="outcome-tag">Estadística</span>' +
+      '</div>' +
+      '<p class="achievement-desc">' + escapeHtml(a.description) + '</p>' +
+      '<div class="outcome-stat">' +
+        '<span class="outcome-value">' + escapeHtml(valueText) + '</span>' +
+        '<span class="outcome-label">' + escapeHtml(stat.label || '') + '</span>' +
+      '</div>' + span +
+      '<div class="progress-track outcome-track"><div class="progress-fill outcome-fill" style="width:' +
+        a.progressPct.toFixed(1) + '%"></div></div>' +
+      '</div>';
+  }
+
   /**
-   * Renders the PROCESO badges (legacy achievements + BPT process ladder).
+   * Groups rungs into ordered family blocks. `meta` decides whether a rung
+   * counts as achieved (`earned` for process, `qualifies` for outcome).
+   */
+  function badgeFamilyHtml(rungs, meta, cardHtml) {
+    const groups = [];
+    const seen = {};
+    rungs.forEach(function (a) {
+      if (!seen[a.family]) {
+        seen[a.family] = {
+          family: a.family,
+          label: a.familyLabel || familyLabelFallback(a.family),
+          color: a.color || 'accent',
+          rungs: []
+        };
+        groups.push(seen[a.family]);
+      }
+      seen[a.family].rungs.push(a);
+    });
+    return groups.map(function (group) {
+      const met = group.rungs.filter(function (a) {
+        return meta.reached(a);
+      }).length;
+      return '<div class="badge-family" data-color="' + group.color + '">' +
+        '<div class="badge-family-head">' +
+          '<span class="badge-family-title">' + escapeHtml(group.label) + '</span>' +
+          '<span class="badge-family-count">' + met + '/' + group.rungs.length + '</span>' +
+        '</div>' +
+        '<div class="badge-ladder">' +
+          group.rungs.map(cardHtml).join('') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  /**
+   * Renders the PROCESO badges grouped by family: the BPT process ladders in
+   * catalog order, then the legacy ACHIEVEMENTS as a "Fundamentos" group.
    * Process badges award XP and can be marked as achieved; outcome badges are
    * rendered separately by `renderOutcomeBadges`.
    */
   function renderAchievements(summary) {
     const el = $('achievementsList');
     if (!el) return;
-    const list = (summary.achievements || []).concat(summary.processBadges || []);
-    el.innerHTML = list.map(function (a) {
-      const earned = !!a.earned;
-      const stateText = earned ? 'Conseguido' : a.value + ' / ' + a.target;
-      const xpTag = Number.isFinite(a.xp) && a.xp > 0
-        ? '<span class="achievement-xp">+' + a.xp + ' XP</span>'
-        : '';
-      return '<div class="achievement' + (earned ? ' earned' : '') + '">' +
-        '<div class="achievement-head">' +
-          '<span class="achievement-label">' + escapeHtml(a.label) + '</span>' +
-          '<span class="achievement-state">' + escapeHtml(stateText) + '</span>' +
-        '</div>' +
-        '<p class="achievement-desc">' + escapeHtml(a.description) + '</p>' +
-        '<div class="progress-track"><div class="progress-fill" style="width:' +
-          a.progressPct.toFixed(1) + '%"></div></div>' +
-        xpTag +
-        '</div>';
-    }).join('');
+    const bptRungs = summary.processBadges || [];
+    const legacy = summary.achievements || [];
+    const earned = function (a) { return !!a.earned; };
+
+    const blocks = [];
+    const bptHtml = badgeFamilyHtml(bptRungs, { reached: earned }, achievementCardHtml);
+    if (bptHtml) blocks.push(bptHtml);
+    if (legacy.length) {
+      blocks.push(badgeFamilyHtml(legacy.map(function (a) {
+        return Object.assign({}, a, { family: 'legacy', color: a.color || 'accent' });
+      }), { reached: earned }, achievementCardHtml));
+    }
+    el.innerHTML = blocks.join('');
+
     const summaryEl = $('achievementsSummary');
     if (summaryEl) {
-      const earned = list.filter(function (a) { return a.earned; }).length;
-      summaryEl.textContent = earned + ' / ' + list.length + ' logros de proceso';
+      const all = bptRungs.concat(legacy);
+      const earnedCount = all.filter(earned).length;
+      summaryEl.textContent = earnedCount + ' / ' + all.length + ' logros de proceso';
     }
   }
 
   /**
-   * Renders the RESULTADO badges as informational statistics. They read
-   * realised P&L, award ZERO XP and are never styled as achieved: the label
-   * is "Estadística" and the rung state is never "Conseguido".
+   * Renders the RESULTADO badges grouped by family as informational
+   * statistics. They read realised P&L, award ZERO XP and are never styled as
+   * achieved: the label is "Estadística" and the rung state is never
+   * "Conseguido". `qualifies` is the per-rung fact the group count uses.
    */
   function renderOutcomeBadges(summary) {
     const el = $('outcomeList');
     if (!el) return;
     const list = summary.outcomeBadges || [];
-    el.innerHTML = list.map(function (a) {
-      const stat = a.stat || {};
-      const valueText = Number.isFinite(stat.value)
-        ? (stat.unit === '%' ? formatNumber(stat.value, 1) + ' %' : String(stat.value))
-        : '-';
-      const span = stat.span
-        ? '<span class="outcome-span">' + escapeHtml(stat.span) + '</span>'
-        : '';
-      return '<div class="achievement outcome">' +
-        '<div class="achievement-head">' +
-          '<span class="achievement-label">' + escapeHtml(a.label) + '</span>' +
-          '<span class="outcome-tag">Estadística</span>' +
-        '</div>' +
-        '<p class="achievement-desc">' + escapeHtml(a.description) + '</p>' +
-        '<div class="outcome-stat">' +
-          '<span class="outcome-value">' + escapeHtml(valueText) + '</span>' +
-          '<span class="outcome-label">' + escapeHtml(stat.label || '') + '</span>' +
-        '</div>' + span +
-        '<div class="progress-track outcome-track"><div class="progress-fill outcome-fill" style="width:' +
-          a.progressPct.toFixed(1) + '%"></div></div>' +
-        '</div>';
-    }).join('');
+    const qualifies = function (a) { return !!a.qualifies; };
+    el.innerHTML = badgeFamilyHtml(list, { reached: qualifies }, outcomeCardHtml);
+
     const summaryEl = $('outcomeSummary');
     if (summaryEl) {
-      const met = list.filter(function (a) { return a.qualifies; }).length;
+      const met = list.filter(qualifies).length;
       summaryEl.textContent = met + ' / ' + list.length + ' en rango';
     }
   }
@@ -2756,6 +2843,39 @@
     setStatus('CSV exportado.', 'ok');
   }
 
+  function handleImportNinjaFile(event) {
+    const input = event.target;
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const accountEl = $('ninjaImportAccount');
+    const account = accountEl && accountEl.value ? accountEl.value : ACCOUNTS[0];
+    const reader = new FileReader();
+    reader.onload = function () {
+      try {
+        const parsed = Store.parseNinjaTraderCSV(String(reader.result), account);
+        const result = Store.addNinjaTrades(parsed.trades);
+        const omitted = parsed.skipped + result.skipped;
+        if (result.added > 0) {
+          setStatus('Importados ' + result.added + ' trades de NinjaTrader (' +
+            omitted + ' omitidos: instrumento no configurado o fila inválida).', 'ok');
+        } else {
+          setStatus('No se importaron trades de NinjaTrader (' +
+            omitted + ' omitidos: instrumento no configurado o fila inválida).', 'error');
+        }
+        resetForm();
+        renderAll();
+      } catch (err) {
+        setStatus('No se pudo importar el archivo de NinjaTrader.', 'error');
+      }
+      input.value = '';
+    };
+    reader.onerror = function () {
+      setStatus('No se pudo leer el archivo.', 'error');
+      input.value = '';
+    };
+    reader.readAsText(file);
+  }
+
   function handleImportJSONFile(event) {
     const input = event.target;
     const file = input.files && input.files[0];
@@ -3131,6 +3251,12 @@
     $('btnExportCSV').addEventListener('click', handleExportCSV);
     $('btnImportJSON').addEventListener('click', function () { $('importJSONFile').click(); });
     $('importJSONFile').addEventListener('change', handleImportJSONFile);
+    const btnImportNinja = $('btnImportNinja');
+    if (btnImportNinja) {
+      btnImportNinja.addEventListener('click', function () { $('importNinjaFile').click(); });
+    }
+    const importNinjaFile = $('importNinjaFile');
+    if (importNinjaFile) importNinjaFile.addEventListener('change', handleImportNinjaFile);
     $('btnClearAll').addEventListener('click', handleClearAll);
   }
 
