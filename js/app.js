@@ -2206,10 +2206,10 @@
     /* Primary selects come from the last-used entry preferences. */
     applyLastEntry();
     $('exitType').value = EXIT_TYPES[0];
-    /* Contracts start empty and are prefilled by the risk calculator until
-     * the user edits the field by hand. */
-    contractsTouched = false;
-    $('contracts').value = '';
+    /* Contracts default to a single contract and stay user-owned until edited:
+     * the calculator no longer pre-fills its suggestion over the default. */
+    contractsTouched = true;
+    $('contracts').value = '1';
     $('entryDate').value = todayISO();
     $('exitDate').value = todayISO();
     /* Both times default to the current moment; the exit time is re-read on
