@@ -142,8 +142,9 @@
           <div class="risk-main">
 
         <!-- Bloque 1 — Entradas -->
-        <div class="risk-block">
-          <h3 class="risk-block-title">1. Entradas</h3>
+        <details class="risk-block risk-block-collapsible" open>
+          <summary class="risk-block-title">1. Entradas</summary>
+          <div class="risk-block-content">
           <div class="form-grid form-grid-narrow">
             <div class="field">
               <label for="riskInstrument">Instrumento</label>
@@ -185,7 +186,8 @@
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </details>
 
         <!-- Bloque 2 — Instrumento y parámetros de mercado. Reference data, so
              it starts collapsed behind a "like Más opciones" disclosure. The
@@ -211,8 +213,9 @@
         </details>
 
         <!-- Bloque 3 — Motor de cálculo -->
-        <div class="risk-block">
-          <h3 class="risk-block-title">3. Cálculo</h3>
+        <details class="risk-block risk-block-collapsible" open>
+          <summary class="risk-block-title">3. Cálculo</summary>
+          <div class="risk-block-content">
           <div class="field">
             <label for="riskRatio">R/B (riesgo/beneficio)</label>
             <select id="riskRatio"></select>
@@ -328,11 +331,13 @@
           <!-- Advisory (never blocking) when the manual contracts make the real
                risk exceed the per-operation cupo. -->
           <p class="risk-hint warn" id="riskContractsWarning" role="status" aria-live="polite" hidden></p>
-        </div>
+          </div>
+        </details>
 
         <!-- Bloque 4 — Reglas de control y bloqueo -->
-        <div class="risk-block">
-          <h3 class="risk-block-title">4. Control y bloqueo</h3>
+        <details class="risk-block risk-block-collapsible" open>
+          <summary class="risk-block-title">4. Control y bloqueo</summary>
+          <div class="risk-block-content">
           <div class="risk-block-alert" id="riskBlockAlert" role="alert" hidden></div>
           <div class="preview">
             <div class="preview-item">
@@ -353,7 +358,8 @@
             </div>
           </div>
           <p class="risk-hint" id="riskSmallAccountHint" hidden></p>
-        </div>
+          </div>
+        </details>
 
         <p class="risk-warning" id="riskViabilityWarning" role="alert" hidden></p>
         <p class="risk-hint" id="riskSuitabilityHint" role="status" aria-live="polite" hidden></p>
@@ -421,6 +427,10 @@
             <!-- Entry price level (accent). -->
             <div class="form-row">
               <div class="field field-entry">
+                <label for="entryPrice">Precio de entrada</label>
+                <input type="number" id="entryPrice" step="any" inputmode="decimal">
+              </div>
+              <div class="field field-entry">
                 <label for="entryDate">Fecha de entrada</label>
                 <input type="date" id="entryDate">
               </div>
@@ -428,22 +438,10 @@
                 <label for="entryTime">Hora de entrada</label>
                 <input type="time" id="entryTime">
               </div>
-              <div class="field field-entry">
-                <label for="entryPrice">Precio de entrada</label>
-                <input type="number" id="entryPrice" step="any" inputmode="decimal">
-              </div>
             </div>
 
             <!-- Exit price level (positive). -->
             <div class="form-row">
-              <div class="field field-exit">
-                <label for="exitDate">Fecha de salida</label>
-                <input type="date" id="exitDate">
-              </div>
-              <div class="field field-exit">
-                <label for="exitTime">Hora de salida</label>
-                <input type="time" id="exitTime">
-              </div>
               <div class="field field-exit">
                 <label for="exitPrice">Precio de salida</label>
                 <div class="input-draft-wrap">
@@ -451,6 +449,14 @@
                   <span class="draft-badge" id="exitPriceDraftBadge" hidden>borrador</span>
                 </div>
                 <span class="field-suggestion" id="exitSuggestion" hidden></span>
+              </div>
+              <div class="field field-exit">
+                <label for="exitDate">Fecha de salida</label>
+                <input type="date" id="exitDate">
+              </div>
+              <div class="field field-exit">
+                <label for="exitTime">Hora de salida</label>
+                <input type="time" id="exitTime">
               </div>
             </div>
 
