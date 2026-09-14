@@ -170,14 +170,19 @@
                (Block 1), not in the trade form. Toggled by #btnInstrumentInfo
                and rendered for the synced instrument value. -->
           <div class="instrument-info" id="instrumentInfo" hidden></div>
-          <div class="preview">
-            <div class="preview-item">
-              <span class="preview-label">Capital total</span>
-              <span class="preview-value" id="riskCapital">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">% Riesgo diario aplicado</span>
-              <span class="preview-value" id="riskDailyPct">—</span>
+          <div class="preview preview-grouped">
+            <div class="preview-group preview-group--budget">
+              <h4 class="preview-group-title">Cuenta</h4>
+              <div class="preview-group-body">
+                <div class="preview-item is-info">
+                  <span class="preview-label">Capital total</span>
+                  <span class="preview-value" id="riskCapital">—</span>
+                </div>
+                <div class="preview-item is-info">
+                  <span class="preview-label">% Riesgo diario aplicado</span>
+                  <span class="preview-value" id="riskDailyPct">—</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -213,82 +218,111 @@
             <select id="riskRatio"></select>
             <span class="field-hint">El objetivo se calcula como entrada ± (stop en ticks × R/B) × tick.</span>
           </div>
-          <div class="preview" id="riskResults" aria-live="polite">
-            <div class="preview-item">
-              <span class="preview-label">Valor del tick</span>
-              <span class="preview-value" id="riskTickValue">—</span>
+          <div class="preview preview-grouped" id="riskResults" aria-live="polite">
+            <div class="preview-group preview-group--instrument">
+              <h4 class="preview-group-title">Instrumento</h4>
+              <div class="preview-group-body">
+                <div class="preview-item is-info">
+                  <span class="preview-label">Valor del tick</span>
+                  <span class="preview-value" id="riskTickValue">—</span>
+                </div>
+                <div class="preview-item is-loss">
+                  <span class="preview-label">P_m (pérdida máx./contrato)</span>
+                  <span class="preview-value" id="riskPerContract">—</span>
+                </div>
+              </div>
             </div>
-            <div class="preview-item">
-              <span class="preview-label">P_m (pérdida máx./contrato)</span>
-              <span class="preview-value" id="riskPerContract">—</span>
+
+            <div class="preview-group preview-group--budget">
+              <h4 class="preview-group-title">Presupuesto del día</h4>
+              <div class="preview-group-body">
+                <div class="preview-item is-info">
+                  <span class="preview-label">Presupuesto diario (total del día)</span>
+                  <span class="preview-value" id="riskBudget">—</span>
+                </div>
+                <div class="preview-item is-info">
+                  <span class="preview-label">Cupo por operación (del presupuesto diario)</span>
+                  <span class="preview-value" id="riskPerTradeBudget">—</span>
+                </div>
+                <div class="preview-item is-warn">
+                  <span class="preview-label">Usado hoy</span>
+                  <span class="preview-value" id="riskUsedToday">—</span>
+                </div>
+                <div class="preview-item is-gain">
+                  <span class="preview-label">Disponible (presupuesto)</span>
+                  <span class="preview-value" id="riskAvailable">—</span>
+                </div>
+                <div class="preview-item is-info">
+                  <span class="preview-label">Presupuesto efectivo (mín.)</span>
+                  <span class="preview-value" id="riskEffectiveBudget">—</span>
+                </div>
+              </div>
             </div>
-            <div class="preview-item">
-              <span class="preview-label">Presupuesto diario (total del día)</span>
-              <span class="preview-value" id="riskBudget">—</span>
+
+            <div class="preview-group preview-group--stop">
+              <h4 class="preview-group-title">Stop</h4>
+              <div class="preview-group-body">
+                <div class="preview-item is-loss">
+                  <span class="preview-label">Máx. stop por operación (ticks · 1 contrato)</span>
+                  <span class="preview-value" id="riskMaxTicks">—</span>
+                </div>
+                <div class="preview-item is-loss">
+                  <span class="preview-label">Ticks SL (por operación)</span>
+                  <span class="preview-value" id="riskTicksSL">—</span>
+                </div>
+                <div class="preview-item is-loss">
+                  <span class="preview-label">Stop acumulado del día (todas las operaciones)</span>
+                  <span class="preview-value" id="riskStopDaily">—</span>
+                </div>
+              </div>
             </div>
-            <div class="preview-item">
-              <span class="preview-label">Cupo por operación (del presupuesto diario)</span>
-              <span class="preview-value" id="riskPerTradeBudget">—</span>
+
+            <div class="preview-group preview-group--size">
+              <h4 class="preview-group-title">Tamaño</h4>
+              <div class="preview-group-body">
+                <div class="preview-item is-info">
+                  <label class="preview-label" for="riskContracts">Contratos (N) — manual</label>
+                  <input type="number" id="riskContracts" class="preview-input" min="0" step="1" inputmode="numeric" value="">
+                </div>
+                <div class="preview-item is-loss">
+                  <span class="preview-label">Riesgo sugerido (N × P_m)</span>
+                  <span class="preview-value" id="riskTotal">—</span>
+                </div>
+                <div class="preview-item is-loss">
+                  <span class="preview-label">Riesgo real (contratos × stop)</span>
+                  <span class="preview-value" id="riskRealRisk">—</span>
+                </div>
+                <div class="preview-item is-loss">
+                  <span class="preview-label">% del capital (riesgo real)</span>
+                  <span class="preview-value" id="riskRealRiskPct">—</span>
+                </div>
+              </div>
             </div>
-            <div class="preview-item">
-              <span class="preview-label">Usado hoy</span>
-              <span class="preview-value" id="riskUsedToday">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Disponible (presupuesto)</span>
-              <span class="preview-value" id="riskAvailable">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Presupuesto efectivo (mín.)</span>
-              <span class="preview-value" id="riskEffectiveBudget">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Máx. stop por operación (ticks · 1 contrato)</span>
-              <span class="preview-value" id="riskMaxTicks">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Stop acumulado del día (todas las operaciones)</span>
-              <span class="preview-value" id="riskStopDaily">—</span>
-            </div>
-            <div class="preview-item">
-              <label class="preview-label" for="riskContracts">Contratos (N) — manual</label>
-              <input type="number" id="riskContracts" class="preview-input" min="0" step="1" inputmode="numeric" value="">
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Riesgo sugerido (N × P_m)</span>
-              <span class="preview-value" id="riskTotal">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Riesgo real (contratos × stop)</span>
-              <span class="preview-value" id="riskRealRisk">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">% del capital (riesgo real)</span>
-              <span class="preview-value" id="riskRealRiskPct">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Ticks SL (por operación)</span>
-              <span class="preview-value" id="riskTicksSL">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Ticks TP (R/B)</span>
-              <span class="preview-value" id="riskTicksTP2">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">R/B seleccionado</span>
-              <span class="preview-value" id="riskRRRange">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Recuperación requerida</span>
-              <span class="preview-value" id="riskRecovery">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">R/R</span>
-              <span class="preview-value" id="riskRR">—</span>
-            </div>
-            <div class="preview-item">
-              <span class="preview-label">Comisión (ida y vuelta)</span>
-              <span class="preview-value" id="riskCommission">—</span>
+
+            <div class="preview-group preview-group--result">
+              <h4 class="preview-group-title">Objetivo y R/B</h4>
+              <div class="preview-group-body">
+                <div class="preview-item is-gain">
+                  <span class="preview-label">Ticks TP (R/B)</span>
+                  <span class="preview-value" id="riskTicksTP2">—</span>
+                </div>
+                <div class="preview-item is-info">
+                  <span class="preview-label">R/B seleccionado</span>
+                  <span class="preview-value" id="riskRRRange">—</span>
+                </div>
+                <div class="preview-item is-info">
+                  <span class="preview-label">R/R</span>
+                  <span class="preview-value" id="riskRR">—</span>
+                </div>
+                <div class="preview-item is-warn">
+                  <span class="preview-label">Recuperación requerida</span>
+                  <span class="preview-value" id="riskRecovery">—</span>
+                </div>
+                <div class="preview-item is-loss">
+                  <span class="preview-label">Comisión (ida y vuelta)</span>
+                  <span class="preview-value" id="riskCommission">—</span>
+                </div>
+              </div>
             </div>
           </div>
           <!-- Advisory (never blocking) when the manual contracts make the real

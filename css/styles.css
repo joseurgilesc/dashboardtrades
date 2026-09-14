@@ -815,7 +815,11 @@ input.is-draft {
   font-size: 14px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--text);
+  /* Meaning-driven colour: a grouped row sets `--value-color` and the value
+   * reads it. Outside the grouped previews it falls back to plain text. The
+   * dynamic state classes app.js writes (.warn/.neg/.pos) still win on a live
+   * threshold because their declarations have higher specificity. */
+  color: var(--value-color, var(--text));
 }
 
 /* Editable value inside a preview row (the contracts manual override).
@@ -921,6 +925,90 @@ input.is-draft {
 .risk-block .preview {
   margin-top: 10px;
   background: var(--panel);
+}
+
+/* Grouped results grid: instead of one flat list of rows, the calculator's
+ * output reads as short labelled blocks. The outer `.preview` gives up its own
+ * surface so each group is the visible panel. */
+.preview-grouped {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.risk-block .preview-grouped {
+  margin-top: 10px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.preview-group {
+  --group-accent: var(--border-strong);
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--group-accent);
+  border-radius: var(--radius-sm);
+}
+
+/* One accent per block, drawn from the existing token set. Decorative only:
+ * it separates the blocks, it never carries the number's meaning. */
+.preview-group--instrument { --group-accent: var(--cyan); }
+.preview-group--budget { --group-accent: var(--accent); }
+.preview-group--stop { --group-accent: var(--neg); }
+.preview-group--size { --group-accent: var(--purple); }
+.preview-group--result { --group-accent: var(--pos); }
+
+.preview-group-title {
+  margin: 0 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.preview-group-body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+/* Fixed label column + right-aligned value column, so the numbers line up
+ * down the block instead of floating at the end of each label. */
+.preview-group .preview-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.preview-group .preview-value {
+  text-align: right;
+}
+
+.preview-group .preview-input {
+  width: 84px;
+  text-align: right;
+}
+
+/* Row meaning as colour: the row sets the custom property and the value picks
+ * it up (see `.preview-value`). Live state classes from app.js still override
+ * it when a value trips a threshold. */
+.preview-item.is-info { --value-color: var(--accent); }
+.preview-item.is-loss { --value-color: var(--neg); }
+.preview-item.is-gain { --value-color: var(--pos); }
+.preview-item.is-warn { --value-color: var(--amber); }
+
+/* The contracts override is the calculator's only entry field; keep its typed
+ * value on the info accent so it reads as an input, not a result. */
+.preview-item.is-info .preview-input {
+  color: var(--accent);
 }
 
 /* Compact instrument lookup table. Deliberately NOT `.trades-table`, so the
