@@ -2181,6 +2181,66 @@ input.is-draft {
   color: var(--text-muted);
 }
 
+.achievement-xp {
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+/* --- Outcome statistics (informational, zero XP) ------------------- */
+
+.achievement.outcome {
+  opacity: 1;
+  border-left-color: var(--text-faint);
+}
+
+.achievement.outcome .achievement-label {
+  color: var(--text-muted);
+}
+
+.outcome-tag {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+
+.outcome-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.outcome-value {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.outcome-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.outcome-span {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.outcome-fill {
+  background: var(--text-faint);
+}
+
 /* --- Weekly recap ------------------------------------------------- */
 
 .weekly-recap {

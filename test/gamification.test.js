@@ -134,6 +134,15 @@ eq('streak is account-scoped', Store.disciplineStreak(mixed, 'Sim', 2).current, 
 /* ------------------------------------------------------------------ */
 /* 2. XP is awarded only for process (never P&L or leverage)           */
 /* ------------------------------------------------------------------ */
+/*
+ * Scope note (two-category model): the assertions below cover the per-trade
+ * XP breakdown (`xpBreakdown`), which stays strictly P&L/contract-free. The
+ * BPT badge layer is split into two categories: PROCESO badges award a fixed
+ * XP_BADGE per rung (never scaled by P&L or volume), while RESULTADO badges
+ * read realised P&L as statistics and award ZERO XP. That categorical rule is
+ * proven in test/bpt-badges.test.js; it replaces the old blanket claim that
+ * "nothing in gamification reads P&L".
+ */
 
 console.log('\n[2] XP is process-only');
 

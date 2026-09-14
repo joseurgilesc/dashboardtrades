@@ -2148,6 +2148,14 @@ const Store = (function () {
   const XP_PER_LEVEL = 100;
   const WEEKLY_DISCIPLINE_GOAL_DEFAULT = 5;
 
+  /* BPT badges (additive to the legacy ACHIEVEMENTS below). Two categories:
+   *   BADGE_PROCESS -> earns a FIXED XP_BADGE per rung and feeds the ladder.
+   *   BADGE_OUTCOME -> informational statistic, ZERO XP, never "achieved".
+   * The fixed per-rung award means XP never scales with P&L or volume. */
+  const XP_BADGE = 25;
+  const BADGE_PROCESS = 'process';
+  const BADGE_OUTCOME = 'outcome';
+
   /* Process achievements. Each is earned from recorded data; `target` is the
    * count required and is also the progress-bar denominator. */
   const ACHIEVEMENTS = [
@@ -2383,6 +2391,327 @@ const Store = (function () {
     });
   }
 
+  /* ------------------------------------------------------------------ */
+  /* BPT badges (pure)                                                   */
+  /* ------------------------------------------------------------------ */
+  /*
+   * Two categories, enforced by the `category` field on every rung:
+   *   - 'process': earns a fixed XP_BADGE per rung. Derived from recorded
+   *     risk/process signals; the award never scales with P&L or volume.
+   *   - 'outcome': informational statistics over realised P&L. ZERO XP and
+   *     never marked as achieved; `qualifies` carries the fact instead.
+   *
+   * DEFERRED BPT badges (not implemented - missing data):
+   *   - bpt-security-anchor: needs stop-modification history (no audit trail).
+   *   - bpt-jornalero: needs a per-trade timezone (`entryTime` has no zone).
+   *   - bpt-logbook: needs an emotion before/after each trade (one field only).
+   *   - bpt-playing-house: needs a capital ledger (only initial balance exists).
+   */
+
+  /** Completed trades: entry AND exit recorded. */
+  function completedTradeCount(trades, account) {
+    return tradesForAccount(trades, account).filter(function (t) {
+      return !!t.entryDate && !!t.exitDate;
+    }).length;
+  }
+
+  /** One account's trades grouped by entry day, chronological within a day. */
+  function tradesByDay(trades, account) {
+    const byDay = {};
+    sortChronologically(tradesForAccount(trades, account)).forEach(function (t) {
+      if (!byDay[t.entryDate]) byDay[t.entryDate] = [];
+      byDay[t.entryDate].push(t);
+    });
+    return byDay;
+  }
+
+  /**
+   * Longest run of consecutive trades risking 0.5%-2% of the running balance
+   * (initial balance plus the net of every earlier trade). The risk is
+   * `tradeRiskUsd(t) / balanceBefore * 100`.
+   */
+  function capitalGuardianStreak(trades, account, opts) {
+    const ctx = gamifyOpts(account, opts);
+    const list = sortChronologically(tradesForAccount(trades, account));
+    let balance = ctx.initialBalance;
+    let run = 0;
+    let best = 0;
+    list.forEach(function (t) {
+      const risk = tradeRiskUsd(t);
+      const pct = (Number.isFinite(risk) && balance > 0) ? (risk / balance) * 100 : NaN;
+      if (Number.isFinite(pct) && pct >= 0.5 && pct <= 2) {
+        run += 1;
+        if (run > best) best = run;
+      } else {
+        run = 0;
+      }
+      balance += computeTrade(t).net;
+    });
+    return best;
+  }
+
+  /**
+   * Days the session stopped inside the 3%-5% daily-loss band. Per day, in
+   * entry order: the FIRST trade whose running loss reaches 3% of the
+   * start-of-day balance must be the day's last trade, and the day's total
+   * loss must not exceed 5%.
+   */
+  function mosquitoRepellentDays(trades, account, opts) {
+    const ctx = gamifyOpts(account, opts);
+    const byDay = tradesByDay(trades, account);
+    let balance = ctx.initialBalance;
+    let clean = 0;
+    Object.keys(byDay).sort().forEach(function (day) {
+      const dayTrades = byDay[day];
+      let dayLoss = 0;
+      let stopIndex = -1;
+      for (let i = 0; i < dayTrades.length; i += 1) {
+        const net = computeTrade(dayTrades[i]).net;
+        if (net < 0) dayLoss += Math.abs(net);
+        if (balance > 0 && (dayLoss / balance) * 100 >= 3) { stopIndex = i; break; }
+      }
+      const lossPct = balance > 0 ? (dayLoss / balance) * 100 : 0;
+      if (stopIndex === dayTrades.length - 1 && lossPct >= 3 && lossPct <= 5) clean += 1;
+      dayTrades.forEach(function (t) { balance += computeTrade(t).net; });
+    });
+    return clean;
+  }
+
+  /** Days that ended on a run of 3+ consecutive losing trades (net <= 0). */
+  function emergencyStopDays(trades, account) {
+    const byDay = tradesByDay(trades, account);
+    let count = 0;
+    Object.keys(byDay).forEach(function (day) {
+      const dayTrades = byDay[day];
+      let streak = 0;
+      for (let i = dayTrades.length - 1; i >= 0; i -= 1) {
+        if (computeTrade(dayTrades[i]).net <= 0) streak += 1;
+        else break;
+      }
+      if (streak >= 3) count += 1;
+    });
+    return count;
+  }
+
+  /** Days with at most 3 entries (a patient, low-frequency session). */
+  function crocodileDays(trades, account, opts) {
+    const ctx = gamifyOpts(account, opts);
+    return disciplineDays(trades, account, ctx.limit).filter(function (d) {
+      return d.count <= 3;
+    }).length;
+  }
+
+  /**
+   * Highest doubling milestone reached by a trade of 2+ contracts, measured
+   * on the running equity BEFORE that trade: 25/50/75/100 % of the gain that
+   * doubles the initial capital (i.e. equity of 1.25x/1.5x/1.75x/2x). Returns
+   * 0 when no milestone was reached.
+   */
+  function earnedStepLevel(trades, account, opts) {
+    const ctx = gamifyOpts(account, opts);
+    if (!(ctx.initialBalance > 0)) return 0;
+    const milestones = [25, 50, 75, 100];
+    const list = sortChronologically(tradesForAccount(trades, account));
+    let equity = ctx.initialBalance;
+    let level = 0;
+    list.forEach(function (t) {
+      if (numOr(t.contracts, 0) >= 2) {
+        milestones.forEach(function (m) {
+          if (m > level && equity >= ctx.initialBalance * (1 + m / 100)) level = m;
+        });
+      }
+      equity += computeTrade(t).net;
+    });
+    return level;
+  }
+
+  /**
+   * Best win ratio (%) across every rolling block of at least 100 trades
+   * (win = net > 0). Returns 0 when the account has fewer than 100 trades.
+   */
+  function bestRollingWinPct(trades, account) {
+    const list = sortChronologically(tradesForAccount(trades, account));
+    const n = list.length;
+    if (n < 100) return 0;
+    const nets = list.map(function (t) { return computeTrade(t).net; });
+    let best = 0;
+    for (let start = 0; start + 100 <= n; start += 1) {
+      let wins = 0;
+      for (let end = start; end < n; end += 1) {
+        if (nets[end] > 0) wins += 1;
+        const size = end - start + 1;
+        if (size >= 100) {
+          const pct = (wins / size) * 100;
+          if (pct > best) best = pct;
+        }
+      }
+    }
+    return best;
+  }
+
+  /** First 700 trades (chronological): win ratio and the covered date span. */
+  function hotBathStat(trades, account) {
+    const list = sortChronologically(tradesForAccount(trades, account));
+    const slice = list.slice(0, 700);
+    let wins = 0;
+    slice.forEach(function (t) { if (computeTrade(t).net > 0) wins += 1; });
+    return {
+      count: slice.length,
+      winPct: slice.length > 0 ? (wins / slice.length) * 100 : 0,
+      start: slice.length ? slice[0].entryDate : '',
+      end: slice.length ? slice[slice.length - 1].entryDate : ''
+    };
+  }
+
+  /** Win ratio of the first 700 trades, or 0 when fewer than 700 exist. */
+  function hotBathWinPct(trades, account) {
+    const stat = hotBathStat(trades, account);
+    return stat.count >= 700 ? stat.winPct : 0;
+  }
+
+  /**
+   * Realized R multiple of a closed trade. Long:
+   * `(exit - entry) / (entry - stop)`; short the inverse. NaN when the stop
+   * is missing or on the wrong side of the entry.
+   */
+  function realizedR(trade) {
+    const entry = numOr(trade.entryPrice, 0);
+    const exit = numOr(trade.exitPrice, 0);
+    const stop = numOr(trade.stop, 0);
+    if (!(stop > 0)) return NaN;
+    if (trade.direction === 'Corto') {
+      const risk = stop - entry;
+      return risk > 0 ? (entry - exit) / risk : NaN;
+    }
+    const risk = entry - stop;
+    return risk > 0 ? (exit - entry) / risk : NaN;
+  }
+
+  /** Winning trades whose realized R/R is at least 2. */
+  function positiveMathCount(trades, account) {
+    let count = 0;
+    tradesForAccount(trades, account).forEach(function (t) {
+      if (computeTrade(t).net <= 0) return;
+      const r = realizedR(t);
+      if (Number.isFinite(r) && r >= 2) count += 1;
+    });
+    return count;
+  }
+
+  /* Badge catalog. Each `ladder` entry becomes its own rung (own id, target
+   * and label), so a lower rung never grants a higher one. `metric` returns
+   * the raw value; `stat` (outcome badges) returns the informational figure. */
+  const BADGES = [
+    { id: 'bpt-700-trades', category: BADGE_PROCESS,
+      label: 'Trades completados',
+      description: 'Trades de la cuenta con entrada y salida registradas.',
+      ladder: [50, 150, 300, 500, 700],
+      rungLabel: function (n) { return n + ' trades completados'; },
+      metric: completedTradeCount },
+    { id: 'bpt-capital-guardian', category: BADGE_PROCESS,
+      label: 'Guardia de capital',
+      description: 'Trades consecutivos arriesgando entre 0,5 % y 2 % del saldo.',
+      ladder: [5, 10, 20, 30],
+      rungLabel: function (n) { return n + ' trades seguidos con riesgo 0,5 %-2 %'; },
+      metric: capitalGuardianStreak },
+    { id: 'bpt-mosquito-repellent', category: BADGE_PROCESS,
+      label: 'Repelente de mosquitos',
+      description: 'Días que cerraron con una pérdida diaria entre el 3 % y el 5 %.',
+      ladder: [1, 3, 5, 10],
+      rungLabel: function (n) { return n + (n === 1 ? ' día' : ' días') + ' con pérdida diaria 3 %-5 %'; },
+      metric: mosquitoRepellentDays },
+    { id: 'bpt-emergency-stop', category: BADGE_PROCESS,
+      label: 'Parada de emergencia',
+      description: 'Días que terminaron tras 3 pérdidas consecutivas.',
+      ladder: [1, 3, 5, 10],
+      rungLabel: function (n) { return n + (n === 1 ? ' día' : ' días') + ' con racha de 3 pérdidas'; },
+      metric: emergencyStopDays },
+    { id: 'bpt-crocodile', category: BADGE_PROCESS,
+      label: 'Cocodrilo',
+      description: 'Días con 3 entradas o menos (paciencia de cocodrilo).',
+      ladder: [10, 25, 50, 100],
+      rungLabel: function (n) { return n + ' días con 3 entradas o menos'; },
+      metric: crocodileDays },
+    { id: 'bpt-earned-step', category: BADGE_PROCESS,
+      label: 'Escalón ganado',
+      description: 'Trade de 2+ contratos con el capital en camino a doblarse.',
+      ladder: [25, 50, 75, 100],
+      rungLabel: function (n) { return n + ' % del doble de capital'; },
+      metric: earnedStepLevel },
+    { id: 'bpt-green-range', category: BADGE_OUTCOME,
+      label: 'Rango verde',
+      description: 'Ventana de 100+ trades con ≥70 % de aciertos.',
+      ladder: [70],
+      rungLabel: function () { return 'Mejor ventana (100+ trades)'; },
+      metric: bestRollingWinPct,
+      stat: function (trades, account) {
+        return { label: 'Mejor ventana (100+ trades)', value: bestRollingWinPct(trades, account), unit: '%' };
+      } },
+    { id: 'bpt-hot-bath', category: BADGE_OUTCOME,
+      label: 'Baño caliente',
+      description: 'Los primeros 700 trades con ≥70 % de aciertos.',
+      ladder: [70],
+      rungLabel: function () { return 'Primeros 700 trades'; },
+      metric: hotBathWinPct,
+      stat: function (trades, account) {
+        const s = hotBathStat(trades, account);
+        return {
+          label: 'Primeros 700 trades',
+          value: s.winPct,
+          unit: '%',
+          count: s.count,
+          span: (s.start && s.end) ? (s.start + ' → ' + s.end) : ''
+        };
+      } },
+    { id: 'bpt-positive-math', category: BADGE_OUTCOME,
+      label: 'Matemática positiva',
+      description: 'Trades ganadores con R/R realizado ≥ 2.',
+      ladder: [20],
+      rungLabel: function () { return 'Ganadores con R/R ≥ 2'; },
+      metric: positiveMathCount,
+      stat: function (trades, account) {
+        return { label: 'Ganadores con R/R ≥ 2', value: positiveMathCount(trades, account), unit: '' };
+      } }
+  ];
+
+  /**
+   * Evaluates the BPT badge ladder for one account. Returns one entry per
+   * rung: `{ id, family, tier, category, label, description, target, value,
+   * raw, earned, qualifies, xp, progressPct, stat }`.
+   *
+   * Process rungs set `earned` when `raw >= target` and award a fixed
+   * `XP_BADGE`. Outcome rungs never set `earned` (they are statistics, not
+   * achievements), carry the fact in `qualifies`, and award 0 XP.
+   */
+  function evaluateBadges(trades, account, opts) {
+    const ctx = gamifyOpts(account, opts);
+    const out = [];
+    BADGES.forEach(function (badge) {
+      const raw = numOr(badge.metric(trades, account, ctx), 0);
+      badge.ladder.forEach(function (threshold, i) {
+        const outcome = badge.category === BADGE_OUTCOME;
+        const reached = raw >= threshold;
+        out.push({
+          id: badge.id + '-t' + (i + 1),
+          family: badge.id,
+          tier: i + 1,
+          category: badge.category,
+          label: badge.rungLabel(threshold),
+          description: badge.description,
+          target: threshold,
+          value: Math.min(raw, threshold),
+          raw: raw,
+          earned: outcome ? false : reached,
+          qualifies: reached,
+          xp: outcome ? 0 : XP_BADGE,
+          progressPct: threshold > 0 ? Math.min(100, (raw / threshold) * 100) : 0,
+          stat: badge.stat ? badge.stat(trades, account, ctx) : null
+        });
+      });
+    });
+    return out;
+  }
+
   /** Local ISO date (YYYY-MM-DD) for a Date instance. */
   function isoDate(d) {
     const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -2553,7 +2882,18 @@ const Store = (function () {
     const next = normalizeGamification(getGamification());
     let changed = false;
 
-    const computedXp = xpBreakdown(state.trades, account).total;
+    const computed = xpBreakdown(state.trades, account);
+    /* Process badge XP is a fixed per-rung award; outcome badges never add XP. */
+    let badgeXp = 0;
+    evaluateBadges(state.trades, account).forEach(function (b) {
+      if (b.category !== BADGE_PROCESS) return;
+      if (b.earned) badgeXp += b.xp;
+      if (b.earned && !next.achievements[b.id]) {
+        next.achievements[b.id] = true;
+        changed = true;
+      }
+    });
+    const computedXp = computed.total + badgeXp;
     if (computedXp > next.xp) { next.xp = computedXp; changed = true; }
 
     const streak = disciplineStreak(state.trades, account);
@@ -2581,7 +2921,22 @@ const Store = (function () {
     const streak = disciplineStreak(state.trades, key, ctx.limit);
     const computed = xpBreakdown(state.trades, key);
     const stored = syncGamification(key);
-    const xp = Math.max(computed.total, stored.xp);
+
+    const processBadges = [];
+    const outcomeBadges = [];
+    let badgeXp = 0;
+    evaluateBadges(state.trades, key).forEach(function (b) {
+      if (b.category === BADGE_PROCESS) {
+        /* A persisted rung stays earned (high-water) even if data changes. */
+        if (stored.achievements[b.id]) b.earned = true;
+        if (b.earned) badgeXp += b.xp;
+        processBadges.push(b);
+      } else {
+        outcomeBadges.push(b);
+      }
+    });
+
+    const xp = Math.max(computed.total + badgeXp, stored.xp);
     const achievements = evaluateAchievements(state.trades, key);
     achievements.forEach(function (a) {
       if (stored.achievements[a.id]) a.earned = true;
@@ -2592,6 +2947,7 @@ const Store = (function () {
       account: key,
       xp: xp,
       computedXp: computed,
+      badgeXp: badgeXp,
       level: levelInfo(xp),
       streak: {
         current: streak.current,
@@ -2599,6 +2955,8 @@ const Store = (function () {
       },
       days: streak.days,
       achievements: achievements,
+      processBadges: processBadges,
+      outcomeBadges: outcomeBadges,
       recap: recap,
       goals: goals,
       weeklyGoal: stored.weeklyDisciplineGoal
@@ -2838,15 +3196,19 @@ const Store = (function () {
     xpBreakdown: xpBreakdown,
     levelInfo: levelInfo,
     evaluateAchievements: evaluateAchievements,
+    evaluateBadges: evaluateBadges,
     weeklyRecap: weeklyRecap,
     weekBounds: weekBounds,
     goalProgress: goalProgress,
+    normalizeGamification: normalizeGamification,
     getGamification: getGamification,
     getWeeklyDisciplineGoal: getWeeklyDisciplineGoal,
     setWeeklyDisciplineGoal: setWeeklyDisciplineGoal,
     syncGamification: syncGamification,
     getDisciplineSummary: getDisciplineSummary,
     ACHIEVEMENTS: ACHIEVEMENTS,
+    BADGES: BADGES,
+    XP_BADGE: XP_BADGE,
 
     importJSON: importJSON,
     exportJSON: exportJSON,

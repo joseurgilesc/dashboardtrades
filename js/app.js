@@ -1891,6 +1891,7 @@
 
     renderGoals(summary);
     renderAchievements(summary);
+    renderOutcomeBadges(summary);
     renderWeeklyRecap(summary);
   }
 
@@ -1926,13 +1927,22 @@
     el.innerHTML = parts.join('');
   }
 
+  /**
+   * Renders the PROCESO badges (legacy achievements + BPT process ladder).
+   * Process badges award XP and can be marked as achieved; outcome badges are
+   * rendered separately by `renderOutcomeBadges`.
+   */
   function renderAchievements(summary) {
     const el = $('achievementsList');
     if (!el) return;
-    const list = summary.achievements || [];
+    const list = (summary.achievements || []).concat(summary.processBadges || []);
     el.innerHTML = list.map(function (a) {
-      const stateText = a.earned ? 'Conseguido' : a.value + ' / ' + a.target;
-      return '<div class="achievement' + (a.earned ? ' earned' : '') + '">' +
+      const earned = !!a.earned;
+      const stateText = earned ? 'Conseguido' : a.value + ' / ' + a.target;
+      const xpTag = Number.isFinite(a.xp) && a.xp > 0
+        ? '<span class="achievement-xp">+' + a.xp + ' XP</span>'
+        : '';
+      return '<div class="achievement' + (earned ? ' earned' : '') + '">' +
         '<div class="achievement-head">' +
           '<span class="achievement-label">' + escapeHtml(a.label) + '</span>' +
           '<span class="achievement-state">' + escapeHtml(stateText) + '</span>' +
@@ -1940,12 +1950,51 @@
         '<p class="achievement-desc">' + escapeHtml(a.description) + '</p>' +
         '<div class="progress-track"><div class="progress-fill" style="width:' +
           a.progressPct.toFixed(1) + '%"></div></div>' +
+        xpTag +
         '</div>';
     }).join('');
     const summaryEl = $('achievementsSummary');
     if (summaryEl) {
       const earned = list.filter(function (a) { return a.earned; }).length;
-      summaryEl.textContent = earned + ' / ' + list.length + ' logros';
+      summaryEl.textContent = earned + ' / ' + list.length + ' logros de proceso';
+    }
+  }
+
+  /**
+   * Renders the RESULTADO badges as informational statistics. They read
+   * realised P&L, award ZERO XP and are never styled as achieved: the label
+   * is "Estadística" and the rung state is never "Conseguido".
+   */
+  function renderOutcomeBadges(summary) {
+    const el = $('outcomeList');
+    if (!el) return;
+    const list = summary.outcomeBadges || [];
+    el.innerHTML = list.map(function (a) {
+      const stat = a.stat || {};
+      const valueText = Number.isFinite(stat.value)
+        ? (stat.unit === '%' ? formatNumber(stat.value, 1) + ' %' : String(stat.value))
+        : '-';
+      const span = stat.span
+        ? '<span class="outcome-span">' + escapeHtml(stat.span) + '</span>'
+        : '';
+      return '<div class="achievement outcome">' +
+        '<div class="achievement-head">' +
+          '<span class="achievement-label">' + escapeHtml(a.label) + '</span>' +
+          '<span class="outcome-tag">Estadística</span>' +
+        '</div>' +
+        '<p class="achievement-desc">' + escapeHtml(a.description) + '</p>' +
+        '<div class="outcome-stat">' +
+          '<span class="outcome-value">' + escapeHtml(valueText) + '</span>' +
+          '<span class="outcome-label">' + escapeHtml(stat.label || '') + '</span>' +
+        '</div>' + span +
+        '<div class="progress-track outcome-track"><div class="progress-fill outcome-fill" style="width:' +
+          a.progressPct.toFixed(1) + '%"></div></div>' +
+        '</div>';
+    }).join('');
+    const summaryEl = $('outcomeSummary');
+    if (summaryEl) {
+      const met = list.filter(function (a) { return a.qualifies; }).length;
+      summaryEl.textContent = met + ' / ' + list.length + ' en rango';
     }
   }
 
