@@ -404,19 +404,15 @@
                Identity/metadata first, then the plan, the three price levels
                (entry/exit/stop) and finally how the trade closed. -->
           <div class="form-grid">
-            <!-- Identity / metadata: which trade, on which account and instrument. -->
+            <!-- Identity / metadata: instrument first, then trade number. -->
             <div class="form-row">
-              <div class="field">
-                <label for="tradeNumber">N.º de trade</label>
-                <input type="number" id="tradeNumber" min="1" step="1" inputmode="numeric">
-              </div>
-              <div class="field">
-                <label for="account">Cuenta</label>
-                <select id="account"></select>
-              </div>
               <div class="field">
                 <label for="instrument">Instrumento</label>
                 <select id="instrument"></select>
+              </div>
+              <div class="field">
+                <label for="tradeNumber">N.º de trade</label>
+                <input type="number" id="tradeNumber" min="1" step="1" inputmode="numeric">
               </div>
             </div>
 

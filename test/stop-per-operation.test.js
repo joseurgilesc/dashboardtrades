@@ -187,7 +187,8 @@ function extractFunction(src, signature) {
 const extracted = [
   extractFunction(appSrc, 'function syncInstrument(value)'),
   extractFunction(appSrc, 'function clampDailyRiskPct(value)'),
-  extractFunction(appSrc, 'function renderRiskPanel()')
+  extractFunction(appSrc, 'function renderRiskPanel()'),
+  extractFunction(appSrc, 'function activeAccount()')
 ].join('\n');
 
 const elements = {};

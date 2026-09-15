@@ -75,6 +75,7 @@ const extracted = [
   extractFunction(appSrc, 'function refreshNextTradeNumber()'),
   extractFunction(appSrc, 'function writeTimeSelect(prefix, value)'),
   extractFunction(appSrc, 'function applyTradeMode()'),
+  extractFunction(appSrc, 'function activeAccount()'),
   extractFunction(appSrc, 'function resetForm()'),
   extractFunction(appSrc, 'function handleDelete(id)'),
   extractFunction(appSrc, 'function handleClearAll()')

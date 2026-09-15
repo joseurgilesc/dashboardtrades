@@ -77,7 +77,8 @@ const extracted = [
   extractFunction(appSrc, 'function clampDailyRiskPct(value)'),
   extractFunction(appSrc, 'function persistTradesPerDay(raw)'),
   extractFunction(appSrc, 'function onTradesPerDayChanged()'),
-  extractFunction(appSrc, 'function renderRiskPanel()')
+  extractFunction(appSrc, 'function renderRiskPanel()'),
+  extractFunction(appSrc, 'function activeAccount()')
 ].join('\n');
 
 /* ------------------------------------------------------------------ */
@@ -180,7 +181,7 @@ function type(raw) {
 /* Sim 2/day, Real 5/day. Fondeo keeps the default. */
 Store.setSettings({ dailyTradeLimit: { Sim: 2, Real: 5, Fondeo: DEFAULT_DAILY_TRADE_LIMIT } });
 
-$('account').value = 'Sim';
+$('accountSelector').value = 'Sim';
 $('instrument').value = 'MES';
 $('riskInstrument').value = 'MES';
 $('direction').value = 'Largo';
@@ -241,10 +242,10 @@ eq('day row reflects the fallback count', riskText('riskStopDaily'), '80 ticks Â
 console.log('\n[3] Account switch re-seeds only while untouched');
 
 uiContext.tradesPerDayTouched = false;
-$('account').value = 'Real';
+$('accountSelector').value = 'Real';
 uiContext.renderRiskPanel();
 eq('untouched switch to Real re-seeds 5', $('riskTradesPerDayInput').value, '5');
-$('account').value = 'Sim';
+$('accountSelector').value = 'Sim';
 uiContext.renderRiskPanel();
 eq('untouched switch back to Sim re-seeds 2', $('riskTradesPerDayInput').value, '2');
 
@@ -252,7 +253,7 @@ eq('untouched switch back to Sim re-seeds 2', $('riskTradesPerDayInput').value, 
 type('7');
 uiContext.renderRiskPanel();
 eq('typed 7 stays', $('riskTradesPerDayInput').value, '7');
-$('account').value = 'Real';
+$('accountSelector').value = 'Real';
 uiContext.renderRiskPanel();
 eq('touched value survives an account switch', $('riskTradesPerDayInput').value, '7');
 check('touched flag blocks the account-switch re-seed', uiContext.tradesPerDayTouched === true);

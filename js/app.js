@@ -457,7 +457,6 @@
   }
 
   function initSelects() {
-    fillSelect($('account'), ACCOUNTS);
     fillSelect($('accountSelector'), ACCOUNTS);
     fillSelect($('instrument'), Object.keys(INSTRUMENTS));
     /* The calculator's selector is populated from the SAME catalog source as
@@ -585,12 +584,7 @@
   /* ------------------------------------------------------------------ */
 
   function renderBalances() {
-    /* The header selector is a synced view of the form account (the canonical
-     * per-trade value), so tab switches keep the header in sync. */
-    const formEl = $('account');
-    const selector = $('accountSelector');
-    const account = (formEl && formEl.value) ? formEl.value : ACCOUNTS[0];
-    if (selector && selector.value !== account) selector.value = account;
+    const account = activeAccount();
     const initial = Store.getBalances();
     const balances = Store.getAccountBalances();
     const value = balances[account] || 0;
@@ -1065,11 +1059,17 @@
     return next;
   }
 
+  /** The active account comes from the header selector (global, not per-trade). */
+  function activeAccount() {
+    const el = $('accountSelector');
+    return (el && el.value) ? el.value : ACCOUNTS[0];
+  }
+
   function readForm() {
     return {
       id: state.editingId || undefined,
       tradeNumber: parseInt($('tradeNumber').value, 10),
-      account: $('account').value,
+      account: activeAccount(),
       instrument: $('instrument').value,
       contracts: parseFloat($('contracts').value),
       strategy: $('strategy').value,
@@ -1361,11 +1361,10 @@
     const instrumentEl = $('instrument');
     const entryEl = $('entryPrice');
     const directionEl = $('direction');
-    const accountEl = $('account');
     const instrument = instrumentEl ? instrumentEl.value : '';
     const spec = instrumentMeta(instrument);
     const tick = spec ? Number(spec.tick) : NaN;
-    const account = accountEl ? accountEl.value : '';
+    const account = activeAccount();
     /* The chosen R/B ratio is the single planning multiple: it drives the
      * suggested stop/target text, the draft autofill and the preview. */
     const ratio = readRatio();
@@ -1650,8 +1649,7 @@
   function persistTradesPerDay(raw) {
     const n = parseInt(raw, 10);
     if (!Number.isFinite(n) || n < 1) return;
-    const accountEl = $('account');
-    const account = accountEl && accountEl.value ? accountEl.value : ACCOUNTS[0];
+    const account = activeAccount();
     const current = Store.getRiskSettings();
     const limits = {};
     ACCOUNTS.forEach(function (name) {
@@ -1706,10 +1704,7 @@
    * feed the R/R.
    */
   function renderRiskPanel() {
-    const accountEl = $('account');
-    if (!accountEl) return;
-
-    const account = accountEl.value || ACCOUNTS[0];
+    const account = activeAccount();
     /* One instrument, two views: keep the calculator's selector mirrored to
      * the canonical #instrument value on every render, so a programmatic
      * instrument change (reset, edit, duplicate, last-used) can never leave
@@ -2074,8 +2069,7 @@
    * These are guidance only: submit is never disabled or blocked.
    */
   function renderEntryWarnings() {
-    const accountEl = $('account');
-    const account = accountEl && accountEl.value ? accountEl.value : ACCOUNTS[0];
+    const account = activeAccount();
 
     const limitEl = $('dailyLimitWarning');
     if (limitEl) {
@@ -2125,8 +2119,7 @@
    */
   function renderGamification() {
     if (typeof Store.getDisciplineSummary !== 'function') return;
-    const accountEl = $('account');
-    const account = accountEl && accountEl.value ? accountEl.value : ACCOUNTS[0];
+    const account = activeAccount();
     const summary = Store.getDisciplineSummary(account);
 
     const badge = $('levelBadge');
@@ -2422,7 +2415,6 @@
       ? Store.getLastEntry()
       : null;
     if (!last) return;
-    if ($('account')) $('account').value = last.account;
     if ($('instrument')) $('instrument').value = last.instrument;
     if ($('strategy')) $('strategy').value = last.strategy;
     if ($('direction')) $('direction').value = last.direction;
@@ -2477,7 +2469,7 @@
     tradesPerDayTouched = false;
     const tradesSeedEl = $('riskTradesPerDayInput');
     if (tradesSeedEl) {
-      const seedAccount = $('account') && $('account').value ? $('account').value : ACCOUNTS[0];
+      const seedAccount = activeAccount();
       const seedStored = Store.getRiskSettings()[seedAccount] || {};
       const seedTrades = Number.isFinite(seedStored.dailyTradeLimit)
         ? seedStored.dailyTradeLimit
@@ -2499,7 +2491,6 @@
   function captureDraft() {
     return {
       tradeNumber: $('tradeNumber').value,
-      account: $('account').value,
       instrument: $('instrument').value,
       contracts: $('contracts').value,
       strategy: $('strategy').value,
@@ -2525,7 +2516,6 @@
   function restoreDraft(d) {
     if (!d) { resetForm(); return; }
     $('tradeNumber').value = d.tradeNumber;
-    $('account').value = d.account;
     syncInstrument(d.instrument);
     $('contracts').value = d.contracts;
     $('strategy').value = d.strategy;
@@ -2620,7 +2610,6 @@
     if (!trade) return;
     state.editingId = id;
     $('tradeNumber').value = trade.tradeNumber;
-    $('account').value = trade.account;
     $('instrument').value = trade.instrument;
     $('contracts').value = trade.contracts;
     ensureStrategyOption($('strategy'), trade.strategy);
@@ -2683,7 +2672,6 @@
     state.editingId = null;
     /* New trade: no copied trade number, no copied id. */
     $('tradeNumber').value = '';
-    $('account').value = last.account;
     $('instrument').value = last.instrument;
     $('contracts').value = last.contracts > 0 ? String(last.contracts) : '';
     ensureStrategyOption($('strategy'), last.strategy);
@@ -2964,8 +2952,7 @@
      * consistent immediately (not only after a reload). A touched value is
      * final and is left alone. */
     if (!tradesPerDayTouched) {
-      const activeAccountEl = $('account');
-      const activeAccount = activeAccountEl && activeAccountEl.value ? activeAccountEl.value : ACCOUNTS[0];
+      const activeAccount = activeAccount();
       const savedLimit = limits[activeAccount];
       const tradesMirrorEl = $('riskTradesPerDayInput');
       if (tradesMirrorEl && Number.isFinite(savedLimit)) {
@@ -3381,20 +3368,13 @@
       });
     });
 
-    /* Account selector (header) syncs bidirectionally with the form account. */
+    /* Account selector (header): a global control, not per-trade. */
     const accountSelector = $('accountSelector');
-    const accountField = $('account');
     if (accountSelector) {
       accountSelector.addEventListener('change', function () {
-        if (accountField) accountField.value = accountSelector.value;
         updatePreview();
         renderBalances();
-      });
-    }
-    if (accountField) {
-      accountField.addEventListener('change', function () {
-        if (accountSelector) accountSelector.value = accountField.value;
-        renderBalances();
+        renderAll();
       });
     }
 
@@ -3533,7 +3513,7 @@
       riskInstrumentField.addEventListener('change', onRiskInstrument);
     }
 
-    ['account', 'instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
+    ['instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
       'stop', 'plannedRisk',
       'entryDate',
       'riskStopTicks', 'riskRatio', 'riskDailyPctInput', 'riskTradesPerDayInput'].forEach(function (id) {
@@ -3615,9 +3595,9 @@
       });
     }
 
-    /* The discipline panel is account-scoped: refresh it when the form's
-     * account changes while the dashboard is visible. */
-    const accountSelect = $('account');
+    /* The discipline panel is account-scoped: refresh it when the global
+     * account selector changes while the dashboard is visible. */
+    const accountSelect = $('accountSelector');
     if (accountSelect) {
       accountSelect.addEventListener('change', function () {
         if (isDashboardVisible()) renderGamification();
