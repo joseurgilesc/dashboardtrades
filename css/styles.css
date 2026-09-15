@@ -39,6 +39,8 @@
   --accent-hover: #5B9BF8;
   --accent-soft: rgba(59, 130, 246, 0.12);
   --warn: var(--amber);
+  --btn-hover: #1C2532;
+  --on-accent: #FFFFFF;
 
   --radius: 8px;
   --radius-sm: 6px;
@@ -748,7 +750,7 @@ input.is-draft {
 }
 
 .btn:hover {
-  background: #1C2532;
+  background: var(--btn-hover);
   border-color: var(--border-strong);
 }
 
@@ -764,7 +766,7 @@ input.is-draft {
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
