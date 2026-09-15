@@ -17,29 +17,29 @@
 
 :root {
   /* Authoritative palette. */
-  --bg: #0B0F14;
-  --panel: #111827;
-  --panel-2: #161D27;
-  --border: #263241;
-  --text: #E6EDF3;
-  --text-muted: #8B98A5;
-  --text-faint: #5F6B78;
-  --pos: #22C55E;
-  --neg: #EF4444;
-  --accent: #3B82F6;
-  --cyan: #22D3EE;
-  --amber: #F59E0B;
-  --purple: #8B5CF6;
+  --bg: #132440;
+  --panel: #16476A;
+  --panel-2: #1B5684;
+  --border: #275F8E;
+  --text: #EDF3F6;
+  --text-muted: #94A9BC;
+  --text-faint: #68829B;
+  --pos: #3B9797;
+  --neg: #BF092F;
+  --accent: #3B9797;
+  --cyan: #3B9797;
+  --amber: #E8A33D;
+  --purple: #7E6FC0;
 
   /* Compatibility aliases for the class names the old theme referenced. */
   --bg-elev: var(--panel);
   --bg-elev-2: var(--panel-2);
-  --bg-input: #0E141B;
-  --border-strong: #33475E;
-  --accent-hover: #5B9BF8;
-  --accent-soft: rgba(59, 130, 246, 0.12);
+  --bg-input: #102038;
+  --border-strong: #306B9C;
+  --accent-hover: #4FB4B4;
+  --accent-soft: rgba(59, 151, 151, 0.16);
   --warn: var(--amber);
-  --btn-hover: #1C2532;
+  --btn-hover: #1B5684;
   --on-accent: #FFFFFF;
 
   --radius: 8px;
@@ -191,21 +191,39 @@ textarea {
   gap: 8px;
 }
 
-/* Global day selector (header). A dark-scheme date input so the native picker
- * calendar and text both match the terminal theme. */
-.global-date {
+/* Global day/risk controls (header). Small labelled inputs that keep the
+ * native picker readable on the dark theme. */
+.header-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   align-self: center;
 }
 
-.global-date input {
-  padding: 5px 8px;
+.header-ctl {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 10px;
   background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+}
+
+.header-ctl input {
+  padding: 0;
+  background: transparent;
+  border: 0;
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color-scheme: dark;
+}
+
+.header-ctl input[type="number"] {
+  width: 48px;
 }
 
 .chip {
