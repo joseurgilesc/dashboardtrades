@@ -73,6 +73,7 @@ function extractFunction(src, signature) {
 
 const extracted = [
   extractFunction(appSrc, 'function refreshNextTradeNumber()'),
+  extractFunction(appSrc, 'function writeTimeSelect(prefix, value)'),
   extractFunction(appSrc, 'function resetForm()'),
   extractFunction(appSrc, 'function handleDelete(id)'),
   extractFunction(appSrc, 'function handleClearAll()')

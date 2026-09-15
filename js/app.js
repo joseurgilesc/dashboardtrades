@@ -142,6 +142,24 @@
     return hh + ':' + mm;
   }
 
+  /** Reads "HH:MM" from the hour/minute selects for one time field. */
+  function readTimeSelect(prefix) {
+    const h = $(prefix + 'Hour');
+    const m = $(prefix + 'Minute');
+    if (h && m) return h.value + ':' + m.value;
+    return '';
+  }
+
+  /** Writes "HH:MM" into the hour/minute selects for one time field. Seconds
+   *  are dropped, so an imported "11:56:24" still lands on the minute grid. */
+  function writeTimeSelect(prefix, value) {
+    const parts = String(value || '').split(':');
+    const h = $(prefix + 'Hour');
+    const m = $(prefix + 'Minute');
+    if (h) h.value = parts[0] ? String(parts[0]).padStart(2, '0') : '00';
+    if (m) m.value = parts[1] ? String(parts[1]).padStart(2, '0') : '00';
+  }
+
   function parseLocalDateTime(date, time) {
     if (!date) return null;
     const d = String(date).split('-').map(Number);
@@ -314,6 +332,16 @@
     fillSelect($('direction'), DIRECTIONS);
     fillSelect($('exitType'), EXIT_TYPES);
     fillSelect($('emotion'), EMOTIONS);
+
+    /* Hour/minute selects for the time fields (native picker replaced). */
+    const hours = [];
+    const minutes = [];
+    for (let h = 0; h < 24; h += 1) hours.push(String(h).padStart(2, '0'));
+    for (let m = 0; m < 60; m += 1) minutes.push(String(m).padStart(2, '0'));
+    fillSelect($('entryTimeHour'), hours);
+    fillSelect($('entryTimeMinute'), minutes);
+    fillSelect($('exitTimeHour'), hours);
+    fillSelect($('exitTimeMinute'), minutes);
 
     fillSelect($('filterAccount'), ACCOUNTS, 'Todas las cuentas');
     fillSelect($('filterInstrument'), Object.keys(INSTRUMENTS), 'Todos los instrumentos');
@@ -888,10 +916,10 @@
       strategy: $('strategy').value,
       direction: $('direction').value,
       entryDate: $('entryDate').value,
-      entryTime: $('entryTime').value,
+      entryTime: readTimeSelect('entryTime'),
       entryPrice: parseFloat($('entryPrice').value),
       exitDate: $('exitDate').value,
-      exitTime: $('exitTime').value,
+      exitTime: readTimeSelect('exitTime'),
       exitPrice: parseFloat($('exitPrice').value),
       stop: parseFloat($('stop').value),
       /* The USD target input is gone; a saved trade's numeric `target` is
@@ -2272,8 +2300,8 @@
     /* Both times default to the current moment; the exit time is re-read on
      * every reset so a save never leaves a stale time behind. */
     const now = nowTime();
-    $('entryTime').value = now;
-    $('exitTime').value = now;
+    writeTimeSelect('entryTime', now);
+    writeTimeSelect('exitTime', now);
     /* Stop and planned risk are optional and start empty. The legacy USD
      * target no longer has a field; a new trade starts without one. */
     $('stop').value = '';
@@ -2358,10 +2386,10 @@
     $('strategy').value = trade.strategy;
     $('direction').value = trade.direction;
     $('entryDate').value = trade.entryDate;
-    $('entryTime').value = trade.entryTime;
+    writeTimeSelect('entryTime', trade.entryTime);
     $('entryPrice').value = trade.entryPrice;
     $('exitDate').value = trade.exitDate;
-    $('exitTime').value = trade.exitTime;
+    writeTimeSelect('exitTime', trade.exitTime);
     $('exitPrice').value = trade.exitPrice;
     $('stop').value = trade.stop > 0 ? trade.stop : '';
     /* No USD target field anymore: preserve the saved value for the round-trip. */
@@ -2430,8 +2458,8 @@
     $('entryDate').value = state.globalDate || todayISO();
     $('exitDate').value = state.globalDate || todayISO();
     const now = nowTime();
-    $('entryTime').value = now;
-    $('exitTime').value = now;
+    writeTimeSelect('entryTime', now);
+    writeTimeSelect('exitTime', now);
     /* The copied contracts value belongs to the user now. */
     contractsTouched = true;
     /* The copied stop is user-owned (no draft); the cleared exit is draftable. */
@@ -3093,11 +3121,10 @@
       });
     }
 
-    /* "Ahora" shortcuts: set a time input to the current clock time. */
+    /* "Ahora" shortcuts: set a time field to the current clock time. */
     Array.prototype.forEach.call(document.querySelectorAll('[data-now-target]'), function (btn) {
       btn.addEventListener('click', function () {
-        const target = $(btn.getAttribute('data-now-target'));
-        if (target) target.value = nowTime();
+        writeTimeSelect(btn.getAttribute('data-now-target'), nowTime());
       });
     });
 
@@ -3194,7 +3221,7 @@
 
     ['account', 'instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
       'stop', 'plannedRisk',
-      'entryDate', 'entryTime', 'exitDate', 'exitTime',
+      'entryDate', 'entryTimeHour', 'entryTimeMinute', 'exitDate', 'exitTimeHour', 'exitTimeMinute',
       'riskStopTicks', 'riskRatio', 'riskDailyPctInput', 'riskTradesPerDayInput'].forEach(function (id) {
       const el = $(id);
       if (el) el.addEventListener('input', updatePreview);

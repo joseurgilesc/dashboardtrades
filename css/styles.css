@@ -24,8 +24,8 @@
   --text: #F2F6FA;
   --text-muted: #98A7BA;
   --text-faint: #66788F;
-  --pos: #4ADE80;
-  --neg: #F6465D;
+  --pos: #22C55E;
+  --neg: #EF4444;
   --accent: #2DD4BF;
   --cyan: #22D3EE;
   --amber: #FBBF24;
@@ -277,6 +277,36 @@ textarea {
 
 .header-ctl input[type="number"] {
   width: 48px;
+}
+
+.header-ctl-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.header-ctl .unit {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Compact hour/minute selects replace the native (circular) time picker. */
+.time-select {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.time-select select {
+  height: var(--control-md);
+  padding: 0 2px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.time-sep {
+  color: var(--text-muted);
 }
 
 .chip {
@@ -1174,7 +1204,7 @@ input.is-draft {
 
 /* Budget fit: affordable instruments get a teal tint, the rest are dimmed.
  * The selected row's accent highlight (below) wins over the tint. */
-.risk-table tr.risk-row-viable td { background: rgba(74, 222, 128, 0.06); }
+.risk-table tr.risk-row-viable td { background: rgba(34, 197, 94, 0.06); }
 .risk-table tr.risk-row-not-viable td { opacity: 0.55; }
 .risk-fit { margin-left: 6px; font-size: var(--text-2xs); font-weight: 600; }
 .risk-fit-yes { color: var(--pos); }
@@ -1186,8 +1216,8 @@ input.is-draft {
 }
 
 /* Trades table: a subtle signal tint behind +/- cells, never color alone. */
-.trades-table td.num.pos { background: rgba(74, 222, 128, 0.07); }
-.trades-table td.num.neg { background: rgba(246, 70, 93, 0.07); }
+.trades-table td.num.pos { background: rgba(34, 197, 94, 0.07); }
+.trades-table td.num.neg { background: rgba(239, 68, 68, 0.07); }
 
 /* Compact "now" button beside the time inputs. */
 .btn-mini {

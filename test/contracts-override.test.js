@@ -81,6 +81,7 @@ const extracted = [
   extractFunction(appSrc, 'function syncContracts(value)'),
   extractFunction(appSrc, 'function clampDailyRiskPct(value)'),
   extractFunction(appSrc, 'function renderRiskPanel()'),
+  extractFunction(appSrc, 'function readTimeSelect(prefix)'),
   extractFunction(appSrc, 'function readForm()')
 ].join('\n');
 
