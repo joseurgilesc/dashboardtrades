@@ -12,6 +12,7 @@
 
   const state = {
     activeTab: 'registro',
+    activeTrade: 0,
     editingId: null,
     sortKey: 'entryDate',
     sortDir: 'asc',
@@ -36,6 +37,9 @@
   let currentUid = null;
   let currentUser = null;
   let authMode = 'signin';
+
+  /* Three concurrent trade drafts; indices 0..2 map to the trade tabs. */
+  let drafts = [null, null, null];
 
   /* True once the user edits the contracts field by hand, so the risk
    * calculator stops prefilling it for the current trade. Reset on reset. */
@@ -2336,6 +2340,83 @@
     updatePreview();
   }
 
+  /** Snapshots the active form + calculator state for a trade tab. */
+  function captureDraft() {
+    return {
+      tradeNumber: $('tradeNumber').value,
+      account: $('account').value,
+      instrument: $('instrument').value,
+      contracts: $('contracts').value,
+      strategy: $('strategy').value,
+      direction: $('direction').value,
+      entryDate: $('entryDate').value,
+      entryTime: readTimeSelect('entryTime'),
+      entryPrice: $('entryPrice').value,
+      exitDate: $('exitDate').value,
+      exitTime: readTimeSelect('exitTime'),
+      exitPrice: $('exitPrice').value,
+      stop: $('stop').value,
+      plannedRisk: $('plannedRisk').value,
+      exitType: $('exitType').value,
+      emotion: $('emotion').value,
+      notes: $('notes').value,
+      stopTicks: $('riskStopTicks') ? $('riskStopTicks').value : '',
+      ratio: $('riskRatio') ? $('riskRatio').value : ''
+    };
+  }
+
+  /** Restores a draft into the form; a null draft resets to a fresh trade. */
+  function restoreDraft(d) {
+    if (!d) { resetForm(); return; }
+    $('tradeNumber').value = d.tradeNumber;
+    $('account').value = d.account;
+    syncInstrument(d.instrument);
+    $('contracts').value = d.contracts;
+    $('strategy').value = d.strategy;
+    $('direction').value = d.direction;
+    $('entryDate').value = d.entryDate;
+    writeTimeSelect('entryTime', d.entryTime);
+    $('entryPrice').value = d.entryPrice;
+    $('exitDate').value = d.exitDate;
+    writeTimeSelect('exitTime', d.exitTime);
+    $('exitPrice').value = d.exitPrice;
+    $('stop').value = d.stop;
+    $('plannedRisk').value = d.plannedRisk;
+    $('exitType').value = d.exitType;
+    $('emotion').value = d.emotion;
+    $('notes').value = d.notes;
+    if (d.stopTicks !== undefined && $('riskStopTicks')) $('riskStopTicks').value = d.stopTicks;
+    if (d.ratio !== undefined && $('riskRatio')) $('riskRatio').value = d.ratio;
+    /* Restored values are user-owned: the calculator must not re-seed them. */
+    contractsTouched = true;
+    stopTicksTouched = !!($('riskStopTicks') && $('riskStopTicks').value);
+    renderEmotionDot();
+  }
+
+  /** Reflects the active trade tab in the tab buttons. */
+  function updateTradeTabUI() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-trade-tab]'), function (btn) {
+      const idx = Number(btn.getAttribute('data-trade-tab'));
+      btn.classList.toggle('active', idx === state.activeTrade);
+      btn.classList.toggle('filled', !!drafts[idx]);
+      btn.setAttribute('aria-selected', idx === state.activeTrade ? 'true' : 'false');
+    });
+  }
+
+  /** Switches to another trade draft: saves the current one, loads the target. */
+  function switchTradeTab(index) {
+    if (index === state.activeTrade) return;
+    drafts[state.activeTrade] = captureDraft();
+    state.activeTrade = index;
+    state.editingId = null;
+    restoreDraft(drafts[index]);
+    $('formTitle').textContent = 'Trade ' + (index + 1);
+    $('btnSave').textContent = 'Guardar trade';
+    $('btnCancel').hidden = true;
+    updateTradeTabUI();
+    renderAll();
+  }
+
   function handleSubmit(event) {
     event.preventDefault();
     const errors = validateForm();
@@ -3111,6 +3192,13 @@
     const infoButton = $('btnInstrumentInfo');
     if (infoButton) infoButton.addEventListener('click', toggleInstrumentInfo);
 
+    /* Trade tabs: three concurrent draft slots, each with its own calculator. */
+    Array.prototype.forEach.call(document.querySelectorAll('[data-trade-tab]'), function (btn) {
+      btn.addEventListener('click', function () {
+        switchTradeTab(Number(btn.getAttribute('data-trade-tab')));
+      });
+    });
+
     /* Global day selector: changing it re-filters the trades table, KPIs and
      * charts to that single day (empty = every day). */
     const globalDateField = $('globalDate');
@@ -3661,6 +3749,8 @@
       loadBalancesIntoForm();
       loadRiskSettingsIntoForm();
       loadInstrumentConfigIntoForm();
+      drafts = [null, null, null];
+      state.activeTrade = 0;
       resetForm();
       const gate = $('authGate');
       if (gate) gate.hidden = true;

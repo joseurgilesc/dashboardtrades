@@ -391,8 +391,13 @@
       </div>
 
       <div class="card">
-        <div class="card-header">
+        <div class="card-header card-header-row">
           <h2 id="formTitle">Nuevo trade</h2>
+          <div class="trade-tabs" role="tablist" aria-label="Trades simultáneos">
+            <button type="button" class="trade-tab active" role="tab" data-trade-tab="0" aria-selected="true">Trade 1</button>
+            <button type="button" class="trade-tab" role="tab" data-trade-tab="1" aria-selected="false">Trade 2</button>
+            <button type="button" class="trade-tab" role="tab" data-trade-tab="2" aria-selected="false">Trade 3</button>
+          </div>
         </div>
 
         <div id="formErrors" class="form-errors" role="alert" hidden></div>
