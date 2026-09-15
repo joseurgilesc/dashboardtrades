@@ -557,6 +557,14 @@ textarea {
 
 .clock-face[data-phase='minute'] .clock-hour { opacity: 0.35; }
 
+/* Google user avatar in the header. */
+.user-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .chip {
   display: flex;
   flex-direction: column;
@@ -865,6 +873,13 @@ select {
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+/* Native <option> lists must be dark too, otherwise white-on-white text
+ * appears when the dropdown opens. */
+select option {
+  background: var(--panel);
+  color: var(--text);
 }
 
 textarea {

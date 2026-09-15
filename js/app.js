@@ -3874,7 +3874,16 @@
     showVerificationStatus('');
 
     const emailEl = $('userEmail');
-    if (emailEl) emailEl.textContent = user.email || '';
+    if (emailEl) emailEl.textContent = user.displayName || user.email || '';
+    const avatarEl = $('userAvatar');
+    if (avatarEl) {
+      if (user.photoURL) {
+        avatarEl.src = user.photoURL;
+        avatarEl.hidden = false;
+      } else {
+        avatarEl.hidden = true;
+      }
+    }
 
     /* Migrate the legacy localStorage journal on first login, then hydrate.
      * A migration failure is logged and never blocks login. */
