@@ -327,6 +327,7 @@
 
   function initSelects() {
     fillSelect($('account'), ACCOUNTS);
+    fillSelect($('accountSelector'), ACCOUNTS);
     fillSelect($('instrument'), Object.keys(INSTRUMENTS));
     /* The calculator's selector is populated from the SAME catalog source as
      * the trade form's, so the instrument list is never hardcoded twice. */
@@ -425,28 +426,22 @@
   /* ------------------------------------------------------------------ */
 
   function renderBalances() {
+    /* The header selector is a synced view of the form account (the canonical
+     * per-trade value), so tab switches keep the header in sync. */
+    const formEl = $('account');
+    const selector = $('accountSelector');
+    const account = (formEl && formEl.value) ? formEl.value : ACCOUNTS[0];
+    if (selector && selector.value !== account) selector.value = account;
     const initial = Store.getBalances();
     const balances = Store.getAccountBalances();
-    ACCOUNTS.forEach(function (account) {
-      const chip = $('chip' + account);
-      if (chip) {
-        const value = balances[account] || 0;
-        chip.textContent = formatMoney(value);
-        chip.className = 'chip-value ' + signClass(value - (initial[account] || 0));
-      }
-      const sub = $('chipSub' + account);
-      if (sub) sub.textContent = 'Inicial ' + formatMoney(initial[account] || 0);
-    });
-    const total = Store.getTotalBalance();
-    const totalEl = $('chipTotal');
-    if (totalEl) totalEl.textContent = formatMoney(total);
-    const totalSub = $('chipSubTotal');
-    if (totalSub) {
-      const initialTotal = ACCOUNTS.reduce(function (sum, account) {
-        return sum + (initial[account] || 0);
-      }, 0);
-      totalSub.textContent = 'Inicial ' + formatMoney(initialTotal);
+    const value = balances[account] || 0;
+    const balanceEl = $('chipBalance');
+    if (balanceEl) {
+      balanceEl.textContent = formatMoney(value);
+      balanceEl.className = 'chip-value ' + signClass(value - (initial[account] || 0));
     }
+    const subEl = $('chipSubBalance');
+    if (subEl) subEl.textContent = 'Inicial ' + formatMoney(initial[account] || 0);
   }
 
   /* ------------------------------------------------------------------ */
@@ -922,7 +917,7 @@
       entryDate: $('entryDate').value,
       entryTime: readTimeSelect('entryTime'),
       entryPrice: parseFloat($('entryPrice').value),
-      exitDate: $('exitDate').value,
+      exitDate: $('entryDate').value,
       exitTime: readTimeSelect('exitTime'),
       exitPrice: parseFloat($('exitPrice').value),
       stop: parseFloat($('stop').value),
@@ -2300,7 +2295,6 @@
     contractsTouched = true;
     $('contracts').value = '1';
     $('entryDate').value = state.globalDate || todayISO();
-    $('exitDate').value = state.globalDate || todayISO();
     /* Both times default to the current moment; the exit time is re-read on
      * every reset so a save never leaves a stale time behind. */
     const now = nowTime();
@@ -2352,7 +2346,6 @@
       entryDate: $('entryDate').value,
       entryTime: readTimeSelect('entryTime'),
       entryPrice: $('entryPrice').value,
-      exitDate: $('exitDate').value,
       exitTime: readTimeSelect('exitTime'),
       exitPrice: $('exitPrice').value,
       stop: $('stop').value,
@@ -2377,7 +2370,6 @@
     $('entryDate').value = d.entryDate;
     writeTimeSelect('entryTime', d.entryTime);
     $('entryPrice').value = d.entryPrice;
-    $('exitDate').value = d.exitDate;
     writeTimeSelect('exitTime', d.exitTime);
     $('exitPrice').value = d.exitPrice;
     $('stop').value = d.stop;
@@ -2469,7 +2461,6 @@
     $('entryDate').value = trade.entryDate;
     writeTimeSelect('entryTime', trade.entryTime);
     $('entryPrice').value = trade.entryPrice;
-    $('exitDate').value = trade.exitDate;
     writeTimeSelect('exitTime', trade.exitTime);
     $('exitPrice').value = trade.exitPrice;
     $('stop').value = trade.stop > 0 ? trade.stop : '';
@@ -2537,7 +2528,6 @@
     $('exitPrice').value = '';
     $('exitType').value = EXIT_TYPES[0];
     $('entryDate').value = state.globalDate || todayISO();
-    $('exitDate').value = state.globalDate || todayISO();
     const now = nowTime();
     writeTimeSelect('entryTime', now);
     writeTimeSelect('exitTime', now);
@@ -3216,6 +3206,42 @@
       });
     });
 
+    /* Account selector (header) syncs bidirectionally with the form account. */
+    const accountSelector = $('accountSelector');
+    const accountField = $('account');
+    if (accountSelector) {
+      accountSelector.addEventListener('change', function () {
+        if (accountField) accountField.value = accountSelector.value;
+        updatePreview();
+        renderBalances();
+      });
+    }
+    if (accountField) {
+      accountField.addEventListener('change', function () {
+        if (accountSelector) accountSelector.value = accountField.value;
+        renderBalances();
+      });
+    }
+
+    /* +/- steppers: increment/decrement a number input, clamped to min/max. */
+    Array.prototype.forEach.call(document.querySelectorAll('[data-step-up], [data-step-down]'), function (btn) {
+      btn.addEventListener('click', function () {
+        const targetId = btn.getAttribute('data-step-up') || btn.getAttribute('data-step-down');
+        const el = $(targetId);
+        if (!el) return;
+        const dir = btn.hasAttribute('data-step-up') ? 1 : -1;
+        const step = parseFloat(btn.getAttribute('data-step') || el.step || '1');
+        const min = (el.min !== undefined && el.min !== '') ? parseFloat(el.min) : -Infinity;
+        const max = (el.max !== undefined && el.max !== '') ? parseFloat(el.max) : Infinity;
+        let v = parseFloat(el.value);
+        if (!Number.isFinite(v)) v = 0;
+        v = Math.min(max, Math.max(min, Math.round((v + dir * step) * 100) / 100));
+        el.value = String(v);
+        el.dispatchEvent(new Event('input'));
+        el.dispatchEvent(new Event('change'));
+      });
+    });
+
     $('btnCancel').addEventListener('click', function () {
       resetForm();
       /* Drop the edit highlight from the table. */
@@ -3309,7 +3335,7 @@
 
     ['account', 'instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
       'stop', 'plannedRisk',
-      'entryDate', 'entryTimeHour', 'entryTimeMinute', 'exitDate', 'exitTimeHour', 'exitTimeMinute',
+      'entryDate', 'entryTimeHour', 'entryTimeMinute', 'exitTimeHour', 'exitTimeMinute',
       'riskStopTicks', 'riskRatio', 'riskDailyPctInput', 'riskTradesPerDayInput'].forEach(function (id) {
       const el = $(id);
       if (el) el.addEventListener('input', updatePreview);

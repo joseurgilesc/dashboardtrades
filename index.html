@@ -26,26 +26,15 @@
         <p class="subtitle">Registro de operaciones, métricas y análisis</p>
       </div>
     </div>
-    <div class="balances" aria-label="Saldos de cuentas">
+    <div class="account-box" aria-label="Cuenta activa">
+      <label class="header-ctl" title="Cuenta activa">
+        <span class="chip-label">Cuenta</span>
+        <select id="accountSelector"></select>
+      </label>
       <div class="chip">
-        <span class="chip-label">Sim</span>
-        <span class="chip-value" id="chipSim">$0.00</span>
-        <span class="chip-sub" id="chipSubSim"></span>
-      </div>
-      <div class="chip">
-        <span class="chip-label">Real</span>
-        <span class="chip-value" id="chipReal">$0.00</span>
-        <span class="chip-sub" id="chipSubReal"></span>
-      </div>
-      <div class="chip">
-        <span class="chip-label">Fondeo</span>
-        <span class="chip-value" id="chipFondeo">$0.00</span>
-        <span class="chip-sub" id="chipSubFondeo"></span>
-      </div>
-      <div class="chip chip-total">
-        <span class="chip-label">Total</span>
-        <span class="chip-value" id="chipTotal">$0.00</span>
-        <span class="chip-sub" id="chipSubTotal"></span>
+        <span class="chip-label">Balance</span>
+        <span class="chip-value" id="chipBalance">$0.00</span>
+        <span class="chip-sub" id="chipSubBalance"></span>
       </div>
     </div>
     <div class="header-controls">
@@ -55,14 +44,20 @@
       </label>
       <label class="header-ctl" title="Riesgo diario sobre el capital (1–3 %)">
         <span class="chip-label">Riesgo diario</span>
-        <span class="header-ctl-row">
+        <div class="stepper">
+          <button type="button" class="stepper-btn" data-step-down="riskDailyPctInput" data-step="0.1" aria-label="Menos riesgo">−</button>
           <input type="number" id="riskDailyPctInput" min="1" max="3" step="0.1" inputmode="decimal" value="2">
+          <button type="button" class="stepper-btn" data-step-up="riskDailyPctInput" data-step="0.1" aria-label="Más riesgo">+</button>
           <span class="unit">%</span>
-        </span>
+        </div>
       </label>
       <label class="header-ctl" title="Operaciones por día">
         <span class="chip-label">Op/día</span>
-        <input type="number" id="riskTradesPerDayInput" min="1" step="1" inputmode="numeric" value="3">
+        <div class="stepper">
+          <button type="button" class="stepper-btn" data-step-down="riskTradesPerDayInput" data-step="1" aria-label="Menos operaciones">−</button>
+          <input type="number" id="riskTradesPerDayInput" min="1" step="1" inputmode="numeric" value="3">
+          <button type="button" class="stepper-btn" data-step-up="riskTradesPerDayInput" data-step="1" aria-label="Más operaciones">+</button>
+        </div>
       </label>
     </div>
     <div class="user-box" id="userBox" hidden>
@@ -112,7 +107,7 @@
   <p id="appStatus" class="app-status" role="status" aria-live="polite" hidden></p>
 
   <div class="filters-toggle" id="filtersToggle">
-    <button type="button" class="btn btn-ghost" id="btnToggleFilters" aria-expanded="false" aria-controls="filtersBar">Filtros</button>
+    <button type="button" class="btn btn-ghost btn-icon-only" id="btnToggleFilters" aria-expanded="false" aria-controls="filtersBar" title="Filtros"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/></svg></button>
   </div>
 
   <div class="filters" id="filtersBar" aria-label="Filtros" hidden>
@@ -246,6 +241,28 @@
               </div>
             </div>
 
+            <div class="preview-group preview-group--size">
+              <h4 class="preview-group-title">Tamaño</h4>
+              <div class="preview-group-body">
+                <div class="preview-item is-info">
+                  <label class="preview-label" for="riskContracts">Contratos (N) — manual</label>
+                  <input type="number" id="riskContracts" class="preview-input" min="0" step="1" inputmode="numeric" value="">
+                </div>
+                <div class="preview-item is-loss">
+                  <span class="preview-label">Riesgo sugerido (N × P_m)</span>
+                  <span class="preview-value" id="riskTotal">—</span>
+                </div>
+                <div class="preview-item is-loss">
+                  <span class="preview-label">Riesgo real (contratos × stop)</span>
+                  <span class="preview-value" id="riskRealRisk">—</span>
+                </div>
+                <div class="preview-item is-loss">
+                  <span class="preview-label">% del capital (riesgo real)</span>
+                  <span class="preview-value" id="riskRealRiskPct">—</span>
+                </div>
+              </div>
+            </div>
+
             <div class="preview-group preview-group--budget">
               <h4 class="preview-group-title">Presupuesto del día</h4>
               <div class="preview-group-body">
@@ -286,28 +303,6 @@
                 <div class="preview-item is-loss">
                   <span class="preview-label">Stop acumulado del día (todas las operaciones)</span>
                   <span class="preview-value" id="riskStopDaily">—</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="preview-group preview-group--size">
-              <h4 class="preview-group-title">Tamaño</h4>
-              <div class="preview-group-body">
-                <div class="preview-item is-info">
-                  <label class="preview-label" for="riskContracts">Contratos (N) — manual</label>
-                  <input type="number" id="riskContracts" class="preview-input" min="0" step="1" inputmode="numeric" value="">
-                </div>
-                <div class="preview-item is-loss">
-                  <span class="preview-label">Riesgo sugerido (N × P_m)</span>
-                  <span class="preview-value" id="riskTotal">—</span>
-                </div>
-                <div class="preview-item is-loss">
-                  <span class="preview-label">Riesgo real (contratos × stop)</span>
-                  <span class="preview-value" id="riskRealRisk">—</span>
-                </div>
-                <div class="preview-item is-loss">
-                  <span class="preview-label">% del capital (riesgo real)</span>
-                  <span class="preview-value" id="riskRealRiskPct">—</span>
                 </div>
               </div>
             </div>
@@ -427,7 +422,11 @@
             <div class="form-row">
               <div class="field">
                 <label for="contracts">Contratos</label>
-                <input type="number" id="contracts" min="0" step="1" inputmode="decimal" value="1">
+                <div class="stepper">
+                  <button type="button" class="stepper-btn" data-step-down="contracts" data-step="1" aria-label="Menos contratos">−</button>
+                  <input type="number" id="contracts" min="0" step="1" inputmode="decimal" value="1">
+                  <button type="button" class="stepper-btn" data-step-up="contracts" data-step="1" aria-label="Más contratos">+</button>
+                </div>
               </div>
               <div class="field">
                 <label for="strategy">Estrategia</label>
@@ -457,7 +456,7 @@
                     <span class="time-sep">:</span>
                     <select id="entryTimeMinute" aria-label="Hora de entrada (minuto)"></select>
                   </div>
-                  <button type="button" class="btn btn-ghost btn-mini" data-now-target="entryTime" title="Poner la hora actual">Ahora</button>
+                  <button type="button" class="btn btn-ghost btn-mini" data-now-target="entryTime" title="Poner la hora actual" aria-label="Poner la hora actual"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
                 </div>
               </div>
             </div>
@@ -473,10 +472,6 @@
                 <span class="field-suggestion" id="exitSuggestion" hidden></span>
               </div>
               <div class="field field-exit">
-                <label for="exitDate">Fecha de salida</label>
-                <input type="date" id="exitDate">
-              </div>
-              <div class="field field-exit">
                 <label for="exitTime">Hora de salida</label>
                 <div class="field-inline">
                   <div class="time-select">
@@ -484,7 +479,7 @@
                     <span class="time-sep">:</span>
                     <select id="exitTimeMinute" aria-label="Hora de salida (minuto)"></select>
                   </div>
-                  <button type="button" class="btn btn-ghost btn-mini" data-now-target="exitTime" title="Poner la hora actual">Ahora</button>
+                  <button type="button" class="btn btn-ghost btn-mini" data-now-target="exitTime" title="Poner la hora actual" aria-label="Poner la hora actual"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
                 </div>
               </div>
             </div>
