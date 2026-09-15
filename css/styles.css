@@ -1172,9 +1172,29 @@ input.is-draft {
   font-variant-numeric: tabular-nums;
 }
 
+/* Budget fit: affordable instruments get a teal tint, the rest are dimmed.
+ * The selected row's accent highlight (below) wins over the tint. */
+.risk-table tr.risk-row-viable td { background: rgba(45, 212, 191, 0.06); }
+.risk-table tr.risk-row-not-viable td { opacity: 0.55; }
+.risk-fit { margin-left: 6px; font-size: var(--text-2xs); font-weight: 600; }
+.risk-fit-yes { color: var(--pos); }
+.risk-fit-no { color: var(--text-faint); }
+
 .risk-table tr.risk-row-active td {
   background: var(--accent-soft);
   color: var(--text);
+}
+
+/* Trades table: a subtle signal tint behind +/- cells, never color alone. */
+.trades-table td.num.pos { background: rgba(45, 212, 191, 0.07); }
+.trades-table td.num.neg { background: rgba(246, 70, 93, 0.07); }
+
+/* Compact "now" button beside the time inputs. */
+.btn-mini {
+  height: var(--control-sm);
+  padding: 0 8px;
+  font-size: var(--text-2xs);
+  font-weight: 500;
 }
 
 /* Red circuit-breaker alert: shown only while the calculator is BLOQUEADO. */

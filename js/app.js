@@ -107,6 +107,18 @@
     return '';
   }
 
+  /* Gains/losses are never communicated by color alone: positive values get an
+   * explicit "+" so the sign survives colorblindness and monochrome views. */
+  function signedMoney(value) {
+    const n = Number(value);
+    return n > 0 ? '+' + formatMoney(n) : formatMoney(n);
+  }
+
+  function signedNumber(value, decimals) {
+    const n = Number(value);
+    return n > 0 ? '+' + formatNumber(n, decimals) : formatNumber(n, decimals);
+  }
+
   function escapeHtml(value) {
     return String(value === null || value === undefined ? '' : value)
       .replace(/&/g, '&amp;')
@@ -586,9 +598,9 @@
       '<td class="num">' + escapeHtml(t.exitPrice) + '</td>' +
       '<td>' + escapeHtml(t.exitType) + '</td>' +
       '<td><span class="emotion-cell">' + emotionDotHtml(t.emotion) + escapeHtml(t.emotion) + '</span></td>' +
-      '<td class="num ' + signClass(t.points) + '">' + formatNumber(t.points) + '</td>' +
-      '<td class="num ' + signClass(t.net) + '">' + formatMoney(t.net) + '</td>' +
-      '<td class="num ' + signClass(t.cumulative) + '">' + formatMoney(t.cumulative) + '</td>' +
+      '<td class="num ' + signClass(t.points) + '">' + signedNumber(t.points) + '</td>' +
+      '<td class="num ' + signClass(t.net) + '">' + signedMoney(t.net) + '</td>' +
+      '<td class="num ' + signClass(t.cumulative) + '">' + signedMoney(t.cumulative) + '</td>' +
       '<td class="col-actions">' +
         '<button type="button" class="btn-icon" data-action="edit" data-id="' + escapeHtml(t.id) + '">Editar</button>' +
         '<button type="button" class="btn-icon danger" data-action="delete" data-id="' + escapeHtml(t.id) + '">Eliminar</button>' +
@@ -1082,15 +1094,37 @@
    * pointValue`. The selection is the shared one: the calculator selector in
    * Block 1 and the trade form's `#instrument` are always the same value.
    */
-  function renderRiskMarketTable() {
+  function renderRiskMarketTable(capital, riskPct, tradesPerDay, account) {
     const body = $('riskMarketBody');
     if (!body || typeof INSTRUMENTS === 'undefined') return;
     const selected = ($('instrument') && $('instrument').value) || '';
     body.innerHTML = Object.keys(INSTRUMENTS).map(function (id) {
       const spec = INSTRUMENTS[id];
-      return '<tr' + (id === selected ? ' class="risk-row-active"' : '') + '>' +
+      /* A row is "viable" when the current budget affords at least one contract
+       * at the instrument's resolved (AUTO or fixed) stop distance. */
+      let fit = null;
+      if (typeof Store !== 'undefined' && Store.resolveInstrumentConfig && Store.minBalanceForOneContract) {
+        const cfg = Store.resolveInstrumentConfig(account, id, {
+          balance: capital, riskPct: riskPct, tradesPerDay: tradesPerDay
+        });
+        const minBal = Store.minBalanceForOneContract({
+          instrument: id, riskPct: riskPct, tradesPerDay: tradesPerDay,
+          stopTicks: cfg && cfg.valid ? cfg.stopTicks : NaN
+        });
+        if (Number.isFinite(minBal)) {
+          fit = { min: minBal, fits: Number.isFinite(capital) && capital >= minBal };
+        }
+      }
+      const rowClass = (id === selected ? 'risk-row-active' : '') +
+        (fit ? (fit.fits ? ' risk-row-viable' : ' risk-row-not-viable') : '');
+      const badge = fit
+        ? (fit.fits
+            ? '<span class="risk-fit risk-fit-yes" title="Alcanza para 1 contrato">✓</span>'
+            : '<span class="risk-fit risk-fit-no" title="Mínimo ' + escapeHtml(formatMoney(fit.min)) + '">✗</span>')
+        : '';
+      return '<tr' + (rowClass ? ' class="' + rowClass + '"' : '') + '>' +
         '<td><span class="cell-main">' + escapeHtml(id) + '</span> ' +
-          '<span class="muted">' + escapeHtml(spec.name) + '</span></td>' +
+          '<span class="muted">' + escapeHtml(spec.name) + '</span>' + badge + '</td>' +
         '<td class="num">' + escapeHtml(formatTickValue(spec)) + '</td>' +
         '<td class="num">' + escapeHtml(String(spec.tick)) + '</td>' +
       '</tr>';
@@ -1623,7 +1657,7 @@
 
     setRiskItem('riskCapital', formatMoney(capital));
     setRiskItem('riskDailyPct', formatNumber(riskPct, 1) + ' %');
-    renderRiskMarketTable();
+    renderRiskMarketTable(capital, riskPct, tradesPerDay, account);
 
     const risk = Store.computeRisk({
       balance: capital,
@@ -3058,6 +3092,14 @@
         renderAll();
       });
     }
+
+    /* "Ahora" shortcuts: set a time input to the current clock time. */
+    Array.prototype.forEach.call(document.querySelectorAll('[data-now-target]'), function (btn) {
+      btn.addEventListener('click', function () {
+        const target = $(btn.getAttribute('data-now-target'));
+        if (target) target.value = nowTime();
+      });
+    });
 
     $('btnCancel').addEventListener('click', function () {
       resetForm();

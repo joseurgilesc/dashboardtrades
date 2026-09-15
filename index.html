@@ -443,7 +443,10 @@
               </div>
               <div class="field field-entry">
                 <label for="entryTime">Hora de entrada</label>
-                <input type="time" id="entryTime">
+                <div class="field-inline">
+                  <input type="time" id="entryTime">
+                  <button type="button" class="btn btn-ghost btn-mini" data-now-target="entryTime" title="Poner la hora actual">Ahora</button>
+                </div>
               </div>
             </div>
 
@@ -463,7 +466,10 @@
               </div>
               <div class="field field-exit">
                 <label for="exitTime">Hora de salida</label>
-                <input type="time" id="exitTime">
+                <div class="field-inline">
+                  <input type="time" id="exitTime">
+                  <button type="button" class="btn btn-ghost btn-mini" data-now-target="exitTime" title="Poner la hora actual">Ahora</button>
+                </div>
               </div>
             </div>
 

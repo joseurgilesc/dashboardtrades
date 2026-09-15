@@ -62,6 +62,8 @@ const uiCode = [
   extractFunction(appSrc, 'function emotionColor(emotion)'),
   extractFunction(appSrc, 'function emotionDotHtml(emotion)'),
   extractFunction(appSrc, 'function signClass(value)'),
+  extractFunction(appSrc, 'function signedMoney(value)'),
+  extractFunction(appSrc, 'function signedNumber(value, decimals)'),
   extractFunction(appSrc, 'function missingStopBadge(trade)'),
   extractFunction(appSrc, 'function tradeRowHtml(t)')
 ].join('\n');
