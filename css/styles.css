@@ -318,6 +318,9 @@ textarea {
 }
 
 .trade-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   height: var(--control-sm);
   padding: 0 10px;
   font-size: var(--text-xs);
@@ -330,24 +333,29 @@ textarea {
   transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
 }
 
-.trade-tab:hover { color: var(--text); }
+/* Each trade tab has a distinct identity color so they never get confused. */
+.trade-tab[data-trade-tab='0'] { --tab: var(--accent); --tab-soft: var(--accent-soft); }
+.trade-tab[data-trade-tab='1'] { --tab: var(--cyan); --tab-soft: rgba(34, 211, 238, 0.12); }
+.trade-tab[data-trade-tab='2'] { --tab: var(--purple); --tab-soft: rgba(167, 139, 250, 0.14); }
 
-.trade-tab.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
+.trade-tab::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tab);
+  flex: 0 0 auto;
 }
 
-/* A small dot marks tabs that already hold an unsaved draft. */
-.trade-tab.filled::after {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-left: 6px;
-  border-radius: 50%;
-  background: var(--pos);
-  vertical-align: middle;
+.trade-tab:hover { color: var(--text); }
+
+/* An unsaved draft tints the tab with its own color. */
+.trade-tab.filled { background: var(--tab-soft); }
+
+.trade-tab.active {
+  background: var(--tab-soft);
+  border-color: var(--tab);
+  color: var(--tab);
 }
 
 /* Header account selector + single balance chip. */
