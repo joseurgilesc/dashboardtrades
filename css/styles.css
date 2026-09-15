@@ -358,6 +358,26 @@ textarea {
   color: var(--tab);
 }
 
+/* The whole trade card inherits a subtle tint from the active tab. */
+.trade-card {
+  transition: border-left-color var(--transition-normal);
+}
+
+.trade-card[data-trade-tab='0'] {
+  border-left: 3px solid var(--accent);
+  background-image: linear-gradient(rgba(45, 212, 191, 0.05), rgba(45, 212, 191, 0.05));
+}
+
+.trade-card[data-trade-tab='1'] {
+  border-left: 3px solid var(--cyan);
+  background-image: linear-gradient(rgba(34, 211, 238, 0.05), rgba(34, 211, 238, 0.05));
+}
+
+.trade-card[data-trade-tab='2'] {
+  border-left: 3px solid var(--purple);
+  background-image: linear-gradient(rgba(167, 139, 250, 0.06), rgba(167, 139, 250, 0.06));
+}
+
 /* Header account selector + single balance chip. */
 .account-box {
   display: flex;

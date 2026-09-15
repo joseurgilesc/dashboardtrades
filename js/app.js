@@ -2566,6 +2566,8 @@
     drafts[state.activeTrade] = captureDraft();
     state.activeTrade = index;
     state.editingId = null;
+    const tradeCard = $('tradeCard');
+    if (tradeCard) tradeCard.setAttribute('data-trade-tab', String(index));
     restoreDraft(drafts[index]);
     $('formTitle').textContent = 'Trade ' + (index + 1);
     $('btnSave').textContent = 'Guardar trade';
