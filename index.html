@@ -589,6 +589,21 @@
 
     <!-- ============================ DASHBOARD =========================== -->
     <section id="tab-dashboard" role="tabpanel" data-accent="cyan" aria-labelledby="tab-dashboard" hidden>
+      <div class="dashboard-filter" aria-label="Rango de fechas del dashboard">
+        <div class="dashboard-filter-group">
+          <button type="button" class="df-btn active" data-df="all">Todo</button>
+          <button type="button" class="df-btn" data-df="today">Hoy</button>
+          <button type="button" class="df-btn" data-df="week">Esta semana</button>
+          <button type="button" class="df-btn" data-df="month">Este mes</button>
+          <button type="button" class="df-btn" data-df="custom">Personalizado</button>
+        </div>
+        <div class="dashboard-custom" id="dashboardCustom" hidden>
+          <label class="df-label">Desde</label>
+          <input type="date" id="dfFrom">
+          <label class="df-label">Hasta</label>
+          <input type="date" id="dfTo">
+        </div>
+      </div>
       <!-- Equity curve is the dashboard protagonist: first and slightly taller. -->
       <div class="card chart-card chart-hero">
         <h3>Curva de equity</h3>

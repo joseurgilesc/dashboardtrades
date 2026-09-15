@@ -28,6 +28,10 @@
     },
     /* Global day selector: defaults to today; empty means "show every day". */
     globalDate: '',
+    /* Dashboard date range (independent of the global day selector). */
+    dashboardPeriod: 'all',
+    dfFrom: '',
+    dfTo: '',
     /* Filters bar disclosure, remembered for the browser session. */
     filtersOpen: false,
     chartsDirty: true
@@ -137,6 +141,21 @@
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     return d.getFullYear() + '-' + mm + '-' + dd;
+  }
+
+  /** Monday of the current week (local ISO date). */
+  function weekStartISO() {
+    const d = new Date();
+    const day = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - day);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+      '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  /** First day of the current month (local ISO date). */
+  function monthStartISO() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-01';
   }
 
   function nowTime() {
@@ -480,6 +499,43 @@
       if (state.globalDate && t.entryDate !== state.globalDate) return false;
       return true;
     });
+  }
+
+  /** Dashboard-only date range, layered over the global filter. */
+  function getDashboardTrades() {
+    const base = getFilteredTrades();
+    const period = state.dashboardPeriod;
+    if (period === 'all') return base;
+    const today = todayISO();
+    if (period === 'today') {
+      return base.filter(function (t) { return t.entryDate === today; });
+    }
+    if (period === 'week') {
+      const start = weekStartISO();
+      return base.filter(function (t) { return t.entryDate >= start && t.entryDate <= today; });
+    }
+    if (period === 'month') {
+      const start = monthStartISO();
+      return base.filter(function (t) { return t.entryDate >= start; });
+    }
+    if (period === 'custom') {
+      return base.filter(function (t) {
+        if (state.dfFrom && t.entryDate < state.dfFrom) return false;
+        if (state.dfTo && t.entryDate > state.dfTo) return false;
+        return true;
+      });
+    }
+    return base;
+  }
+
+  /** Reflects the active dashboard range in the shortcut buttons. */
+  function applyDashboardFilter() {
+    const period = state.dashboardPeriod;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-df]'), function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-df') === period);
+    });
+    const customEl = $('dashboardCustom');
+    if (customEl) customEl.hidden = period !== 'custom';
   }
 
   /** Full-text match across every trade, independent of the filter bar. */
@@ -951,10 +1007,11 @@
     renderInstrumentNote();
     updateDuplicateButton();
     const filtered = getFilteredTrades();
+    const dashboardTrades = getDashboardTrades();
     renderTable(filtered);
-    renderKpis(filtered);
+    renderKpis(dashboardTrades);
     renderGamification();
-    renderChartsIfVisible(filtered);
+    renderChartsIfVisible(dashboardTrades);
   }
 
   function refreshTableAndKpis() {
@@ -3368,6 +3425,22 @@
         updatePreview();
       });
     }
+
+    /* Dashboard date-range filter with shortcuts. */
+    Array.prototype.forEach.call(document.querySelectorAll('[data-df]'), function (btn) {
+      btn.addEventListener('click', function () {
+        state.dashboardPeriod = btn.getAttribute('data-df');
+        applyDashboardFilter();
+        renderAll();
+      });
+    });
+    ['dfFrom', 'dfTo'].forEach(function (id) {
+      const el = $(id);
+      if (el) el.addEventListener('change', function () {
+        state[id] = el.value;
+        renderAll();
+      });
+    });
 
     /* +/- steppers: increment/decrement a number input, clamped to min/max. */
     Array.prototype.forEach.call(document.querySelectorAll('[data-step-up], [data-step-down]'), function (btn) {
