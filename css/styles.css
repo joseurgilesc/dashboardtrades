@@ -24,7 +24,7 @@
   --text: #F2F6FA;
   --text-muted: #98A7BA;
   --text-faint: #66788F;
-  --pos: #34D399;
+  --pos: #4ADE80;
   --neg: #F6465D;
   --accent: #2DD4BF;
   --cyan: #22D3EE;
@@ -1174,7 +1174,7 @@ input.is-draft {
 
 /* Budget fit: affordable instruments get a teal tint, the rest are dimmed.
  * The selected row's accent highlight (below) wins over the tint. */
-.risk-table tr.risk-row-viable td { background: rgba(52, 211, 153, 0.06); }
+.risk-table tr.risk-row-viable td { background: rgba(74, 222, 128, 0.06); }
 .risk-table tr.risk-row-not-viable td { opacity: 0.55; }
 .risk-fit { margin-left: 6px; font-size: var(--text-2xs); font-weight: 600; }
 .risk-fit-yes { color: var(--pos); }
@@ -1186,7 +1186,7 @@ input.is-draft {
 }
 
 /* Trades table: a subtle signal tint behind +/- cells, never color alone. */
-.trades-table td.num.pos { background: rgba(52, 211, 153, 0.07); }
+.trades-table td.num.pos { background: rgba(74, 222, 128, 0.07); }
 .trades-table td.num.neg { background: rgba(246, 70, 93, 0.07); }
 
 /* Compact "now" button beside the time inputs. */
