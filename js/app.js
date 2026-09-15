@@ -146,22 +146,124 @@
     return hh + ':' + mm;
   }
 
-  /** Reads "HH:MM" from the hour/minute selects for one time field. */
+  /** Reads "HH:MM" from a time field's hidden input. */
   function readTimeSelect(prefix) {
-    const h = $(prefix + 'Hour');
-    const m = $(prefix + 'Minute');
-    if (h && m) return h.value + ':' + m.value;
-    return '';
+    const el = $(prefix);
+    return el ? el.value : '';
   }
 
-  /** Writes "HH:MM" into the hour/minute selects for one time field. Seconds
-   *  are dropped, so an imported "11:56:24" still lands on the minute grid. */
+  /** Writes "HH:MM" into a time field's hidden input and its display. */
   function writeTimeSelect(prefix, value) {
     const parts = String(value || '').split(':');
-    const h = $(prefix + 'Hour');
-    const m = $(prefix + 'Minute');
-    if (h) h.value = parts[0] ? String(parts[0]).padStart(2, '0') : '00';
-    if (m) m.value = parts[1] ? String(parts[1]).padStart(2, '0') : '00';
+    const norm = (parts[0] ? String(parts[0]).padStart(2, '0') : '00') + ':' +
+      (parts[1] ? String(parts[1]).padStart(2, '0') : '00');
+    const el = $(prefix);
+    if (el) el.value = norm;
+    if (typeof renderTimeDisplay === 'function') renderTimeDisplay(prefix);
+  }
+
+  /** Updates the visible time-field button from the hidden input. */
+  function renderTimeDisplay(prefix) {
+    const input = $(prefix);
+    const display = $(prefix + 'Display');
+    if (display) display.textContent = (input && input.value) ? input.value : '--:--';
+  }
+
+  /* --- Graphical clock picker (12h + AM/PM + minutes) --------------- */
+  let clockTarget = null;
+  let clockPhase = 'hour';
+  let clockHour = null;
+  let clockMin = null;
+  let clockMeridiem = 'AM';
+
+  function clockAngle(step, degrees) {
+    return ((step * degrees - 90) * Math.PI) / 180;
+  }
+
+  function openClock(prefix) {
+    clockTarget = prefix;
+    const input = $(prefix);
+    const parts = String((input && input.value) || '').split(':');
+    let h = parts[0] ? parseInt(parts[0], 10) : new Date().getHours();
+    if (h >= 12) { clockMeridiem = 'PM'; if (h > 12) h -= 12; }
+    else { clockMeridiem = 'AM'; if (h === 0) h = 12; }
+    clockHour = h;
+    clockMin = parts[1] ? parseInt(parts[1], 10) : 0;
+    clockPhase = 'hour';
+    renderClock();
+    const popup = $(prefix + 'Popup');
+    if (popup) popup.hidden = false;
+  }
+
+  function closeClock() {
+    if (clockTarget) {
+      const popup = $(clockTarget + 'Popup');
+      if (popup) popup.hidden = true;
+    }
+    clockTarget = null;
+  }
+
+  function clockCenterLabel() {
+    if (clockPhase === 'minute') {
+      return String(clockHour).padStart(2, '0') + ':--';
+    }
+    return clockMeridiem;
+  }
+
+  function renderClock() {
+    if (!clockTarget) return;
+    const popup = $(clockTarget + 'Popup');
+    if (!popup) return;
+    const hourHtml = [];
+    for (let h = 1; h <= 12; h += 1) {
+      const a = clockAngle(h, 30);
+      const x = 92 + 46 * Math.cos(a);
+      const y = 92 + 46 * Math.sin(a);
+      hourHtml.push('<button type="button" class="clock-hour' + (clockPhase === 'hour' && clockHour === h ? ' active' : '') +
+        '" data-clock-hour="' + h + '" style="left:' + x.toFixed(1) + 'px;top:' + y.toFixed(1) + 'px;">' + h + '</button>');
+    }
+    const minHtml = [];
+    for (let m = 0; m < 60; m += 1) {
+      const a = clockAngle(m, 6);
+      const x = 92 + 74 * Math.cos(a);
+      const y = 92 + 74 * Math.sin(a);
+      const labeled = m % 5 === 0;
+      minHtml.push('<button type="button" class="clock-minute' + (clockPhase === 'minute' && clockMin === m ? ' active' : '') +
+        (labeled ? ' label' : '') + '" data-clock-minute="' + m + '" style="left:' + x.toFixed(1) + 'px;top:' + y.toFixed(1) + 'px;">' + (labeled ? m : '') + '</button>');
+    }
+    popup.innerHTML =
+      '<div class="clock-head">' +
+        '<span class="clock-phase">' + (clockPhase === 'hour' ? 'Elige la hora' : 'Elige los minutos') + '</span>' +
+        '<div class="clock-meridiem">' +
+          '<button type="button" class="clock-mer' + (clockMeridiem === 'AM' ? ' active' : '') + '" data-clock-mer="AM">AM</button>' +
+          '<button type="button" class="clock-mer' + (clockMeridiem === 'PM' ? ' active' : '') + '" data-clock-mer="PM">PM</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="clock-face" data-phase="' + clockPhase + '">' +
+        '<span class="clock-center">' + clockCenterLabel() + '</span>' +
+        hourHtml.join('') + minHtml.join('') +
+      '</div>';
+  }
+
+  function selectClockHour(h) {
+    clockHour = h;
+    clockPhase = 'minute';
+    renderClock();
+  }
+
+  function selectClockMinute(m) {
+    clockMin = m;
+    let h = clockHour;
+    if (clockMeridiem === 'PM' && h !== 12) h += 12;
+    if (clockMeridiem === 'AM' && h === 12) h = 0;
+    const value = String(h).padStart(2, '0') + ':' + String(clockMin).padStart(2, '0');
+    writeTimeSelect(clockTarget, value);
+    closeClock();
+  }
+
+  function setClockMeridiem(m) {
+    clockMeridiem = m;
+    renderClock();
   }
 
   function parseLocalDateTime(date, time) {
@@ -337,16 +439,6 @@
     fillSelect($('direction'), DIRECTIONS);
     fillSelect($('exitType'), EXIT_TYPES);
     fillSelect($('emotion'), EMOTIONS);
-
-    /* Hour/minute selects for the time fields (native picker replaced). */
-    const hours = [];
-    const minutes = [];
-    for (let h = 0; h < 24; h += 1) hours.push(String(h).padStart(2, '0'));
-    for (let m = 0; m < 60; m += 1) minutes.push(String(m).padStart(2, '0'));
-    fillSelect($('entryTimeHour'), hours);
-    fillSelect($('entryTimeMinute'), minutes);
-    fillSelect($('exitTimeHour'), hours);
-    fillSelect($('exitTimeMinute'), minutes);
 
     fillSelect($('filterAccount'), ACCOUNTS, 'Todas las cuentas');
     fillSelect($('filterInstrument'), Object.keys(INSTRUMENTS), 'Todos los instrumentos');
@@ -3206,6 +3298,28 @@
       });
     });
 
+    /* Clock picker: open on field click, delegated selection, outside close. */
+    Array.prototype.forEach.call(document.querySelectorAll('[data-clock-target]'), function (btn) {
+      btn.addEventListener('click', function () {
+        openClock(btn.getAttribute('data-clock-target'));
+      });
+    });
+    document.addEventListener('click', function (event) {
+      const target = event.target;
+      if (target && typeof target.getAttribute === 'function') {
+        const hour = target.getAttribute('data-clock-hour');
+        if (hour !== null) { selectClockHour(parseInt(hour, 10)); return; }
+        const minute = target.getAttribute('data-clock-minute');
+        if (minute !== null) { selectClockMinute(parseInt(minute, 10)); return; }
+        const mer = target.getAttribute('data-clock-mer');
+        if (mer !== null) { setClockMeridiem(mer); return; }
+      }
+      if (clockTarget && target && typeof target.closest === 'function' &&
+          !target.closest('.clock-popup') && !target.closest('[data-clock-target]')) {
+        closeClock();
+      }
+    });
+
     /* Account selector (header) syncs bidirectionally with the form account. */
     const accountSelector = $('accountSelector');
     const accountField = $('account');
@@ -3335,7 +3449,7 @@
 
     ['account', 'instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
       'stop', 'plannedRisk',
-      'entryDate', 'entryTimeHour', 'entryTimeMinute', 'exitTimeHour', 'exitTimeMinute',
+      'entryDate',
       'riskStopTicks', 'riskRatio', 'riskDailyPctInput', 'riskTradesPerDayInput'].forEach(function (id) {
       const el = $(id);
       if (el) el.addEventListener('input', updatePreview);
