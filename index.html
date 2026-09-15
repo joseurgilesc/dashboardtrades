@@ -199,7 +199,7 @@
              it starts collapsed behind a "like Más opciones" disclosure. The
              instrument is chosen in Block 1 (calculator selector, synced with
              the trade form); the table highlights the current one. -->
-        <details class="risk-block risk-block-collapsible" id="riskInstrumentBlock" open>
+        <details class="risk-block risk-block-collapsible" id="riskInstrumentBlock">
           <summary class="risk-block-title">2. Instrumento</summary>
           <div class="risk-block-content">
             <div class="table-wrap">
@@ -437,6 +437,10 @@
                 <label for="direction">Dirección</label>
                 <select id="direction"></select>
               </div>
+              <div class="field">
+                <label for="tradeMode">Modo</label>
+                <select id="tradeMode"></select>
+              </div>
             </div>
 
             <!-- Entry price level (accent). -->
@@ -471,6 +475,10 @@
                   <span class="draft-badge" id="exitPriceDraftBadge" hidden>borrador</span>
                 </div>
                 <span class="field-suggestion" id="exitSuggestion" hidden></span>
+              </div>
+              <div class="field field-exit" id="exitDateField" hidden>
+                <label for="exitDate">Fecha de salida</label>
+                <input type="date" id="exitDate">
               </div>
               <div class="field field-exit">
                 <label for="exitTime">Hora de salida</label>

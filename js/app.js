@@ -266,6 +266,15 @@
     renderClock();
   }
 
+  /** Shows the exit-date field only for swing mode; scalping/intradía share
+   *  the entry date. */
+  function applyTradeMode() {
+    const mode = $('tradeMode');
+    const swing = mode && mode.value === 'Swing';
+    const exitDateField = $('exitDateField');
+    if (exitDateField) exitDateField.hidden = !swing;
+  }
+
   function parseLocalDateTime(date, time) {
     if (!date) return null;
     const d = String(date).split('-').map(Number);
@@ -439,6 +448,7 @@
     fillSelect($('direction'), DIRECTIONS);
     fillSelect($('exitType'), EXIT_TYPES);
     fillSelect($('emotion'), EMOTIONS);
+    fillSelect($('tradeMode'), ['Scalping', 'Intradía', 'Swing']);
 
     fillSelect($('filterAccount'), ACCOUNTS, 'Todas las cuentas');
     fillSelect($('filterInstrument'), Object.keys(INSTRUMENTS), 'Todos los instrumentos');
@@ -1009,7 +1019,7 @@
       entryDate: $('entryDate').value,
       entryTime: readTimeSelect('entryTime'),
       entryPrice: parseFloat($('entryPrice').value),
-      exitDate: $('entryDate').value,
+      exitDate: ($('tradeMode') && $('tradeMode').value === 'Swing') ? $('exitDate').value : $('entryDate').value,
       exitTime: readTimeSelect('exitTime'),
       exitPrice: parseFloat($('exitPrice').value),
       stop: parseFloat($('stop').value),
@@ -2423,6 +2433,7 @@
     $('btnSave').textContent = 'Guardar trade';
     $('btnCancel').hidden = true;
     showFormErrors([]);
+    applyTradeMode();
     updatePreview();
   }
 
@@ -2440,6 +2451,8 @@
       entryPrice: $('entryPrice').value,
       exitTime: readTimeSelect('exitTime'),
       exitPrice: $('exitPrice').value,
+      mode: $('tradeMode') ? $('tradeMode').value : 'Scalping',
+      exitDate: $('exitDate') ? $('exitDate').value : '',
       stop: $('stop').value,
       plannedRisk: $('plannedRisk').value,
       exitType: $('exitType').value,
@@ -2464,6 +2477,8 @@
     $('entryPrice').value = d.entryPrice;
     writeTimeSelect('exitTime', d.exitTime);
     $('exitPrice').value = d.exitPrice;
+    if (d.mode !== undefined && $('tradeMode')) $('tradeMode').value = d.mode;
+    if (d.exitDate !== undefined && $('exitDate')) $('exitDate').value = d.exitDate;
     $('stop').value = d.stop;
     $('plannedRisk').value = d.plannedRisk;
     $('exitType').value = d.exitType;
@@ -2474,6 +2489,7 @@
     /* Restored values are user-owned: the calculator must not re-seed them. */
     contractsTouched = true;
     stopTicksTouched = !!($('riskStopTicks') && $('riskStopTicks').value);
+    applyTradeMode();
     renderEmotionDot();
   }
 
@@ -2555,6 +2571,10 @@
     $('entryPrice').value = trade.entryPrice;
     writeTimeSelect('exitTime', trade.exitTime);
     $('exitPrice').value = trade.exitPrice;
+    const swingEdit = trade.exitDate && trade.exitDate !== trade.entryDate;
+    if ($('tradeMode')) $('tradeMode').value = swingEdit ? 'Swing' : 'Scalping';
+    if ($('exitDate')) $('exitDate').value = swingEdit ? trade.exitDate : trade.entryDate;
+    applyTradeMode();
     $('stop').value = trade.stop > 0 ? trade.stop : '';
     /* No USD target field anymore: preserve the saved value for the round-trip. */
     editingTarget = trade.target > 0 ? trade.target : 0;
@@ -2620,6 +2640,9 @@
     $('exitPrice').value = '';
     $('exitType').value = EXIT_TYPES[0];
     $('entryDate').value = state.globalDate || todayISO();
+    if ($('tradeMode')) $('tradeMode').value = 'Scalping';
+    if ($('exitDate')) $('exitDate').value = state.globalDate || todayISO();
+    applyTradeMode();
     const now = nowTime();
     writeTimeSelect('entryTime', now);
     writeTimeSelect('exitTime', now);
@@ -3334,6 +3357,15 @@
       accountField.addEventListener('change', function () {
         if (accountSelector) accountSelector.value = accountField.value;
         renderBalances();
+      });
+    }
+
+    /* Trade mode: show/hide the exit-date field and refresh the preview. */
+    const tradeModeEl = $('tradeMode');
+    if (tradeModeEl) {
+      tradeModeEl.addEventListener('change', function () {
+        applyTradeMode();
+        updatePreview();
       });
     }
 
