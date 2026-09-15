@@ -1893,13 +1893,13 @@ const Store = (function () {
    * by shrinking the base and once by `dailyRiskUsage.used`). Accepts
    * `(trades, account)` or `(account)` like the other discipline helpers.
    */
-  function startOfDayBalance(a, b) {
+  function startOfDayBalance(a, b, today) {
     const input = disciplineInput(a, b);
-    const today = todayISO();
+    const refDay = strOr(today, '') || todayISO();
     let base = numOr(state.balances[input.account], 0);
     input.trades.forEach(function (trade) {
       if (trade.account !== input.account) return;
-      if (trade.entryDate && trade.entryDate < today) base += computeTrade(trade).net;
+      if (trade.entryDate && trade.entryDate < refDay) base += computeTrade(trade).net;
     });
     return roundMoney(base);
   }

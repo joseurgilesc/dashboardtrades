@@ -1511,7 +1511,9 @@
 
     const accountChanged = lastRiskAccount !== account;
 
-    const capital = Store.startOfDayBalance(account);
+    /* Capital and "today" follow the global day selector so the calculator
+     * reflects the day being viewed, not the wall clock. */
+    const capital = Store.startOfDayBalance(account, null, state.globalDate);
     const settings = Store.getRiskSettings()[account] || {};
     const defaultPct = Number.isFinite(settings.riskPct) ? settings.riskPct : DEFAULT_RISK_PCT;
 
@@ -1551,9 +1553,9 @@
 
     /* Remaining daily budget: the account's daily risk budget minus the sum of
      * its realized losses for today. */
-    const usage = Store.dailyRiskUsage({ account: account, riskPct: riskPct, balance: capital });
+    const usage = Store.dailyRiskUsage({ account: account, riskPct: riskPct, balance: capital, today: state.globalDate });
     /* Circuit-breaker context for Block 4. */
-    const guard = Store.riskGuard({ account: account, capital: capital });
+    const guard = Store.riskGuard({ account: account, capital: capital, today: state.globalDate });
 
     /* Per-instrument config: the resolved stop distance. The stop is AUTO by
      * default and derived from the SAME budget the calculator sizes contracts
@@ -2231,8 +2233,8 @@
      * the calculator no longer pre-fills its suggestion over the default. */
     contractsTouched = true;
     $('contracts').value = '1';
-    $('entryDate').value = todayISO();
-    $('exitDate').value = todayISO();
+    $('entryDate').value = state.globalDate || todayISO();
+    $('exitDate').value = state.globalDate || todayISO();
     /* Both times default to the current moment; the exit time is re-read on
      * every reset so a save never leaves a stale time behind. */
     const now = nowTime();
@@ -2391,8 +2393,8 @@
     $('entryPrice').value = '';
     $('exitPrice').value = '';
     $('exitType').value = EXIT_TYPES[0];
-    $('entryDate').value = todayISO();
-    $('exitDate').value = todayISO();
+    $('entryDate').value = state.globalDate || todayISO();
+    $('exitDate').value = state.globalDate || todayISO();
     const now = nowTime();
     $('entryTime').value = now;
     $('exitTime').value = now;
