@@ -25,6 +25,8 @@
       dateFrom: '',
       dateTo: ''
     },
+    /* Global day selector: defaults to today; empty means "show every day". */
+    globalDate: '',
     /* Filters bar disclosure, remembered for the browser session. */
     filtersOpen: false,
     chartsDirty: true
@@ -328,6 +330,7 @@
       if (f.emotion && t.emotion !== f.emotion) return false;
       if (f.dateFrom && t.entryDate < f.dateFrom) return false;
       if (f.dateTo && t.entryDate > f.dateTo) return false;
+      if (state.globalDate && t.entryDate !== state.globalDate) return false;
       return true;
     });
   }
@@ -804,6 +807,7 @@
     renderBalances();
     renderRiskPanel();
     renderEntryWarnings();
+    renderInstrumentNote();
     updateDuplicateButton();
     const filtered = getFilteredTrades();
     renderTable(filtered);
@@ -960,6 +964,23 @@
         '<span class="badge badge-' + (spec.size === 'micro' ? 'micro' : 'full') + '">' + sizeLabel(spec.size) + '</span>' +
       '</div>' +
       '<div class="instrument-info-grid">' + rows + '</div>' + note;
+  }
+
+  /** Small always-visible hint under the instrument selector: the full product
+   *  name (plus type), so the abbreviation alone is never the only clue. */
+  function renderInstrumentNote() {
+    const noteEl = $('instrumentNote');
+    if (!noteEl) return;
+    const select = $('instrument');
+    const id = select ? select.value : '';
+    const spec = instrumentMeta(id);
+    if (!spec) {
+      noteEl.textContent = '';
+      noteEl.hidden = true;
+      return;
+    }
+    noteEl.textContent = spec.name + (spec.type ? ' · ' + spec.type : '');
+    noteEl.hidden = false;
   }
 
   function toggleInstrumentInfo() {
@@ -3026,6 +3047,16 @@
     const infoButton = $('btnInstrumentInfo');
     if (infoButton) infoButton.addEventListener('click', toggleInstrumentInfo);
 
+    /* Global day selector: changing it re-filters the trades table, KPIs and
+     * charts to that single day (empty = every day). */
+    const globalDateField = $('globalDate');
+    if (globalDateField) {
+      globalDateField.addEventListener('change', function () {
+        state.globalDate = globalDateField.value;
+        renderAll();
+      });
+    }
+
     $('btnCancel').addEventListener('click', function () {
       resetForm();
       /* Drop the edit highlight from the table. */
@@ -3111,6 +3142,7 @@
       const onRiskInstrument = function () {
         syncInstrument(riskInstrumentField.value);
         updatePreview();
+        renderInstrumentNote();
       };
       riskInstrumentField.addEventListener('input', onRiskInstrument);
       riskInstrumentField.addEventListener('change', onRiskInstrument);
@@ -3124,6 +3156,13 @@
       if (el) el.addEventListener('input', updatePreview);
       if (el) el.addEventListener('change', updatePreview);
     });
+
+    /* Instrument note (full product name) follows the canonical form selector. */
+    const instrumentField = $('instrument');
+    if (instrumentField) {
+      instrumentField.addEventListener('input', renderInstrumentNote);
+      instrumentField.addEventListener('change', renderInstrumentNote);
+    }
 
     $('tradesBody').addEventListener('click', function (event) {
       const button = event.target.closest('button[data-action]');
@@ -3620,6 +3659,10 @@
     setAuthMode('signin');
     state.filtersOpen = readFiltersSession();
     applyFiltersVisibility();
+    /* The global day selector starts on today; clearing it shows every day. */
+    state.globalDate = todayISO();
+    const globalDateEl = $('globalDate');
+    if (globalDateEl) globalDateEl.value = state.globalDate;
     /* Hide the whole shell last so the pre-auth gate never leaks the toggle. */
     setAppVisible(false);
     showAuthError('');

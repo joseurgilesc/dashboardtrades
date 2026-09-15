@@ -191,6 +191,23 @@ textarea {
   gap: 8px;
 }
 
+/* Global day selector (header). A dark-scheme date input so the native picker
+ * calendar and text both match the terminal theme. */
+.global-date {
+  align-self: center;
+}
+
+.global-date input {
+  padding: 5px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color-scheme: dark;
+}
+
 .chip {
   display: flex;
   flex-direction: column;
