@@ -15,6 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/themes/dark.css">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -456,11 +457,7 @@
               <div class="field field-entry">
                 <label for="entryTime">Hora de entrada</label>
                 <div class="field-inline">
-                  <input type="hidden" id="entryTime" value="">
-                  <div class="clock-picker">
-                    <button type="button" class="time-field" data-clock-target="entryTime" title="Elegir hora"><span id="entryTimeDisplay">--:--</span></button>
-                    <div class="clock-popup" id="entryTimePopup" hidden></div>
-                  </div>
+                  <input type="text" id="entryTime" class="time-input" placeholder="--:--" autocomplete="off">
                   <button type="button" class="btn btn-ghost btn-mini" data-now-target="entryTime" title="Poner la hora actual" aria-label="Poner la hora actual"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
                 </div>
               </div>
@@ -483,11 +480,7 @@
               <div class="field field-exit">
                 <label for="exitTime">Hora de salida</label>
                 <div class="field-inline">
-                  <input type="hidden" id="exitTime" value="">
-                  <div class="clock-picker">
-                    <button type="button" class="time-field" data-clock-target="exitTime" title="Elegir hora"><span id="exitTimeDisplay">--:--</span></button>
-                    <div class="clock-popup" id="exitTimePopup" hidden></div>
-                  </div>
+                  <input type="text" id="exitTime" class="time-input" placeholder="--:--" autocomplete="off">
                   <button type="button" class="btn btn-ghost btn-mini" data-now-target="exitTime" title="Poner la hora actual" aria-label="Poner la hora actual"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
                 </div>
               </div>
@@ -835,6 +828,7 @@
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore-compat.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js" defer></script>
   <script src="vendor/chart.umd.js" defer></script>
   <script src="js/instruments.js" defer></script>
   <script src="js/store.js" defer></script>

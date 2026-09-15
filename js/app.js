@@ -171,14 +171,15 @@
     return el ? el.value : '';
   }
 
-  /** Writes "HH:MM" into a time field's hidden input and its display. */
+  /** Writes "HH:MM" into a time field's input and syncs the flatpickr view. */
   function writeTimeSelect(prefix, value) {
     const parts = String(value || '').split(':');
     const norm = (parts[0] ? String(parts[0]).padStart(2, '0') : '00') + ':' +
       (parts[1] ? String(parts[1]).padStart(2, '0') : '00');
     const el = $(prefix);
     if (el) el.value = norm;
-    if (typeof renderTimeDisplay === 'function') renderTimeDisplay(prefix);
+    const fp = el && el._flatpickr;
+    if (fp && typeof fp.setDate === 'function') fp.setDate(norm, false);
   }
 
   /** Updates the visible time-field button from the hidden input. */
@@ -3380,28 +3381,6 @@
       });
     });
 
-    /* Clock picker: open on field click, delegated selection, outside close. */
-    Array.prototype.forEach.call(document.querySelectorAll('[data-clock-target]'), function (btn) {
-      btn.addEventListener('click', function () {
-        openClock(btn.getAttribute('data-clock-target'));
-      });
-    });
-    document.addEventListener('click', function (event) {
-      const target = event.target;
-      if (target && typeof target.getAttribute === 'function') {
-        const hour = target.getAttribute('data-clock-hour');
-        if (hour !== null) { selectClockHour(parseInt(hour, 10)); return; }
-        const minute = target.getAttribute('data-clock-minute');
-        if (minute !== null) { selectClockMinute(parseInt(minute, 10)); return; }
-        const mer = target.getAttribute('data-clock-mer');
-        if (mer !== null) { setClockMeridiem(mer); return; }
-      }
-      if (clockTarget && target && typeof target.closest === 'function' &&
-          !target.closest('.clock-popup') && !target.closest('[data-clock-target]')) {
-        closeClock();
-      }
-    });
-
     /* Account selector (header) syncs bidirectionally with the form account. */
     const accountSelector = $('accountSelector');
     const accountField = $('account');
@@ -4069,6 +4048,19 @@
    */
   function boot() {
     initSelects();
+    /* Time fields use flatpickr (CDN); degrade gracefully without it. */
+    if (typeof flatpickr === 'function') {
+      const timeOpts = {
+        enableTime: true,
+        noCalendar: true,
+        dateFormat: 'H:i',
+        time_24hr: true,
+        defaultHour: 9,
+        defaultMinute: 30
+      };
+      flatpickr('#entryTime', timeOpts);
+      flatpickr('#exitTime', timeOpts);
+    }
     wireEvents();
     wireAuthEvents();
     buildDangerZone();
