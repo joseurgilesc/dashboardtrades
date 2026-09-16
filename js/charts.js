@@ -11,16 +11,16 @@ const DashboardCharts = (function () {
    * Auxiliary series use accent/cyan/purple/amber; pos/neg are reserved for
    * profit and loss. */
   const PALETTE = [
-    '#3B82F6', '#22D3EE', '#8B5CF6', '#F59E0B', '#22C55E', '#EF4444'
+    '#2DD4BF', '#22D3EE', '#A78BFA', '#FBBF24', '#22C55E', '#EF4444'
   ];
   const POSITIVE = '#22C55E';
   const NEGATIVE = '#EF4444';
-  const ACCENT = '#3B82F6';
-  const GRID_COLOR = '#1C2632';
-  const TEXT_COLOR = '#7F8B99';
-  const PANEL_COLOR = '#111827';
-  const TOOLTIP_BG = '#111827';
-  const TOOLTIP_BORDER = '#263241';
+  const ACCENT = '#2DD4BF';
+  const GRID_COLOR = '#2A3F5C';
+  const TEXT_COLOR = '#98A7BA';
+  const PANEL_COLOR = '#16263C';
+  const TOOLTIP_BG = '#16263C';
+  const TOOLTIP_BORDER = '#2A3F5C';
   const FONT_STACK = "'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif";
 
   const DAY_ORDER = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -146,8 +146,8 @@ const DashboardCharts = (function () {
       tooltip.backgroundColor = TOOLTIP_BG;
       tooltip.borderColor = TOOLTIP_BORDER;
       tooltip.borderWidth = 1;
-      tooltip.titleColor = '#E6EDF3';
-      tooltip.bodyColor = '#8B98A5';
+      tooltip.titleColor = '#F2F6FA';
+      tooltip.bodyColor = '#98A7BA';
     }
   }
 

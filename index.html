@@ -821,6 +821,23 @@
   <!-- Non-blocking save feedback. Toasts are appended and auto-dismissed. -->
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="false"></div>
 
+  <!-- Validation-error modal. -->
+  <div class="modal-overlay" id="errorModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="errorModalTitle">
+      <div class="modal-head">
+        <h3 id="errorModalTitle">Revisa el trade</h3>
+        <button type="button" class="btn-icon" id="btnCloseErrorModal" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-hint">Faltan o son inválidos estos datos:</p>
+        <ul class="modal-errors" id="errorModalList"></ul>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-primary" id="btnErrorModalOk">Entendido</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore-compat.js" defer></script>

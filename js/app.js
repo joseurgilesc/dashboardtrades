@@ -2413,6 +2413,23 @@
     box.hidden = false;
   }
 
+  /** Shows the validation errors in a modal popup. */
+  function showErrorModal(errors) {
+    const list = $('errorModalList');
+    if (list) {
+      list.innerHTML = errors.map(function (e) {
+        return '<li>' + escapeHtml(e) + '</li>';
+      }).join('');
+    }
+    const modal = $('errorModal');
+    if (modal) modal.hidden = false;
+  }
+
+  function hideErrorModal() {
+    const modal = $('errorModal');
+    if (modal) modal.hidden = true;
+  }
+
   /**
    * Prefills the primary entry selects from the last-used selections persisted
    * in settings. Called on reset so a new trade starts from the user's usual
@@ -2579,7 +2596,7 @@
     event.preventDefault();
     const errors = validateForm();
     if (errors.length) {
-      showFormErrors(errors);
+      showErrorModal(errors);
       return;
     }
     showFormErrors([]);
@@ -3383,6 +3400,18 @@
         updatePreview();
         renderBalances();
         renderAll();
+      });
+    }
+
+    /* Validation modal: close on button or backdrop click. */
+    ['btnCloseErrorModal', 'btnErrorModalOk'].forEach(function (id) {
+      const el = $(id);
+      if (el) el.addEventListener('click', hideErrorModal);
+    });
+    const errorModal = $('errorModal');
+    if (errorModal) {
+      errorModal.addEventListener('click', function (event) {
+        if (event.target === errorModal) hideErrorModal();
       });
     }
 

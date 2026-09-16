@@ -636,6 +636,65 @@ textarea {
   font-size: var(--text-xs);
 }
 
+/* Validation-error modal. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(5, 8, 14, 0.62);
+}
+
+.modal {
+  width: 100%;
+  max-width: 380px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.modal-head h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.modal-hint {
+  margin: 0 0 8px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.modal-errors {
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.modal-foot .btn {
+  width: auto;
+}
+
 .chip {
   display: flex;
   flex-direction: column;
@@ -2010,12 +2069,12 @@ input.is-draft {
 
 .chart-body {
   position: relative;
-  height: 280px;
-  min-height: 220px;
+  height: 200px;
+  min-height: 160px;
 }
 
 .chart-wide .chart-body {
-  height: 320px;
+  height: 240px;
 }
 
 .chart-body canvas {
