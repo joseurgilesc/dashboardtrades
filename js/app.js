@@ -482,7 +482,9 @@
   /* Filtering / sorting                                                 */
   /* ------------------------------------------------------------------ */
 
-  function getFilteredTrades() {
+  /** Filter-bar trades (account/instrument/strategy/emotion/date range), before
+   *  the global day selector is applied. */
+  function getFilterBarTrades() {
     const f = state.filters;
     const all = Store.getTrades();
     /* A global search ignores the filter bar and looks across every trade. */
@@ -496,14 +498,20 @@
       if (f.emotion && t.emotion !== f.emotion) return false;
       if (f.dateFrom && t.entryDate < f.dateFrom) return false;
       if (f.dateTo && t.entryDate > f.dateTo) return false;
-      if (state.globalDate && t.entryDate !== state.globalDate) return false;
       return true;
     });
   }
 
-  /** Dashboard-only date range, layered over the global filter. */
+  /** Trades for the main table: filter bar + the global day selector. */
+  function getFilteredTrades() {
+    const base = getFilterBarTrades();
+    if (!state.globalDate) return base;
+    return base.filter(function (t) { return t.entryDate === state.globalDate; });
+  }
+
+  /** Dashboard-only date range, independent of the global day selector. */
   function getDashboardTrades() {
-    const base = getFilteredTrades();
+    const base = getFilterBarTrades();
     const period = state.dashboardPeriod;
     if (period === 'all') return base;
     const today = todayISO();
