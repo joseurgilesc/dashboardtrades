@@ -2024,6 +2024,7 @@ input.is-draft {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  overflow: hidden;
 }
 
 .kpi-label {
@@ -2490,7 +2491,7 @@ input.is-draft {
   flex: 0 0 auto;
   width: 64px;
   height: 22px;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .kpi-spark .spark-line {

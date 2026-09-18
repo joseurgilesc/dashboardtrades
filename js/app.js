@@ -45,6 +45,9 @@
   /* Three concurrent trade drafts; indices 0..2 map to the trade tabs. */
   let drafts = [null, null, null];
 
+  /* Named XP levels so the gamification reads as a real progression. */
+  const LEVEL_NAMES = ['Novato', 'Aprendiz', 'Intermedio', 'Avanzado', 'Experto', 'Trader', 'Profesional', 'Maestro'];
+
   /* True once the user edits the contracts field by hand, so the risk
    * calculator stops prefilling it for the current trade. Reset on reset. */
   let contractsTouched = false;
@@ -2131,7 +2134,11 @@
     const summary = Store.getDisciplineSummary(account);
 
     const badge = $('levelBadge');
-    if (badge) badge.textContent = 'Nivel ' + summary.level.level;
+    if (badge) {
+      const lvl = summary.level.level;
+      const nameIdx = Math.min(Math.max(lvl, 1), LEVEL_NAMES.length) - 1;
+      badge.textContent = 'Nivel ' + lvl + ' · ' + LEVEL_NAMES[nameIdx];
+    }
 
     const fill = $('levelProgressFill');
     if (fill) fill.style.width = summary.level.progressPct.toFixed(1) + '%';
