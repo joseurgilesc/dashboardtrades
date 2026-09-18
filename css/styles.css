@@ -2794,6 +2794,7 @@ input.is-draft {
 
 .badge-family {
   --family-color: var(--accent);
+  --family-soft: var(--accent-soft);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2803,12 +2804,12 @@ input.is-draft {
   border-radius: var(--radius-sm);
 }
 
-.badge-family[data-color='pos'] { --family-color: var(--pos); }
-.badge-family[data-color='neg'] { --family-color: var(--neg); }
-.badge-family[data-color='accent'] { --family-color: var(--accent); }
-.badge-family[data-color='cyan'] { --family-color: var(--cyan); }
-.badge-family[data-color='amber'] { --family-color: var(--amber); }
-.badge-family[data-color='purple'] { --family-color: var(--purple); }
+.badge-family[data-color='pos'] { --family-color: var(--pos); --family-soft: rgba(34, 197, 94, 0.10); }
+.badge-family[data-color='neg'] { --family-color: var(--neg); --family-soft: rgba(239, 68, 68, 0.10); }
+.badge-family[data-color='accent'] { --family-color: var(--accent); --family-soft: rgba(45, 212, 191, 0.10); }
+.badge-family[data-color='cyan'] { --family-color: var(--cyan); --family-soft: rgba(34, 211, 238, 0.10); }
+.badge-family[data-color='amber'] { --family-color: var(--amber); --family-soft: rgba(251, 191, 36, 0.12); }
+.badge-family[data-color='purple'] { --family-color: var(--purple); --family-soft: rgba(167, 139, 250, 0.12); }
 
 .badge-family-head {
   display: flex;
@@ -2845,6 +2846,7 @@ input.is-draft {
 
 .badge-family .achievement.earned {
   border-left-color: var(--family-color);
+  background: var(--family-soft);
 }
 
 .badge-family .achievement.earned .achievement-label {

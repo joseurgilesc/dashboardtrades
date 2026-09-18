@@ -2204,7 +2204,7 @@
   /** One process-achievement card (rung). `--family-color` tints the accents. */
   function achievementCardHtml(a) {
     const earned = !!a.earned;
-    const stateText = earned ? 'Conseguido' : a.value + ' / ' + a.target;
+    const stateText = earned ? '✓ Conseguido' : a.value + ' / ' + a.target;
     const xpTag = Number.isFinite(a.xp) && a.xp > 0
       ? '<span class="achievement-xp">+' + a.xp + ' XP</span>'
       : '';
