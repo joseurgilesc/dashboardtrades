@@ -255,7 +255,11 @@
               <div class="preview-group-body">
                 <div class="preview-item is-info">
                   <label class="preview-label" for="riskContracts">Contratos (N) — manual</label>
-                  <input type="number" id="riskContracts" class="preview-input" min="0" step="1" inputmode="numeric" value="">
+                  <div class="field-inline sizing-controls">
+                    <input type="number" id="riskContracts" class="preview-input" min="0" step="1" inputmode="numeric" value="">
+                    <button type="button" class="btn btn-mini" id="btnMaxContracts" title="Máximos contratos con tu stop configurado">Máx.</button>
+                    <button type="button" class="btn btn-mini" id="btnOneContract" title="1 contrato con el stop máximo posible">1</button>
+                  </div>
                 </div>
                 <div class="preview-item is-loss">
                   <span class="preview-label">Riesgo sugerido (N × P_m)</span>

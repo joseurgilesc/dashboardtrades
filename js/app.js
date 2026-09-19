@@ -68,6 +68,10 @@
    * account refreshes the default while hand-edits persist for that account. */
   let lastRiskAccount = null;
 
+  /* Last computed risk, so the sizing presets can read suggested contracts and
+   * max stop distance without recomputing. */
+  let lastRisk = null;
+
   /* True once the user edits the stop-ticks input by hand. A user-typed stop is
    * FINAL: the budget-derived default never re-seeds over it again, not even
    * when the instrument or the account changes. */
@@ -1939,6 +1943,7 @@
       dayLoss: guard.valid ? guard.dayLoss : 0,
       losingStreak: guard.valid ? guard.losingStreak : 0
     });
+    lastRisk = risk;
 
     /* Advisory stop/target price suggestions. They derive from the SAME
      * resolved stop distance (`ticksSL`) and the SELECTED R/B ratio the
@@ -3593,6 +3598,29 @@
         Store.removeAdjustment(btn.getAttribute('data-remove-adjustment'));
         renderCapital();
         renderBalances();
+      });
+    }
+
+    /* Sizing presets: "Máx." re-suggests max contracts at the configured stop;
+     * "1" fixes 1 contract and widens the stop to the maximum it affords. */
+    const maxContractsBtn = $('btnMaxContracts');
+    if (maxContractsBtn) {
+      maxContractsBtn.addEventListener('click', function () {
+        contractsTouched = false;
+        renderRiskPanel();
+      });
+    }
+    const oneContractBtn = $('btnOneContract');
+    if (oneContractBtn) {
+      oneContractBtn.addEventListener('click', function () {
+        contractsTouched = true;
+        stopTicksTouched = true;
+        syncContracts(1);
+        if (lastRisk && Number.isFinite(lastRisk.maxTicksForOneContract) && lastRisk.maxTicksForOneContract > 0) {
+          const stopEl = $('riskStopTicks');
+          if (stopEl) stopEl.value = String(lastRisk.maxTicksForOneContract);
+        }
+        renderRiskPanel();
       });
     }
 
