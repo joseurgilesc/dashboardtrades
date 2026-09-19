@@ -2254,15 +2254,23 @@
     return level;
   }
 
-  function renderLevelLadder(currentLevel) {
+  function renderLevelLadder(currentLevel, map) {
     const el = $('levelLadder');
     if (!el) return;
     el.innerHTML = LEVEL_NAMES.map(function (name, index) {
       const num = index + 1;
       const state = num < currentLevel ? 'done' : (num === currentLevel ? 'current' : '');
+      const reqs = LEVEL_REQUIREMENTS[index] || [];
+      const reqHtml = reqs.map(function (id) {
+        const b = map[id];
+        const earned = !!(b && b.earned);
+        return '<span class="level-step-req' + (earned ? ' done' : '') + '">' +
+          (earned ? '✓ ' : '○ ') + escapeHtml(b ? b.label : id) + '</span>';
+      }).join('');
       return '<div class="level-step' + (state ? ' ' + state : '') + '">' +
         '<span class="level-step-icon">' + LEVEL_ICONS[index] + '</span>' +
         '<span class="level-step-name">' + escapeHtml(name) + '</span>' +
+        '<span class="level-step-reqs">' + reqHtml + '</span>' +
         '</div>';
     }).join('');
   }
@@ -2294,7 +2302,7 @@
       }
     }
 
-    renderLevelLadder(lvl);
+    renderLevelLadder(lvl, map);
 
     const current = $('streakCurrent');
     if (current) current.textContent = pluralDays(summary.streak.current);
