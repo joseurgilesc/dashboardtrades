@@ -169,7 +169,7 @@
               <span class="field-hint" id="instrumentNote"></span>
             </div>
             <div class="field">
-              <label for="riskStopTicks">Distancia del stop (ticks) — por operación</label>
+              <label for="riskStopTicks">Distancia del stop (ticks) — por operación <i class="info-tip" data-tip="Distancia al stop en ticks. 'Auto' = la máxima que aguanta tu presupuesto por contrato.">i</i></label>
               <input type="number" id="riskStopTicks" min="0" step="any" inputmode="decimal" placeholder="Auto">
               <span class="field-hint" id="riskStopHint"></span>
             </div>
@@ -224,7 +224,7 @@
           <summary class="risk-block-title">3. Cálculo</summary>
           <div class="risk-block-content">
           <div class="field">
-            <label for="riskRatio">R/B (riesgo/beneficio)</label>
+            <label for="riskRatio">R/B (riesgo/beneficio) <i class="info-tip" data-tip="Relación riesgo/beneficio. El objetivo = entrada ± (stop × R/B).">i</i></label>
             <select id="riskRatio"></select>
             <span class="field-hint">El objetivo se calcula como entrada ± (stop en ticks × R/B) × tick.</span>
           </div>
@@ -269,11 +269,11 @@
               <h4 class="preview-group-title">Presupuesto del día</h4>
               <div class="preview-group-body">
                 <div class="preview-item is-info">
-                  <span class="preview-label">Presupuesto diario (total del día)</span>
+                  <span class="preview-label">Presupuesto diario <i class="info-tip" data-tip="Cuánto puedes arriesgar hoy (capital × % riesgo diario).">i</i></span>
                   <span class="preview-value" id="riskBudget">—</span>
                 </div>
                 <div class="preview-item is-info">
-                  <span class="preview-label">Cupo por operación (del presupuesto diario)</span>
+                  <span class="preview-label">Cupo por operación <i class="info-tip" data-tip="Tu presupuesto diario repartido entre las operaciones del día.">i</i></span>
                   <span class="preview-value" id="riskPerTradeBudget">—</span>
                 </div>
                 <div class="preview-item is-warn">
@@ -285,7 +285,7 @@
                   <span class="preview-value" id="riskAvailable">—</span>
                 </div>
                 <div class="preview-item is-info">
-                  <span class="preview-label">Presupuesto efectivo (mín.)</span>
+                  <span class="preview-label">Presupuesto efectivo <i class="info-tip" data-tip="El menor entre el cupo por operación y lo que queda disponible.">i</i></span>
                   <span class="preview-value" id="riskEffectiveBudget">—</span>
                 </div>
               </div>
@@ -295,7 +295,7 @@
               <h4 class="preview-group-title">Stop</h4>
               <div class="preview-group-body">
                 <div class="preview-item is-loss">
-                  <span class="preview-label">Máx. stop por operación (ticks · 1 contrato)</span>
+                  <span class="preview-label">Máx. stop por operación <i class="info-tip" data-tip="Máximo stop que aguanta 1 contrato dentro del presupuesto.">i</i></span>
                   <span class="preview-value" id="riskMaxTicks">—</span>
                 </div>
                 <div class="preview-item is-loss">
@@ -321,15 +321,15 @@
                   <span class="preview-value" id="riskRRRange">—</span>
                 </div>
                 <div class="preview-item is-info">
-                  <span class="preview-label">R/R</span>
+                  <span class="preview-label">R/R <i class="info-tip" data-tip="Relación riesgo/beneficio real de esta operación.">i</i></span>
                   <span class="preview-value" id="riskRR">—</span>
                 </div>
                 <div class="preview-item is-warn">
-                  <span class="preview-label">Recuperación requerida</span>
+                  <span class="preview-label">Recuperación requerida <i class="info-tip" data-tip="Cuánto necesitarías recuperar para volver al capital tras una pérdida de ese %.">i</i></span>
                   <span class="preview-value" id="riskRecovery">—</span>
                 </div>
                 <div class="preview-item is-loss">
-                  <span class="preview-label">Comisión (ida y vuelta)</span>
+                  <span class="preview-label">Comisión <i class="info-tip" data-tip="Comisión de entrada + salida (ida y vuelta).">i</i></span>
                   <span class="preview-value" id="riskCommission">—</span>
                 </div>
               </div>
@@ -352,7 +352,7 @@
               <span class="preview-value" id="riskDayLoss">—</span>
             </div>
             <div class="preview-item">
-              <span class="preview-label">Drawdown diario</span>
+              <span class="preview-label">Drawdown diario <i class="info-tip" data-tip="Caída máxima del capital desde su pico durante el día.">i</i></span>
               <span class="preview-value" id="riskDrawdown">—</span>
             </div>
             <div class="preview-item">
