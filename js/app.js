@@ -3427,6 +3427,11 @@
   function wireEvents() {
     $('tradeForm').addEventListener('submit', handleSubmit);
 
+    /* Make info "i" tips tappable on mobile: focusable so :focus shows them. */
+    Array.prototype.forEach.call(document.querySelectorAll('.info-tip'), function (el) {
+      el.setAttribute('tabindex', '0');
+    });
+
     const infoButton = $('btnInstrumentInfo');
     if (infoButton) infoButton.addEventListener('click', toggleInstrumentInfo);
 

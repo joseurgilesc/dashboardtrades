@@ -3116,6 +3116,7 @@ input[type="number"] { -moz-appearance: textfield; }
 }
 
 .info-tip:hover::after,
+.info-tip:focus::after,
 .info-tip:focus-visible::after {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
