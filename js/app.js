@@ -2128,25 +2128,43 @@
    * and the weekly recap. All values come from the pure store helpers; XP is
    * process-only (see `Store.xpBreakdown`).
    */
+  /** Renders the 8 named levels as a visual ladder, highlighting progress. */
+  function renderLevelLadder(currentLevel) {
+    const el = $('levelLadder');
+    if (!el) return;
+    el.innerHTML = LEVEL_NAMES.map(function (name, index) {
+      const num = index + 1;
+      const state = num < currentLevel ? 'done' : (num === currentLevel ? 'current' : '');
+      const mark = num < currentLevel ? '✓' : String(num);
+      return '<div class="level-step' + (state ? ' ' + state : '') + '">' +
+        '<span class="level-step-num">' + mark + '</span>' +
+        '<span class="level-step-name">' + escapeHtml(name) + '</span>' +
+        '</div>';
+    }).join('');
+  }
+
   function renderGamification() {
     if (typeof Store.getDisciplineSummary !== 'function') return;
     const account = activeAccount();
     const summary = Store.getDisciplineSummary(account);
+    const lvl = summary.level.level;
+    const nameIdx = Math.min(Math.max(lvl, 1), LEVEL_NAMES.length) - 1;
 
-    const badge = $('levelBadge');
-    if (badge) {
-      const lvl = summary.level.level;
-      const nameIdx = Math.min(Math.max(lvl, 1), LEVEL_NAMES.length) - 1;
-      badge.textContent = 'Nivel ' + lvl + ' · ' + LEVEL_NAMES[nameIdx];
-    }
+    const badge = $('levelHeroBadge');
+    if (badge) badge.textContent = 'Nivel ' + lvl + ' · ' + LEVEL_NAMES[nameIdx];
 
-    const fill = $('levelProgressFill');
+    const xpEl = $('levelHeroXp');
+    if (xpEl) xpEl.textContent = summary.xp + ' XP';
+
+    const fill = $('levelHeroFill');
     if (fill) fill.style.width = summary.level.progressPct.toFixed(1) + '%';
-    const label = $('levelProgressLabel');
+    const label = $('levelHeroLabel');
     if (label) {
       label.textContent = summary.level.intoLevel + ' / ' + summary.level.perLevel +
         ' XP · ' + summary.xp + ' XP totales';
     }
+
+    renderLevelLadder(lvl);
 
     const current = $('streakCurrent');
     if (current) current.textContent = pluralDays(summary.streak.current);

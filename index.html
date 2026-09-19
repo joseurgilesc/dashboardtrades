@@ -599,45 +599,55 @@
         <div class="chart-body"><canvas id="chartEquity"></canvas></div>
       </div>
 
+      <!-- XP hero: level + progress + level ladder, front and center. -->
+      <div class="card level-hero">
+        <div class="level-hero-head">
+          <div class="level-hero-badge-wrap">
+            <span class="level-hero-badge" id="levelHeroBadge">Nivel 1 · Novato</span>
+            <span class="level-hero-xp" id="levelHeroXp">0 XP</span>
+          </div>
+          <div class="streak-grid">
+            <div class="streak-item">
+              <span class="streak-label">Racha actual <i class="info-tip" data-tip="Días consecutivos respetando tu límite diario.">i</i></span>
+              <span class="streak-value" id="streakCurrent">0 días</span>
+            </div>
+            <div class="streak-item">
+              <span class="streak-label">Mejor racha</span>
+              <span class="streak-value" id="streakBest">0 días</span>
+            </div>
+          </div>
+        </div>
+        <div class="level-progress">
+          <div class="progress-track"><div class="progress-fill" id="levelHeroFill" style="width:0%"></div></div>
+          <span class="progress-label" id="levelHeroLabel">0 / 100 XP</span>
+        </div>
+        <div class="level-ladder" id="levelLadder"></div>
+      </div>
+
       <div class="kpi-grid">
-        <div class="kpi-card" title="Número total de operaciones registradas"><span class="kpi-label">Total trades</span><span class="kpi-value" id="kpiTotalTrades">0</span></div>
-        <div class="kpi-card" title="Porcentaje de operaciones ganadoras sobre el total"><span class="kpi-label">Tasa de acierto</span><span class="kpi-value" id="kpiWinRate">0 %</span></div>
-        <div class="kpi-card" title="Suma del resultado neto (ganancias − pérdidas − comisiones) de todas las operaciones"><span class="kpi-label">Neto total</span><span class="kpi-value" id="kpiNetTotal">$0.00</span></div>
-        <div class="kpi-card" title="Beneficio bruto ÷ pérdida bruta. Mayor que 1 = rentable"><span class="kpi-label">Factor de beneficio</span><span class="kpi-value" id="kpiProfitFactor">0.00</span></div>
-        <div class="kpi-card" title="Promedio que ganas o pierdes por operación (neto total ÷ nº de trades)"><span class="kpi-label">Expectativa</span><span class="kpi-value" id="kpiExpectancy">$0.00</span></div>
-        <div class="kpi-card" title="Media de las operaciones ganadoras"><span class="kpi-label">Ganancia media</span><span class="kpi-value" id="kpiAvgWin">$0.00</span></div>
-        <div class="kpi-card" title="Media de las operaciones perdedoras"><span class="kpi-label">Pérdida media</span><span class="kpi-value" id="kpiAvgLoss">$0.00</span></div>
-        <div class="kpi-card" title="Máxima caída del capital desde su pico"><span class="kpi-label">Máx. drawdown</span><span class="kpi-value" id="kpiMaxDrawdown">$0.00</span></div>
-        <div class="kpi-card" title="La operación con mayor ganancia"><span class="kpi-label">Mejor trade</span><span class="kpi-value" id="kpiBestTrade">$0.00</span></div>
-        <div class="kpi-card" title="La operación con mayor pérdida"><span class="kpi-label">Peor trade</span><span class="kpi-value" id="kpiWorstTrade">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Total trades <i class="info-tip" data-tip="Número total de operaciones registradas.">i</i></span><span class="kpi-value" id="kpiTotalTrades">0</span></div>
+        <div class="kpi-card"><span class="kpi-label">Tasa de acierto <i class="info-tip" data-tip="Porcentaje de operaciones ganadoras sobre el total.">i</i></span><span class="kpi-value" id="kpiWinRate">0 %</span></div>
+        <div class="kpi-card"><span class="kpi-label">Neto total <i class="info-tip" data-tip="Suma del resultado neto (ganancias − pérdidas − comisiones).">i</i></span><span class="kpi-value" id="kpiNetTotal">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Factor de beneficio <i class="info-tip" data-tip="Beneficio bruto ÷ pérdida bruta. Mayor que 1 = rentable.">i</i></span><span class="kpi-value" id="kpiProfitFactor">0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Expectativa <i class="info-tip" data-tip="Promedio que ganas o pierdes por operación (neto total ÷ nº de trades).">i</i></span><span class="kpi-value" id="kpiExpectancy">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Ganancia media <i class="info-tip" data-tip="Media de las operaciones ganadoras.">i</i></span><span class="kpi-value" id="kpiAvgWin">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Pérdida media <i class="info-tip" data-tip="Media de las operaciones perdedoras.">i</i></span><span class="kpi-value" id="kpiAvgLoss">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Máx. drawdown <i class="info-tip" data-tip="Máxima caída del capital desde su pico.">i</i></span><span class="kpi-value" id="kpiMaxDrawdown">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Mejor trade <i class="info-tip" data-tip="La operación con mayor ganancia.">i</i></span><span class="kpi-value" id="kpiBestTrade">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label">Peor trade <i class="info-tip" data-tip="La operación con mayor pérdida.">i</i></span><span class="kpi-value" id="kpiWorstTrade">$0.00</span></div>
       </div>
 
       <div class="card" id="disciplineCard">
         <div class="card-header card-header-row">
-          <h2>Nivel y disciplina</h2>
-          <span class="level-badge" id="levelBadge">Nivel 1</span>
-        </div>
-        <div class="level-progress">
-          <div class="progress-track"><div class="progress-fill" id="levelProgressFill" style="width:0%"></div></div>
-          <span class="progress-label" id="levelProgressLabel">0 / 100 XP</span>
+          <h2>Metas y disciplina <i class="info-tip" data-tip="Objetivos semanales que premian tu constancia con XP.">i</i></h2>
         </div>
         <p class="hint">El XP premia el proceso: stop registrado, R/R planificado y días dentro del límite. Nunca el beneficio ni el volumen.</p>
-        <div class="streak-grid">
-          <div class="streak-item">
-            <span class="streak-label">Racha actual</span>
-            <span class="streak-value" id="streakCurrent">0 días</span>
-          </div>
-          <div class="streak-item">
-            <span class="streak-label">Mejor racha</span>
-            <span class="streak-value" id="streakBest">0 días</span>
-          </div>
-        </div>
         <div class="goals-list" id="goalsList"></div>
       </div>
 
       <div class="card" id="achievementsCard">
         <div class="card-header card-header-row">
-          <h2>Logros de proceso</h2>
+          <h2>Logros de proceso <i class="info-tip" data-tip="Badges por hábitos de disciplina. Otorgan XP al conseguirlos.">i</i></h2>
           <span class="table-summary" id="achievementsSummary"></span>
         </div>
         <div class="achievements-grid" id="achievementsList"></div>
@@ -645,7 +655,7 @@
 
       <div class="card" id="outcomeCard">
         <div class="card-header card-header-row">
-          <h2>Estadística de resultado</h2>
+          <h2>Estadística de resultado <i class="info-tip" data-tip="Métricas informativas del resultado. No otorgan XP.">i</i></h2>
           <span class="table-summary" id="outcomeSummary"></span>
         </div>
         <p class="hint">Basadas en el resultado (P&amp;L). Son informativas: no otorgan XP ni cuentan como logro.</p>

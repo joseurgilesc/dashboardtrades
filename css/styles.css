@@ -3068,3 +3068,158 @@ input[type="number"] { -moz-appearance: textfield; }
     transition-duration: 0.001ms !important;
   }
 }
+
+/* --- Info tip (the little "i" with a hover explanation) ------------ */
+.info-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: help;
+  position: relative;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.info-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  width: max-content;
+  max-width: 220px;
+  padding: 7px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  text-align: left;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  z-index: 80;
+}
+
+.info-tip:hover::after,
+.info-tip:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* --- XP hero + level ladder ---------------------------------------- */
+.level-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.level-hero-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.level-hero-badge-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.level-hero-badge {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--accent);
+}
+
+.level-hero-xp {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.level-ladder {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+}
+
+.level-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  opacity: 0.55;
+}
+
+.level-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.level-step-name {
+  font-size: 10px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.level-step.done {
+  opacity: 1;
+  border-color: var(--pos);
+}
+
+.level-step.done .level-step-num {
+  background: var(--pos);
+  color: var(--on-accent);
+}
+
+.level-step.current {
+  opacity: 1;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.level-step.current .level-step-num {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.level-step.current .level-step-name {
+  color: var(--accent);
+}
+
+@media (max-width: 700px) {
+  .level-ladder {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
