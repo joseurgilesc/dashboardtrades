@@ -173,6 +173,14 @@
               <input type="number" id="riskStopTicks" min="0" step="any" inputmode="decimal" placeholder="Auto">
               <span class="field-hint" id="riskStopHint"></span>
             </div>
+            <div class="field">
+              <label for="marketTrend">Tendencia <i class="info-tip" data-tip="Dirección de la tendencia del mercado en el período elegido. Te avisa si operas en contra.">i</i></label>
+              <select id="marketTrend"></select>
+            </div>
+            <div class="field">
+              <label for="marketTrendPeriod">Período <i class="info-tip" data-tip="Ventana de tiempo para evaluar la tendencia.">i</i></label>
+              <select id="marketTrendPeriod"></select>
+            </div>
           </div>
           <!-- Instrument info lives with the calculator's instrument selector
                (Block 1), not in the trade form. Toggled by #btnInstrumentInfo
@@ -371,6 +379,7 @@
         <p class="risk-warning" id="riskViabilityWarning" role="alert" hidden></p>
         <p class="risk-hint" id="riskSuitabilityHint" role="status" aria-live="polite" hidden></p>
         <p class="risk-warning" id="disciplineWarning" role="status" aria-live="polite" hidden></p>
+        <p class="risk-warning" id="trendWarning" role="status" aria-live="polite" hidden></p>
           </div><!-- /.risk-main -->
 
           <!-- Compact visual plan: the SVG levels are rendered by app.js from

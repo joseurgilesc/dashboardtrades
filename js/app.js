@@ -471,6 +471,10 @@
     fillSelect($('exitType'), EXIT_TYPES);
     fillSelect($('emotion'), EMOTIONS);
     fillSelect($('tradeMode'), ['Scalping', 'Intradía', 'Swing']);
+    fillSelect($('marketTrend'), ['Lateral', 'Alcista', 'Bajista']);
+    fillSelect($('marketTrendPeriod'), ['1h', '4h', '24h', '48h']);
+    const trendPeriodEl = $('marketTrendPeriod');
+    if (trendPeriodEl) trendPeriodEl.value = '24h';
 
     fillSelect($('filterAccount'), ACCOUNTS, 'Todas las cuentas');
     fillSelect($('filterInstrument'), Object.keys(INSTRUMENTS), 'Todos los instrumentos');
@@ -2116,6 +2120,32 @@
         disciplineEl.textContent = '';
       }
     }
+
+    renderTrendWarning();
+  }
+
+  /** Advisory: warns when the trade direction goes against the marked trend. */
+  function renderTrendWarning() {
+    const el = $('trendWarning');
+    if (!el) return;
+    const trendEl = $('marketTrend');
+    const dirEl = $('direction');
+    const trend = trendEl ? trendEl.value : 'Lateral';
+    const direction = dirEl ? dirEl.value : '';
+    const period = ($('marketTrendPeriod') && $('marketTrendPeriod').value) || '24h';
+    let msg = '';
+    if (trend === 'Alcista' && direction === 'Corto') {
+      msg = 'Operando contra la tendencia alcista (' + period + '). Es solo un aviso.';
+    } else if (trend === 'Bajista' && direction === 'Largo') {
+      msg = 'Operando contra la tendencia bajista (' + period + '). Es solo un aviso.';
+    }
+    if (msg) {
+      el.textContent = msg;
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+      el.textContent = '';
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -3578,7 +3608,7 @@
     ['instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
       'stop', 'plannedRisk',
       'entryDate',
-      'riskStopTicks', 'riskRatio', 'riskDailyPctInput', 'riskTradesPerDayInput'].forEach(function (id) {
+      'riskStopTicks', 'riskRatio', 'riskDailyPctInput', 'riskTradesPerDayInput', 'marketTrend', 'marketTrendPeriod'].forEach(function (id) {
       const el = $(id);
       if (el) el.addEventListener('input', updatePreview);
       if (el) el.addEventListener('change', updatePreview);
