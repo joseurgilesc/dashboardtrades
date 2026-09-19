@@ -612,6 +612,62 @@
     if (subEl) subEl.textContent = 'Inicial ' + formatMoney(initial[account] || 0);
   }
 
+  /** Renders the Capital card (deposits/withdrawals + monthly suggestion). */
+  function renderCapital() {
+    if (typeof Store.getAdjustments !== 'function') return;
+    const account = activeAccount();
+    const isSim = account === 'Sim';
+
+    const accountLabel = $('capitalAccountLabel');
+    if (accountLabel) accountLabel.textContent = account;
+
+    const simNote = $('capitalSimNote');
+    if (simNote) simNote.hidden = !isSim;
+
+    ['withdrawalPct', 'adjustmentType', 'adjustmentAmount', 'btnAddAdjustment'].forEach(function (id) {
+      const el = $(id);
+      if (el) el.disabled = isSim;
+    });
+
+    const pctEl = $('withdrawalPct');
+    if (pctEl) pctEl.value = String(Store.getWithdrawalPct());
+
+    const suggestion = $('capitalSuggestion');
+    if (suggestion) {
+      if (isSim) {
+        suggestion.textContent = '';
+      } else {
+        const profit = Store.getMonthProfit(account);
+        const pct = Store.getWithdrawalPct();
+        if (profit > 0) {
+          suggestion.textContent = 'Ganancia del mes: ' + formatMoney(profit) +
+            ' · Retiro sugerido (' + pct + '%): ' + formatMoney(profit * pct / 100) + '.';
+        } else {
+          suggestion.textContent = 'Aún no hay ganancia este mes para retirar.';
+        }
+      }
+    }
+
+    const list = $('capitalList');
+    if (list) {
+      const adjustments = Store.getAdjustments(account);
+      if (!adjustments.length) {
+        list.innerHTML = '<li class="capital-empty">Sin movimientos.</li>';
+      } else {
+        list.innerHTML = adjustments.map(function (a) {
+          const sign = a.type === 'deposit' ? '+' : '−';
+          const cls = a.type === 'deposit' ? 'pos' : 'neg';
+          return '<li class="capital-item">' +
+            '<span class="capital-item-label">' + escapeHtml(a.date) + ' · ' +
+              escapeHtml(a.type === 'deposit' ? 'Depósito' : 'Retiro') + '</span>' +
+            '<span class="capital-amount ' + cls + '">' + sign + formatMoney(a.amount) + '</span>' +
+            '<button type="button" class="btn-icon danger" data-remove-adjustment="' + escapeHtml(a.id) + '">Eliminar</button>' +
+            '</li>';
+        }).join('');
+      }
+    }
+  }
+
   /* ------------------------------------------------------------------ */
   /* Table                                                               */
   /* ------------------------------------------------------------------ */
@@ -1012,6 +1068,7 @@
 
   function renderAll() {
     renderBalances();
+    renderCapital();
     renderRiskPanel();
     renderEntryWarnings();
     renderInstrumentNote();
@@ -3466,6 +3523,39 @@
         updatePreview();
         renderBalances();
         renderAll();
+      });
+    }
+
+    /* Capital: withdrawal % + deposit/withdrawal movements. */
+    const pctEl = $('withdrawalPct');
+    if (pctEl) {
+      pctEl.addEventListener('change', function () {
+        Store.setWithdrawalPct(parseFloat(pctEl.value));
+        renderCapital();
+      });
+    }
+    const addAdjustmentBtn = $('btnAddAdjustment');
+    if (addAdjustmentBtn) {
+      addAdjustmentBtn.addEventListener('click', function () {
+        const account = activeAccount();
+        if (account === 'Sim') return;
+        const type = $('adjustmentType') ? $('adjustmentType').value : 'deposit';
+        const amount = parseFloat($('adjustmentAmount') ? $('adjustmentAmount').value : '');
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        Store.addAdjustment(account, type, amount);
+        if ($('adjustmentAmount')) $('adjustmentAmount').value = '';
+        renderCapital();
+        renderBalances();
+      });
+    }
+    const capList = $('capitalList');
+    if (capList) {
+      capList.addEventListener('click', function (event) {
+        const btn = event.target.closest('[data-remove-adjustment]');
+        if (!btn) return;
+        Store.removeAdjustment(btn.getAttribute('data-remove-adjustment'));
+        renderCapital();
+        renderBalances();
       });
     }
 

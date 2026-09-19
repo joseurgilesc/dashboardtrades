@@ -174,12 +174,11 @@
               <span class="field-hint" id="riskStopHint"></span>
             </div>
             <div class="field">
-              <label for="marketTrend">Tendencia <i class="info-tip" data-tip="Dirección de la tendencia del mercado en el período elegido. Te avisa si operas en contra.">i</i></label>
-              <select id="marketTrend"></select>
-            </div>
-            <div class="field">
-              <label for="marketTrendPeriod">Período <i class="info-tip" data-tip="Ventana de tiempo para evaluar la tendencia.">i</i></label>
-              <select id="marketTrendPeriod"></select>
+              <label>Tendencia <i class="info-tip" data-tip="Dirección de la tendencia del mercado en el período elegido. Te avisa si operas en contra.">i</i> · Período <i class="info-tip" data-tip="Ventana de tiempo para evaluar la tendencia.">i</i></label>
+              <div class="field-inline">
+                <select id="marketTrend"></select>
+                <select id="marketTrendPeriod"></select>
+              </div>
             </div>
           </div>
           <!-- Instrument info lives with the calculator's instrument selector
@@ -809,6 +808,30 @@
         <div class="form-actions">
           <button type="button" class="btn btn-primary" id="btnSaveInstrumentConfig">Guardar rangos</button>
         </div>
+      </div>
+
+      <div class="card" id="capitalCard">
+        <div class="card-header card-header-row">
+          <h2>Capital <i class="info-tip" data-tip="Retiros y depósitos de capital. No aplica a la cuenta Sim.">i</i></h2>
+          <span class="table-summary" id="capitalAccountLabel"></span>
+        </div>
+        <p class="hint" id="capitalSimNote" hidden>La cuenta Sim no admite retiros ni depósitos.</p>
+        <div class="form-grid form-grid-narrow">
+          <div class="field">
+            <label for="withdrawalPct">Retiro mensual (%) <i class="info-tip" data-tip="Porcentaje de la ganancia del mes que se sugiere retirar.">i</i></label>
+            <input type="number" id="withdrawalPct" min="0" step="1" inputmode="numeric" value="12">
+          </div>
+        </div>
+        <p class="hint" id="capitalSuggestion"></p>
+        <div class="capital-movement-form">
+          <select id="adjustmentType">
+            <option value="deposit">Depósito (ahorro)</option>
+            <option value="withdrawal">Retiro</option>
+          </select>
+          <input type="number" id="adjustmentAmount" min="0" step="any" inputmode="decimal" placeholder="Monto">
+          <button type="button" class="btn" id="btnAddAdjustment">Añadir</button>
+        </div>
+        <ul class="capital-list" id="capitalList"></ul>
       </div>
 
       <div class="card">

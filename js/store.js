@@ -802,6 +802,13 @@ const Store = (function () {
         totals[computed.account] += computed.net;
       }
     });
+    /* Capital adjustments: deposits add, withdrawals subtract. */
+    const adjustments = Array.isArray(state.settings.adjustments) ? state.settings.adjustments : [];
+    adjustments.forEach(function (a) {
+      if (totals[a.account] === undefined) return;
+      const sign = a.type === 'deposit' ? 1 : -1;
+      totals[a.account] += sign * numOr(a.amount, 0);
+    });
     return totals;
   }
 
@@ -810,6 +817,61 @@ const Store = (function () {
     return ACCOUNT_LIST.reduce(function (sum, account) {
       return sum + (totals[account] || 0);
     }, 0);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Capital adjustments (deposits / withdrawals)                        */
+  /* ------------------------------------------------------------------ */
+
+  const DEFAULT_WITHDRAWAL_PCT = 12;
+
+  function getWithdrawalPct() {
+    return numOr(state.settings.withdrawalPct, DEFAULT_WITHDRAWAL_PCT);
+  }
+
+  function setWithdrawalPct(pct) {
+    const n = numOr(pct, DEFAULT_WITHDRAWAL_PCT);
+    state.settings.withdrawalPct = Math.max(0, n);
+    persistSettings();
+  }
+
+  function getAdjustments(account) {
+    const list = Array.isArray(state.settings.adjustments) ? state.settings.adjustments : [];
+    if (!account) return list.slice();
+    return list.filter(function (a) { return a.account === account; });
+  }
+
+  function addAdjustment(account, type, amount) {
+    const list = Array.isArray(state.settings.adjustments) ? state.settings.adjustments.slice() : [];
+    list.push({
+      id: uid(),
+      account: strOr(account, ''),
+      date: todayISO(),
+      type: type === 'deposit' ? 'deposit' : 'withdrawal',
+      amount: roundMoney(Math.abs(numOr(amount, 0)))
+    });
+    state.settings.adjustments = list;
+    persistSettings();
+    notifySubscribers();
+    return true;
+  }
+
+  function removeAdjustment(id) {
+    const list = Array.isArray(state.settings.adjustments) ? state.settings.adjustments : [];
+    state.settings.adjustments = list.filter(function (a) { return a.id !== id; });
+    persistSettings();
+    notifySubscribers();
+  }
+
+  function getMonthProfit(account) {
+    const d = new Date();
+    const start = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-01';
+    let sum = 0;
+    state.trades.forEach(function (t) {
+      if (t.account !== account) return;
+      if (t.entryDate && t.entryDate >= start) sum += computeTrade(t).net;
+    });
+    return roundMoney(sum);
   }
 
   /* ------------------------------------------------------------------ */
@@ -3323,6 +3385,12 @@ const Store = (function () {
     getEquitySeries: getEquitySeries,
     getAccountBalances: getAccountBalances,
     getTotalBalance: getTotalBalance,
+    getWithdrawalPct: getWithdrawalPct,
+    setWithdrawalPct: setWithdrawalPct,
+    getAdjustments: getAdjustments,
+    addAdjustment: addAdjustment,
+    removeAdjustment: removeAdjustment,
+    getMonthProfit: getMonthProfit,
     computeRisk: computeRisk,
     riskGuard: riskGuard,
     minBalanceForOneContract: minBalanceForOneContract,
