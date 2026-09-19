@@ -47,6 +47,18 @@
 
   /* Named XP levels so the gamification reads as a real progression. */
   const LEVEL_NAMES = ['Novato', 'Aprendiz', 'Intermedio', 'Avanzado', 'Experto', 'Trader', 'Profesional', 'Maestro'];
+  const LEVEL_ICONS = ['🌱', '📘', '⚙️', '📈', '🎯', '💼', '🏆', '👑'];
+  /* Each level unlocks when ALL of its badges are earned (process only). */
+  const LEVEL_REQUIREMENTS = [
+    ['first-stop', 'disciplined-day'],
+    ['risk-10', 'rr-10'],
+    ['streak-5', 'bpt-700-trades-t1'],
+    ['bpt-capital-guardian-t1', 'bpt-mosquito-repellent-t1'],
+    ['bpt-emergency-stop-t1', 'bpt-crocodile-t1'],
+    ['streak-10', 'bpt-700-trades-t2'],
+    ['bpt-capital-guardian-t2', 'bpt-700-trades-t3'],
+    ['bpt-capital-guardian-t4', 'bpt-700-trades-t5']
+  ];
 
   /* True once the user edits the contracts field by hand, so the risk
    * calculator stops prefilling it for the current trade. Reset on reset. */
@@ -2217,15 +2229,34 @@
    * process-only (see `Store.xpBreakdown`).
    */
   /** Renders the 8 named levels as a visual ladder, highlighting progress. */
+  /** Maps earned badge/achievement ids to their objects. */
+  function badgeMap(summary) {
+    const map = {};
+    (summary.achievements || []).forEach(function (a) { map[a.id] = a; });
+    (summary.processBadges || []).forEach(function (b) { map[b.id] = b; });
+    return map;
+  }
+
+  /** Highest level whose required badges are all earned (specific, not XP). */
+  function levelByRequirements(summary) {
+    const map = badgeMap(summary);
+    let level = 0;
+    for (let i = 0; i < LEVEL_REQUIREMENTS.length; i += 1) {
+      const all = LEVEL_REQUIREMENTS[i].every(function (id) { return map[id] && map[id].earned; });
+      if (!all) break;
+      level = i + 1;
+    }
+    return level;
+  }
+
   function renderLevelLadder(currentLevel) {
     const el = $('levelLadder');
     if (!el) return;
     el.innerHTML = LEVEL_NAMES.map(function (name, index) {
       const num = index + 1;
       const state = num < currentLevel ? 'done' : (num === currentLevel ? 'current' : '');
-      const mark = num < currentLevel ? '✓' : String(num);
       return '<div class="level-step' + (state ? ' ' + state : '') + '">' +
-        '<span class="level-step-num">' + mark + '</span>' +
+        '<span class="level-step-icon">' + LEVEL_ICONS[index] + '</span>' +
         '<span class="level-step-name">' + escapeHtml(name) + '</span>' +
         '</div>';
     }).join('');
@@ -2235,21 +2266,27 @@
     if (typeof Store.getDisciplineSummary !== 'function') return;
     const account = activeAccount();
     const summary = Store.getDisciplineSummary(account);
-    const lvl = summary.level.level;
-    const nameIdx = Math.min(Math.max(lvl, 1), LEVEL_NAMES.length) - 1;
+    const map = badgeMap(summary);
+    const lvl = levelByRequirements(summary);
+    const displayLvl = Math.max(lvl, 1);
+    const idx = displayLvl - 1;
 
     const badge = $('levelHeroBadge');
-    if (badge) badge.textContent = 'Nivel ' + lvl + ' · ' + LEVEL_NAMES[nameIdx];
+    if (badge) badge.textContent = LEVEL_ICONS[idx] + ' Nivel ' + displayLvl + ' · ' + LEVEL_NAMES[idx];
 
-    const xpEl = $('levelHeroXp');
-    if (xpEl) xpEl.textContent = summary.xp + ' XP';
-
-    const fill = $('levelHeroFill');
-    if (fill) fill.style.width = summary.level.progressPct.toFixed(1) + '%';
-    const label = $('levelHeroLabel');
-    if (label) {
-      label.textContent = summary.level.intoLevel + ' / ' + summary.level.perLevel +
-        ' XP · ' + summary.xp + ' XP totales';
+    const reqEl = $('levelHeroReq');
+    if (reqEl) {
+      if (lvl >= LEVEL_REQUIREMENTS.length) {
+        reqEl.textContent = '¡Nivel máximo alcanzado!';
+      } else {
+        const next = LEVEL_REQUIREMENTS[lvl];
+        const nextName = LEVEL_NAMES[lvl];
+        const parts = next.map(function (id) {
+          const b = map[id];
+          return (b && b.earned ? '✓ ' : '○ ') + (b ? b.label : id);
+        });
+        reqEl.textContent = 'Para subir a Nivel ' + (lvl + 1) + ' · ' + nextName + ': ' + parts.join(' · ');
+      }
     }
 
     renderLevelLadder(lvl);
