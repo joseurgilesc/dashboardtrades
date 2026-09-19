@@ -526,6 +526,10 @@
                 <label for="plannedRisk">Riesgo planeado (USD, opcional)</label>
                 <input type="number" id="plannedRisk" min="0" step="any" inputmode="decimal">
               </div>
+              <div class="field">
+                <label for="commission">Comisión (por contrato) <i class="info-tip" data-tip="Comisión de ida y vuelta por contrato. Déjalo vacío para usar la comisión por defecto del instrumento.">i</i></label>
+                <input type="number" id="commission" min="0" step="any" inputmode="decimal" placeholder="Auto">
+              </div>
               <div class="field field-wide">
                 <label for="notes">Notas</label>
                 <textarea id="notes" rows="2" placeholder="Observaciones de la operación (opcional)"></textarea>

@@ -1100,6 +1100,7 @@
        * preserved on edit via `editingTarget`, never used for planning. */
       target: editingTarget,
       plannedRisk: parseFloat($('plannedRisk').value),
+      commission: parseFloat($('commission').value),
       exitType: $('exitType').value,
       emotion: $('emotion').value,
       notes: $('notes').value.trim()
@@ -2536,6 +2537,7 @@
      * target no longer has a field; a new trade starts without one. */
     $('stop').value = '';
     $('plannedRisk').value = '';
+    $('commission').value = '';
     editingTarget = 0;
     /* New trade: the stop and exit fields are draftable again, and any stale
      * draft mark from the previous trade is cleared. */
@@ -2584,6 +2586,7 @@
       exitDate: $('exitDate') ? $('exitDate').value : '',
       stop: $('stop').value,
       plannedRisk: $('plannedRisk').value,
+      commission: $('commission').value,
       exitType: $('exitType').value,
       emotion: $('emotion').value,
       notes: $('notes').value,
@@ -2609,6 +2612,7 @@
     if (d.exitDate !== undefined && $('exitDate')) $('exitDate').value = d.exitDate;
     $('stop').value = d.stop;
     $('plannedRisk').value = d.plannedRisk;
+    $('commission').value = (d.commission !== undefined) ? d.commission : '';
     $('exitType').value = d.exitType;
     $('emotion').value = d.emotion;
     $('notes').value = d.notes;
@@ -2708,6 +2712,7 @@
     /* No USD target field anymore: preserve the saved value for the round-trip. */
     editingTarget = trade.target > 0 ? trade.target : 0;
     $('plannedRisk').value = trade.plannedRisk > 0 ? trade.plannedRisk : '';
+    $('commission').value = trade.commission > 0 ? trade.commission : '';
     $('exitType').value = trade.exitType;
     $('emotion').value = trade.emotion;
     $('notes').value = trade.notes;
@@ -2762,6 +2767,7 @@
     /* A duplicated trade is new: it does not inherit the legacy USD target. */
     editingTarget = 0;
     $('plannedRisk').value = '';
+    $('commission').value = '';
     $('notes').value = '';
     /* No exit data is copied: entry/exit default to the current moment. */
     $('entryPrice').value = '';
@@ -3606,7 +3612,7 @@
     }
 
     ['instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
-      'stop', 'plannedRisk',
+      'stop', 'plannedRisk', 'commission',
       'entryDate',
       'riskStopTicks', 'riskRatio', 'riskDailyPctInput', 'riskTradesPerDayInput', 'marketTrend', 'marketTrendPeriod'].forEach(function (id) {
       const el = $(id);
