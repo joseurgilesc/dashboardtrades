@@ -763,6 +763,31 @@
     el.textContent = 'stop máx. ' + maxStop + ' ticks · ' + maxOps + ' op/día';
   }
 
+  /** Positions the shared info tooltip near `el`, clamped to the viewport. */
+  function showInfoTip(el) {
+    const tip = $('infoTipPop');
+    if (!tip) return;
+    const text = el.getAttribute('data-tip');
+    if (!text) return;
+    tip.textContent = text;
+    tip.hidden = false;
+    const rect = el.getBoundingClientRect();
+    const tipW = tip.offsetWidth;
+    const tipH = tip.offsetHeight;
+    const gap = 8;
+    let left = rect.left + rect.width / 2 - tipW / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tipW - 8));
+    let top = rect.top - tipH - gap;
+    if (top < 8) top = rect.bottom + gap;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  }
+
+  function hideInfoTip() {
+    const tip = $('infoTipPop');
+    if (tip) tip.hidden = true;
+  }
+
   /* ------------------------------------------------------------------ */
   /* Table                                                               */
   /* ------------------------------------------------------------------ */
@@ -3624,9 +3649,13 @@
   function wireEvents() {
     $('tradeForm').addEventListener('submit', handleSubmit);
 
-    /* Make info "i" tips tappable on mobile: focusable so :focus shows them. */
+    /* Info "i" tips: one shared JS-positioned tooltip (clamped to viewport). */
     Array.prototype.forEach.call(document.querySelectorAll('.info-tip'), function (el) {
       el.setAttribute('tabindex', '0');
+      el.addEventListener('mouseenter', function () { showInfoTip(el); });
+      el.addEventListener('mouseleave', hideInfoTip);
+      el.addEventListener('focus', function () { showInfoTip(el); });
+      el.addEventListener('blur', hideInfoTip);
     });
 
     const infoButton = $('btnInstrumentInfo');

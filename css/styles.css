@@ -2024,7 +2024,6 @@ input.is-draft {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
 }
 
 .kpi-label {
@@ -3085,19 +3084,15 @@ input[type="number"] { -moz-appearance: textfield; }
   line-height: 1;
   color: var(--text-muted);
   cursor: help;
-  position: relative;
   vertical-align: middle;
   user-select: none;
 }
 
-.info-tip::after {
-  content: attr(data-tip);
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  width: max-content;
-  max-width: 220px;
+/* Single JS-positioned tooltip, clamped to stay within the viewport. */
+.info-tip-pop {
+  position: fixed;
+  z-index: 90;
+  max-width: 240px;
   padding: 7px 10px;
   background: var(--panel-2);
   border: 1px solid var(--border);
@@ -3106,20 +3101,8 @@ input[type="number"] { -moz-appearance: textfield; }
   font-size: 11px;
   font-weight: 400;
   line-height: 1.4;
-  white-space: normal;
-  text-align: left;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 0.12s ease, transform 0.12s ease;
-  z-index: 80;
-}
-
-.info-tip:hover::after,
-.info-tip:focus::after,
-.info-tip:focus-visible::after {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
 }
 
 /* --- XP hero + level ladder ---------------------------------------- */
