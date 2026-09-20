@@ -411,7 +411,7 @@ check('#riskContractsWarning reuses the risk-hint styling',
 
 check('app.js defines syncContracts', appSrc.indexOf('function syncContracts(value)') !== -1);
 check('renderRiskPanel prefills the suggestion through syncContracts',
-  extractFunction(appSrc, 'function renderRiskPanel()').indexOf('syncContracts(risk.contracts)') !== -1);
+  extractFunction(appSrc, 'function renderRiskPanel()').indexOf('syncContracts(suggested)') !== -1);
 check('the calculator contracts handler mirrors into #contracts',
   appSrc.indexOf('syncContracts(riskContractsField.value)') !== -1);
 check('the form contracts handler mirrors into #riskContracts',

@@ -835,6 +835,15 @@ const Store = (function () {
     persistSettings();
   }
 
+  function getMaxContracts() {
+    return Math.max(0, intOr(state.settings.maxContracts, 0));
+  }
+
+  function setMaxContracts(n) {
+    state.settings.maxContracts = Math.max(0, intOr(n, 0));
+    persistSettings();
+  }
+
   function getAdjustments(account) {
     const list = Array.isArray(state.settings.adjustments) ? state.settings.adjustments : [];
     if (!account) return list.slice();
@@ -3387,6 +3396,8 @@ const Store = (function () {
     getTotalBalance: getTotalBalance,
     getWithdrawalPct: getWithdrawalPct,
     setWithdrawalPct: setWithdrawalPct,
+    getMaxContracts: getMaxContracts,
+    setMaxContracts: setMaxContracts,
     getAdjustments: getAdjustments,
     addAdjustment: addAdjustment,
     removeAdjustment: removeAdjustment,

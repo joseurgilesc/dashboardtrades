@@ -502,6 +502,17 @@
     fillSelect($('marketTrendPeriod'), ['1h', '4h', '24h', '48h']);
     const trendPeriodEl = $('marketTrendPeriod');
     if (trendPeriodEl) trendPeriodEl.value = '24h';
+    const maxContractsEl = $('maxContracts');
+    if (maxContractsEl) {
+      maxContractsEl.innerHTML = '';
+      [{ v: '0', l: 'Sin límite' }, { v: '1', l: '1' }, { v: '2', l: '2' },
+       { v: '3', l: '3' }, { v: '5', l: '5' }, { v: '10', l: '10' }].forEach(function (opt) {
+        const o = document.createElement('option');
+        o.value = opt.v;
+        o.textContent = opt.l;
+        maxContractsEl.appendChild(o);
+      });
+    }
 
     fillSelect($('filterAccount'), ACCOUNTS, 'Todas las cuentas');
     fillSelect($('filterInstrument'), Object.keys(INSTRUMENTS), 'Todos los instrumentos');
@@ -729,6 +740,27 @@
       const tbody = $('leaderboardBody');
       if (tbody) tbody.innerHTML = '<tr><td colspan="4">No se pudieron cargar los usuarios.</td></tr>';
     });
+  }
+
+  /** Reverse sizing: given N contracts, show the max stop and max ops/day. */
+  function renderContractsHint() {
+    const el = $('contractsHint');
+    if (!el) return;
+    const contractsEl = $('contracts');
+    const n = contractsEl ? parseFloat(contractsEl.value) : NaN;
+    if (!Number.isFinite(n) || n <= 0 || !lastRisk) {
+      el.textContent = '—';
+      return;
+    }
+    const maxStop = (Number.isFinite(lastRisk.maxTicksForOneContract) && lastRisk.maxTicksForOneContract > 0)
+      ? Math.floor(lastRisk.maxTicksForOneContract / n)
+      : 0;
+    const maxOps = (Number.isFinite(lastRisk.dailyBudget) && lastRisk.dailyBudget > 0 &&
+        Number.isFinite(lastRisk.stopTicks) && lastRisk.stopTicks > 0 &&
+        Number.isFinite(lastRisk.tickValue) && lastRisk.tickValue > 0)
+      ? Math.floor(lastRisk.dailyBudget / (n * lastRisk.stopTicks * lastRisk.tickValue))
+      : 0;
+    el.textContent = 'stop máx. ' + maxStop + ' ticks · ' + maxOps + ' op/día';
   }
 
   /* ------------------------------------------------------------------ */
@@ -2091,10 +2123,14 @@
     if (!contractsTouched) {
       /* Guarded so the render stays callable when the helper is not in scope
        * (e.g. an isolated harness that extracts this function alone). */
-      if (typeof syncContracts === 'function') syncContracts(risk.contracts);
+      const maxC = (typeof Store !== 'undefined' && typeof Store.getMaxContracts === 'function')
+        ? Store.getMaxContracts() : 0;
+      const suggested = (maxC > 0) ? Math.min(risk.contracts, maxC) : risk.contracts;
+      if (typeof syncContracts === 'function') syncContracts(suggested);
     } else if (contractsEl && riskContractsEl) {
       riskContractsEl.value = contractsEl.value;
     }
+    if (typeof renderContractsHint === 'function') renderContractsHint();
 
     /* Reported REAL risk for the contracts the user actually holds. It is a
      * pure report derived FROM the sizing chain, never an input to it. An
@@ -3100,6 +3136,10 @@
     });
     const minRREl = $('minRR');
     if (minRREl) minRREl.value = String(Store.getMinRR());
+    const maxC = $('maxContracts');
+    if (maxC && typeof Store.getMaxContracts === 'function') {
+      maxC.value = String(Store.getMaxContracts());
+    }
     const weeklyEl = $('weeklyDisciplineGoal');
     if (weeklyEl && Store.getWeeklyDisciplineGoal) {
       weeklyEl.value = String(Store.getWeeklyDisciplineGoal());
@@ -3686,6 +3726,15 @@
     const refreshLeaderboardBtn = $('btnRefreshLeaderboard');
     if (refreshLeaderboardBtn) {
       refreshLeaderboardBtn.addEventListener('click', renderLeaderboard);
+    }
+
+    /* Max contracts cap. */
+    const maxContractsSel = $('maxContracts');
+    if (maxContractsSel) {
+      maxContractsSel.addEventListener('change', function () {
+        Store.setMaxContracts(parseInt(maxContractsSel.value, 10));
+        renderRiskPanel();
+      });
     }
 
     /* Validation modal: close on button or backdrop click. */
