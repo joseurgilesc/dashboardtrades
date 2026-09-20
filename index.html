@@ -834,6 +834,26 @@
         <ul class="capital-list" id="capitalList"></ul>
       </div>
 
+      <div class="card" id="leaderboardCard" hidden>
+        <div class="card-header card-header-row">
+          <h2>Comparación de usuarios <i class="info-tip" data-tip="Solo visible para el administrador.">i</i></h2>
+          <button type="button" class="btn btn-ghost" id="btnRefreshLeaderboard">Actualizar</button>
+        </div>
+        <div class="table-wrap">
+          <table class="trades-table">
+            <thead>
+              <tr>
+                <th scope="col">Usuario</th>
+                <th scope="col" class="num">Trades</th>
+                <th scope="col" class="num">Neto</th>
+                <th scope="col" class="num">Win rate</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboardBody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           <h2>Datos</h2>

@@ -695,6 +695,42 @@
     }
   }
 
+  /** Admin-only user comparison table. */
+  function renderLeaderboard() {
+    const card = $('leaderboardCard');
+    const admin = currentUser && currentUser.email === 'jose.urgiles@ucuenca.edu.ec';
+    if (card) card.hidden = !admin;
+    if (!admin) return;
+    if (typeof FirebaseService === 'undefined' || !FirebaseService.adapter ||
+        typeof FirebaseService.adapter.listUsers !== 'function') return;
+    FirebaseService.adapter.listUsers().then(function (users) {
+      const tbody = $('leaderboardBody');
+      if (!tbody) return;
+      const rows = users.map(function (user) {
+        const trades = user.trades || [];
+        let net = 0;
+        let wins = 0;
+        trades.forEach(function (t) {
+          const computed = Store.computeTrade(t);
+          net += computed.net;
+          if (computed.net > 0) wins += 1;
+        });
+        const winRate = trades.length ? (wins / trades.length) * 100 : 0;
+        const label = user.name || user.email || user.uid || '';
+        return '<tr>' +
+          '<td>' + escapeHtml(label) + '</td>' +
+          '<td class="num">' + trades.length + '</td>' +
+          '<td class="num ' + signClass(net) + '">' + formatMoney(net) + '</td>' +
+          '<td class="num">' + formatNumber(winRate, 1) + ' %</td>' +
+          '</tr>';
+      }).join('');
+      tbody.innerHTML = rows || '<tr><td colspan="4">Sin usuarios todavía.</td></tr>';
+    }).catch(function () {
+      const tbody = $('leaderboardBody');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="4">No se pudieron cargar los usuarios.</td></tr>';
+    });
+  }
+
   /* ------------------------------------------------------------------ */
   /* Table                                                               */
   /* ------------------------------------------------------------------ */
@@ -3646,6 +3682,12 @@
       });
     }
 
+    /* Leaderboard refresh (admin). */
+    const refreshLeaderboardBtn = $('btnRefreshLeaderboard');
+    if (refreshLeaderboardBtn) {
+      refreshLeaderboardBtn.addEventListener('click', renderLeaderboard);
+    }
+
     /* Validation modal: close on button or backdrop click. */
     ['btnCloseErrorModal', 'btnErrorModalOk'].forEach(function (id) {
       const el = $(id);
@@ -4231,6 +4273,14 @@
       }
     }
 
+    /* Save profile (email/name) so the admin leaderboard can list users. */
+    if (FirebaseService.adapter && typeof FirebaseService.adapter.setProfile === 'function') {
+      FirebaseService.adapter.setProfile(user.uid, {
+        email: user.email || '',
+        name: user.displayName || ''
+      }).catch(function () {});
+    }
+
     /* Migrate the legacy localStorage journal on first login, then hydrate.
      * A migration failure is logged and never blocks login. */
     FirebaseService.migrateLocalData(user.uid).catch(function (err) {
@@ -4254,6 +4304,7 @@
       setAppVisible(true);
       switchTab('registro');
       renderAll();
+      renderLeaderboard();
     }).catch(function () {
       if (currentUid !== user.uid) return;
       showAuthError('No se pudieron cargar tus datos. Inténtalo de nuevo.');

@@ -407,6 +407,27 @@ const FirebaseService = (function () {
     setSettings: function (uid, settings) {
       if (!db) return Promise.reject(new Error('firestore-unavailable'));
       return metaDoc(uid, 'settings').set(Object.assign({}, settings));
+    },
+
+    setProfile: function (uid, profile) {
+      if (!db) return Promise.reject(new Error('firestore-unavailable'));
+      return userDoc(uid).set(Object.assign({}, profile), { merge: true });
+    },
+
+    listUsers: function () {
+      if (!db) return Promise.reject(new Error('firestore-unavailable'));
+      return db.collection('users').get().then(function (snapshot) {
+        const users = [];
+        snapshot.forEach(function (doc) {
+          users.push(Object.assign({ uid: doc.id }, doc.data()));
+        });
+        return Promise.all(users.map(function (user) {
+          return tradesCollection(user.uid).get().then(function (tradesSnap) {
+            user.trades = snapToTrades(tradesSnap);
+            return user;
+          });
+        }));
+      });
     }
   };
 
