@@ -1560,6 +1560,20 @@ input.is-draft {
   color: var(--accent);
 }
 
+/* Contracts controls wrap so the stepper + presets never overflow on mobile. */
+.sizing-controls {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+@media (max-width: 560px) {
+  .contracts-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+
 /* Compact instrument lookup table. Deliberately NOT `.trades-table`, so the
  * mobile density rules that hide main-table columns never touch it. */
 .risk-table {
