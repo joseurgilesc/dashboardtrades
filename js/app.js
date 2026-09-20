@@ -47,7 +47,18 @@
 
   /* Named XP levels so the gamification reads as a real progression. */
   const LEVEL_NAMES = ['Novato', 'Aprendiz', 'Intermedio', 'Avanzado', 'Experto', 'Trader', 'Profesional', 'Maestro'];
-  const LEVEL_ICONS = ['🌱', '📘', '⚙️', '📈', '🎯', '💼', '🏆', '👑'];
+  const LEVEL_COLORS = ['#2DD4BF', '#22D3EE', '#22C55E', '#A78BFA', '#FBBF24', '#22D3EE', '#A78BFA', '#FBBF24'];
+  /* Original stroke icons (theme-colored) for each level. */
+  const LEVEL_ICONS = [
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20h10"/><path d="M12 20v-8"/><path d="M12 12c0-4 3-7 7-7-1 4-4 7-7 7z"/><path d="M12 12c0-4-3-7-7-7 1 4 4 7 7 7z"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5h5a4 4 0 0 1 4 4v11a3 3 0 0 0-3-3H2z"/><path d="M22 5h-5a4 4 0 0 0-4 4v11a3 3 0 0 1 3-3h6z"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4h-7"/><path d="M10 4H3"/><path d="M21 12h-9"/><path d="M8 12H3"/><path d="M21 20h-5"/><path d="M12 20H3"/><circle cx="12" cy="4" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="14" cy="20" r="2"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a1 1 0 0 0 0 2h3"/><path d="M17 6h3a1 1 0 0 1 0 2h-3"/></svg>',
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18h18"/><path d="M5 18l-2-9 5 3 4-6 4 6 5-3-2 9z"/></svg>'
+  ];
   /* Each level unlocks when ALL of its badges are earned (process only). */
   const LEVEL_REQUIREMENTS = [
     ['first-stop', 'disciplined-day'],
@@ -2268,7 +2279,7 @@
           (earned ? '✓ ' : '○ ') + escapeHtml(b ? b.label : id) + '</span>';
       }).join('');
       return '<div class="level-step' + (state ? ' ' + state : '') + '">' +
-        '<span class="level-step-icon">' + LEVEL_ICONS[index] + '</span>' +
+        '<span class="level-step-icon" style="color:' + LEVEL_COLORS[index] + '">' + LEVEL_ICONS[index] + '</span>' +
         '<span class="level-step-name">' + escapeHtml(name) + '</span>' +
         '<span class="level-step-reqs">' + reqHtml + '</span>' +
         '</div>';
@@ -2285,7 +2296,10 @@
     const idx = displayLvl - 1;
 
     const badge = $('levelHeroBadge');
-    if (badge) badge.textContent = LEVEL_ICONS[idx] + ' Nivel ' + displayLvl + ' · ' + LEVEL_NAMES[idx];
+    if (badge) {
+      badge.innerHTML = '<span class="level-hero-icon" style="color:' + LEVEL_COLORS[idx] + '">' +
+        LEVEL_ICONS[idx] + '</span> Nivel ' + displayLvl + ' · ' + LEVEL_NAMES[idx];
+    }
 
     const reqEl = $('levelHeroReq');
     if (reqEl) {

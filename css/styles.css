@@ -3174,8 +3174,23 @@ input[type="number"] { -moz-appearance: textfield; }
 }
 
 .level-step-icon {
-  font-size: 18px;
-  line-height: 1;
+  display: inline-flex;
+}
+
+.level-step-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.level-hero-icon {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.level-hero-icon svg {
+  width: 24px;
+  height: 24px;
 }
 
 .level-step-name {
