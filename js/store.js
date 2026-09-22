@@ -37,6 +37,9 @@ const Store = (function () {
   const DAILY_LIMIT_DEFAULT = (typeof DEFAULT_DAILY_TRADE_LIMIT !== 'undefined')
     ? DEFAULT_DAILY_TRADE_LIMIT
     : 3;
+  /* Gain-factor default: the percentage of today's winning trades that is
+   * reinvested into today's risk budget (presets 20/30/50/60). */
+  const GAIN_FACTOR_DEFAULT = (typeof DEFAULT_GAIN_FACTOR !== 'undefined') ? DEFAULT_GAIN_FACTOR : 50;
 
   /* Risk-discipline bounds and warning thresholds (from instruments.js). */
   const RISK_MIN = (typeof RISK_PCT_MIN !== 'undefined') ? RISK_PCT_MIN : 0.5;
@@ -527,19 +530,32 @@ const Store = (function () {
   }
 
   /**
-   * Returns `{ Sim:{riskPct,dailyTradeLimit}, Real:{...}, Fondeo:{...} }`,
-   * normalizing every value and falling back to the defaults (2 / 3) for
+   * Gain-factor normalization: returns the input when it is one of the allowed
+   * presets (20, 30, 50, 60), otherwise the default 50. Non-numeric or missing
+   * values (including negative) fall back to the default.
+   */
+  function normalizeGainFactor(value) {
+    const n = numOr(value, NaN);
+    if (n === 20 || n === 30 || n === 50 || n === 60) return n;
+    return GAIN_FACTOR_DEFAULT;
+  }
+
+  /**
+   * Returns `{ Sim:{riskPct,dailyTradeLimit,gainFactor}, Real:{...}, Fondeo:{...} }`,
+   * normalizing every value and falling back to the defaults (2 / 3 / 50) for
    * missing, non-numeric or negative input. A daily limit of 0 is valid.
    */
   function getRiskSettings() {
     const raw = (state.settings && typeof state.settings === 'object') ? state.settings : {};
     const riskMap = (raw.riskPct && typeof raw.riskPct === 'object') ? raw.riskPct : {};
     const limitMap = (raw.dailyTradeLimit && typeof raw.dailyTradeLimit === 'object') ? raw.dailyTradeLimit : {};
+    const gainMap = (raw.gainFactor && typeof raw.gainFactor === 'object') ? raw.gainFactor : {};
     const out = {};
     ACCOUNT_LIST.forEach(function (account) {
       out[account] = {
         riskPct: normalizeRiskPct(riskMap[account]),
-        dailyTradeLimit: normalizeDailyLimit(limitMap[account])
+        dailyTradeLimit: normalizeDailyLimit(limitMap[account]),
+        gainFactor: normalizeGainFactor(gainMap[account])
       };
     });
     return out;
@@ -1395,7 +1411,10 @@ const Store = (function () {
       effectiveRisk: effectiveBudget,
       tickValue: tickValue
     });
-    result.usedToday = budget.hasAvailable ? Math.max(0, dailyBudget - budget.available) : 0;
+    /* `usedToday` reports the TRUE loser sum (`dayLoss`), never the inverse of
+     * `available`: once `available` includes the gain term, `dailyBudget −
+     * available` would under-report the realized losses. */
+    result.usedToday = dayLoss;
     result.available = available;
     result.presupuesto = available;
     result.exhausted = available <= 0;
@@ -1883,29 +1902,73 @@ const Store = (function () {
   }
 
   /**
+   * Sum of today's winning trades for one account (pure): the mirror of
+   * `dailyRiskUsage.used`. Scoped to `account` and `today` exactly like the
+   * loser sum, counting only `net > 0` trades, rounded to the cent. `trades`
+   * defaults to the store's trades so the helper stays pure but is directly
+   * usable from the UI.
+   */
+  function todayGains(inputs) {
+    const opts = inputs || {};
+    const account = strOr(opts.account, '');
+    const today = strOr(opts.today, '') || todayISO();
+    const source = Array.isArray(opts.trades) ? opts.trades : state.trades;
+    let gains = 0;
+    source.forEach(function (trade) {
+      if (!trade || trade.account !== account) return;
+      if (trade.entryDate !== today) return;
+      const net = computeTrade(trade).net;
+      if (net > 0) gains += net;
+    });
+    return roundMoney(gains);
+  }
+
+  /**
+   * Gain-adjusted available budget (pure), hard-capped at the daily budget:
+   *
+   *   available = min(dailyBudget, dailyBudget - used + (gainFactor/100) * todayGains)
+   *
+   * The gain term only refills budget already consumed by today's losers; when
+   * nothing was lost the cap keeps `available` at `dailyBudget`, so the factor
+   * widens margin, never the base. Rounded to the cent.
+   */
+  function gainsAdjustedAvailable(inputs) {
+    const opts = inputs || {};
+    const dailyBudget = numOr(opts.dailyBudget, 0);
+    const used = numOr(opts.used, 0);
+    const todayGains = numOr(opts.todayGains, 0);
+    const gainFactor = normalizeGainFactor(opts.gainFactor);
+    return roundMoney(Math.min(dailyBudget, dailyBudget - used + (gainFactor / 100) * todayGains));
+  }
+
+  /**
    * Remaining daily risk budget for one account (pure).
    *
    *   dailyBudget = (riskPct / 100) * balance
    *   used        = sum of |net| for that account's TODAY losers (net < 0)
-   *   available   = dailyBudget - used
+   *   todayGains  = sum of net for that account's TODAY winners (net > 0)
+   *   available   = min(dailyBudget, dailyBudget - used + gainFactor/100 * todayGains)
    *   exhausted   = available <= 0
    *
-   * Only losing trades consume the budget; winners never reduce it. "Today"
-   * is `entryDate === todayISO()` unless an explicit `today` is passed, and
-   * trades are scoped to `account`. `trades` defaults to the store's trades,
-   * so the helper stays pure but is directly usable from the UI.
+   * Only losing trades consume the budget; winners never reduce it and instead
+   * refill it through the gain factor (hard-capped so `available` never exceeds
+   * `dailyBudget`). "Today" is `entryDate === todayISO()` unless an explicit
+   * `today` is passed, and trades are scoped to `account`. `trades` defaults to
+   * the store's trades, so the helper stays pure but is directly usable from
+   * the UI.
    *
    * `balance` is the capital base for the budget; the UI passes the
    * start-of-day balance (`startOfDayBalance`) so today's realized losses are
    * not counted twice (once by shrinking the base and once by `used`). All
    * money fields are rounded to the cent.
    *
-   * Returns `{ valid, reason, account, today, dailyBudget, used, available,
-   * exhausted, trades }`. `valid` is false when `account` is empty or
-   * `balance`/`riskPct` are missing/non-numeric; `reason` names the first
-   * failing input. A negative `balance` is allowed (a drawdown can leave the
-   * account below zero) and simply yields an exhausted budget. `trades` is the
-   * number of losing trades counted.
+   * `gainFactor` is optional (normalized to a preset via `normalizeGainFactor`,
+   * default 50). Returns `{ valid, reason, account, today, dailyBudget, used,
+   * todayGains, gainFactor, available, exhausted, trades }`. `valid` is false
+   * when `account` is empty or `balance`/`riskPct` are missing/non-numeric;
+   * `reason` names the first failing input. A negative `balance` is allowed (a
+   * drawdown can leave the account below zero) and simply yields an exhausted
+   * budget. `trades` is the number of losing trades counted.
    */
   function dailyRiskUsage(inputs) {
     const opts = inputs || {};
@@ -1913,6 +1976,7 @@ const Store = (function () {
     const riskPct = numOr(opts.riskPct, NaN);
     const balance = numOr(opts.balance, NaN);
     const today = strOr(opts.today, '') || todayISO();
+    const gainFactor = normalizeGainFactor(opts.gainFactor);
     const source = Array.isArray(opts.trades) ? opts.trades : state.trades;
 
     const result = {
@@ -1922,6 +1986,8 @@ const Store = (function () {
       today: today,
       dailyBudget: 0,
       used: 0,
+      todayGains: 0,
+      gainFactor: gainFactor,
       available: 0,
       exhausted: false,
       trades: 0
@@ -1932,6 +1998,7 @@ const Store = (function () {
     if (!Number.isFinite(riskPct) || riskPct < 0) { result.reason = 'riskPct'; return result; }
 
     let used = 0;
+    let gains = 0;
     let losers = 0;
     source.forEach(function (trade) {
       if (!trade || trade.account !== account) return;
@@ -1940,6 +2007,8 @@ const Store = (function () {
       if (net < 0) {
         used += Math.abs(net);
         losers += 1;
+      } else if (net > 0) {
+        gains += net;
       }
     });
 
@@ -1947,10 +2016,18 @@ const Store = (function () {
     /* Round `used` first so an exact exhaustion yields 0 (never -0) and the
      * displayed available matches the contract floor. */
     const usedRounded = roundMoney(used);
-    const available = roundMoney(dailyBudget - usedRounded);
+    const todayGains = roundMoney(gains);
+    const available = gainsAdjustedAvailable({
+      dailyBudget: dailyBudget,
+      used: usedRounded,
+      todayGains: todayGains,
+      gainFactor: gainFactor
+    });
     result.valid = true;
     result.dailyBudget = dailyBudget;
     result.used = usedRounded;
+    result.todayGains = todayGains;
+    result.gainFactor = gainFactor;
     result.available = available;
     result.exhausted = available <= 0;
     result.trades = losers;
@@ -3432,6 +3509,9 @@ const Store = (function () {
     countTradesToday: countTradesToday,
     dailyLimitStatus: dailyLimitStatus,
     dailyRiskUsage: dailyRiskUsage,
+    todayGains: todayGains,
+    normalizeGainFactor: normalizeGainFactor,
+    gainsAdjustedAvailable: gainsAdjustedAvailable,
     startOfDayBalance: startOfDayBalance,
     SMALL_ACCOUNT_MAX: SMALL_ACCOUNT_LIMIT,
 
