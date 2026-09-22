@@ -52,14 +52,6 @@
           <span class="unit">%</span>
         </div>
       </label>
-      <label class="header-ctl" title="Operaciones por día">
-        <span class="chip-label">Op/día</span>
-        <div class="stepper">
-          <button type="button" class="stepper-btn" data-step-down="riskTradesPerDayInput" data-step="1" aria-label="Menos operaciones">−</button>
-          <input type="number" id="riskTradesPerDayInput" min="1" step="1" inputmode="numeric" value="3">
-          <button type="button" class="stepper-btn" data-step-up="riskTradesPerDayInput" data-step="1" aria-label="Más operaciones">+</button>
-        </div>
-      </label>
     </div>
     <div class="user-box" id="userBox" hidden>
       <img class="user-avatar" id="userAvatar" alt="" hidden>
@@ -265,6 +257,16 @@
                     <button type="button" class="btn btn-mini" id="btnOneContract" title="1 contrato con el stop máximo posible">1</button>
                   </div>
                 </div>
+                <div class="preview-item is-info contracts-row">
+                  <label class="preview-label" for="riskTradesPerDayInput">Op/día (reparte el cupo por operación)</label>
+                  <div class="field-inline sizing-controls">
+                    <div class="stepper">
+                      <button type="button" class="stepper-btn" data-step-down="riskTradesPerDayInput" data-step="1" aria-label="Menos operaciones">−</button>
+                      <input type="number" id="riskTradesPerDayInput" class="preview-input" min="1" step="1" inputmode="numeric" value="3">
+                      <button type="button" class="stepper-btn" data-step-up="riskTradesPerDayInput" data-step="1" aria-label="Más operaciones">+</button>
+                    </div>
+                  </div>
+                </div>
                 <div class="preview-item is-info">
                   <span class="preview-label">Con N contratos</span>
                   <span class="preview-value" id="contractsHint">—</span>
@@ -298,6 +300,10 @@
                 <div class="preview-item is-warn">
                   <span class="preview-label">Usado hoy</span>
                   <span class="preview-value" id="riskUsedToday">—</span>
+                </div>
+                <div class="preview-item is-gain">
+                  <span class="preview-label">Ganancias hoy <i class="info-tip" data-tip="Ganancias de hoy que reinvierten parte de tu presupuesto según el factor de ganancia.">i</i></span>
+                  <span class="preview-value" id="riskGainsToday">—</span>
                 </div>
                 <div class="preview-item is-gain">
                   <span class="preview-label">Disponible (presupuesto)</span>
@@ -773,6 +779,33 @@
           <div class="field">
             <label for="dailyLimitFondeo">Límite diario Fondeo</label>
             <input type="number" id="dailyLimitFondeo" min="0" step="1" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="gainFactorSim">Factor de ganancia Sim (%)</label>
+            <select id="gainFactorSim">
+              <option value="20">20 %</option>
+              <option value="30">30 %</option>
+              <option value="50">50 %</option>
+              <option value="60">60 %</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="gainFactorReal">Factor de ganancia Real (%)</label>
+            <select id="gainFactorReal">
+              <option value="20">20 %</option>
+              <option value="30">30 %</option>
+              <option value="50">50 %</option>
+              <option value="60">60 %</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="gainFactorFondeo">Factor de ganancia Fondeo (%)</label>
+            <select id="gainFactorFondeo">
+              <option value="20">20 %</option>
+              <option value="30">30 %</option>
+              <option value="50">50 %</option>
+              <option value="60">60 %</option>
+            </select>
           </div>
           <div class="field">
             <label for="minRR">R/R mínimo</label>

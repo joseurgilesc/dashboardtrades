@@ -308,6 +308,20 @@ check('the input accepts any positive integer (min=1, step=1, no max)',
   tradesField.indexOf('step="1"') !== -1 &&
   tradesField.indexOf('max=') === -1);
 
+/* Relocation: the stepper moved from the header into the calculator "Tamaño"
+ * group, next to the contracts field, keeping its id and +/- wiring. */
+check('the stepper left the header (Op/día header label gone)',
+  htmlSrc.indexOf('title="Operaciones por día"') === -1);
+const contractsIdx = htmlSrc.indexOf('id="riskContracts"');
+check('the stepper sits next to contracts (after #riskContracts)',
+  tradesIdx !== -1 && contractsIdx !== -1 && tradesIdx > contractsIdx);
+const hintIdx = htmlSrc.indexOf('id="contractsHint"');
+check('the stepper lives inside the Tamaño group (before the hint row)',
+  tradesIdx !== -1 && hintIdx !== -1 && tradesIdx < hintIdx);
+check('the +/- stepper buttons still target the input',
+  htmlSrc.indexOf('data-step-down="riskTradesPerDayInput"') !== -1 &&
+  htmlSrc.indexOf('data-step-up="riskTradesPerDayInput"') !== -1);
+
 /* ------------------------------------------------------------------ */
 /* Result                                                              */
 /* ------------------------------------------------------------------ */

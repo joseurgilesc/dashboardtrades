@@ -427,6 +427,26 @@ check('the result reset list includes the new real-risk rows',
   extractFunction(appSrc, 'function renderRiskPanel()').indexOf("'riskRealRiskPct'") !== -1);
 
 /* ------------------------------------------------------------------ */
+/* [7] computeRisk.usedToday reads the TRUE loser sum (gain fix)       */
+/* ------------------------------------------------------------------ */
+
+console.log('\n[7] usedToday reads the true loser sum, not (budget - available)');
+
+/* With the gain term, available can exceed (dailyBudget - dayLoss), so the old
+ * `dailyBudget - available` derivation would under-report usedToday. It must
+ * now report the true loser sum (dayLoss) passed in. */
+const usageFix = Store.computeRisk({
+  balance: 100000, capital: 100000, riskPct: 2, tradesPerDay: 3,
+  instrument: 'MES', stopTicks: 8,
+  available: 250, dayLoss: 200
+});
+eq('usedToday = the true loser sum (dayLoss)', usageFix.usedToday, 200);
+check('usedToday is no longer derived from available',
+  usageFix.dailyBudget - usageFix.available !== usageFix.usedToday);
+check('computeRisk.usedToday sources opts.dayLoss',
+  extractFunction(storeSrc, 'function computeRisk(inputs)').indexOf('result.usedToday = dayLoss') !== -1);
+
+/* ------------------------------------------------------------------ */
 /* Result                                                              */
 /* ------------------------------------------------------------------ */
 

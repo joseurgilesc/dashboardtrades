@@ -1961,8 +1961,15 @@
     const minRR = Store.getMinRR();
 
     /* Remaining daily budget: the account's daily risk budget minus the sum of
-     * its realized losses for today. */
-    const usage = Store.dailyRiskUsage({ account: account, riskPct: riskPct, balance: capital, today: state.globalDate });
+     * its realized losses for today, refilled by the account's gain factor on
+     * today's winning trades (hard-capped at the daily budget). */
+    const usage = Store.dailyRiskUsage({
+      account: account,
+      riskPct: riskPct,
+      balance: capital,
+      today: state.globalDate,
+      gainFactor: settings.gainFactor
+    });
     /* Circuit-breaker context for Block 4. */
     const guard = Store.riskGuard({ account: account, capital: capital, today: state.globalDate });
 
@@ -2122,6 +2129,8 @@
     setRiskItem('riskBudget', usage.valid ? formatMoney(usage.dailyBudget) : '—');
     setRiskItem('riskUsedToday', usage.valid ? formatMoney(usage.used) : '—',
       usage.valid && usage.used > 0 ? 'warn' : '');
+    setRiskItem('riskGainsToday', usage.valid ? formatMoney(usage.todayGains) : '—',
+      usage.valid && usage.todayGains > 0 ? 'pos' : '');
     setRiskItem('riskAvailable', usage.valid ? formatMoney(usage.available) : '—',
       usage.valid && usage.exhausted ? 'warn' : '');
 
@@ -3156,8 +3165,10 @@
     ACCOUNTS.forEach(function (account) {
       const riskEl = $('riskPct' + account);
       const limitEl = $('dailyLimit' + account);
+      const gainEl = $('gainFactor' + account);
       if (riskEl) riskEl.value = String(settings[account].riskPct);
       if (limitEl) limitEl.value = String(settings[account].dailyTradeLimit);
+      if (gainEl) gainEl.value = String(settings[account].gainFactor);
     });
     const minRREl = $('minRR');
     if (minRREl) minRREl.value = String(Store.getMinRR());
@@ -3182,12 +3193,14 @@
     const current = Store.getRiskSettings();
     const risk = {};
     const limits = {};
+    const gains = {};
     const warnings = [];
     const errors = [];
 
     ACCOUNTS.forEach(function (account) {
       const riskEl = $('riskPct' + account);
       const limitEl = $('dailyLimit' + account);
+      const gainEl = $('gainFactor' + account);
       const stored = current[account] || {};
 
       const rawRisk = riskEl ? riskEl.value.trim() : '';
@@ -3224,6 +3237,13 @@
           if (limitEl) limitEl.value = String(clampedLimit.value);
         }
       }
+
+      /* Gain factor is a preset select; normalize to keep persisted data clean. */
+      if (gainEl) {
+        gains[account] = Store.normalizeGainFactor(gainEl.value);
+      } else {
+        gains[account] = stored.gainFactor;
+      }
     });
 
     let minRR = Store.getMinRR();
@@ -3241,7 +3261,7 @@
       }
     }
 
-    Store.setSettings({ riskPct: risk, dailyTradeLimit: limits, minRR: minRR });
+    Store.setSettings({ riskPct: risk, dailyTradeLimit: limits, gainFactor: gains, minRR: minRR });
     const weeklyEl = $('weeklyDisciplineGoal');
     if (weeklyEl && Store.setWeeklyDisciplineGoal) {
       const rawWeekly = weeklyEl.value.trim();
