@@ -262,6 +262,22 @@ eq('AUTO with no balance falls back to 1 tick',
   FALLBACK_STOP_TICKS);
 
 /* ------------------------------------------------------------------ */
+/* (f) The AUTO stop reflects a gain-adjusted available                */
+/* ------------------------------------------------------------------ */
+
+console.log('\n(f) The AUTO stop reflects a gain-adjusted available');
+
+const boosted = autoStop('Sim', 'MES', { balance: 100000, riskPct: 2, tradesPerDay: 3, available: 250 });
+eq('available 250 binds the AUTO stop (floor(250/1.25)=200 ticks)', boosted.stopTicks, 200);
+
+const boostedRisk = Store.computeRisk({
+  balance: 100000, capital: 100000, riskPct: 2, tradesPerDay: 3,
+  instrument: 'MES', stopTicks: boosted.stopTicks, available: 250
+});
+eq('computeRisk.maxTicks mirrors the boosted AUTO stop', boostedRisk.maxTicksForOneContract, boosted.stopTicks);
+eq('both consumers read the same available', boostedRisk.effectiveBudget, 250);
+
+/* ------------------------------------------------------------------ */
 /* Result                                                              */
 /* ------------------------------------------------------------------ */
 

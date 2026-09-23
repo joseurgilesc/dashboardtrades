@@ -325,6 +325,29 @@ check('the favicon is not an external/CDN URL',
   htmlSrc.slice(htmlSrc.indexOf('rel="icon"'), htmlSrc.indexOf('rel="icon"') + 80).indexOf('http') === -1);
 
 /* ------------------------------------------------------------------ */
+/* [6] Gain term widens the stop only when available binds             */
+/* ------------------------------------------------------------------ */
+
+console.log('\n[6] Gain-adjusted available widens the stop (single source)');
+
+/* budgetStopTicks reads the SAME available the calculator sizes from. */
+eq('available 50 binds -> 40 ticks',
+  Store.budgetStopTicks({ instrument: 'MES', balance: 10000, riskPct: 2, tradesPerDay: 1, available: 50 }), 40);
+eq('available 100 binds -> 80 ticks',
+  Store.budgetStopTicks({ instrument: 'MES', balance: 10000, riskPct: 2, tradesPerDay: 1, available: 100 }), 80);
+eq('available 500 does not bind -> still 160 ticks',
+  Store.budgetStopTicks({ instrument: 'MES', balance: 10000, riskPct: 2, tradesPerDay: 1, available: 500 }), 160);
+
+/* Both consumers agree on the same available (no drift). */
+const sharedAvailable = 120;
+const sharedStop = Store.budgetStopTicks({ instrument: 'MES', balance: 10000, riskPct: 2, tradesPerDay: 1, available: sharedAvailable });
+const sharedRisk = Store.computeRisk({ balance: 10000, capital: 10000, riskPct: 2, tradesPerDay: 1, instrument: 'MES', stopTicks: sharedStop, available: sharedAvailable });
+check('budgetStopTicks and computeRisk read the same available',
+  sharedStop === Math.floor(sharedAvailable / MES_TV) &&
+  sharedRisk.effectiveBudget === sharedAvailable &&
+  sharedRisk.maxTicksForOneContract === sharedStop);
+
+/* ------------------------------------------------------------------ */
 /* Result                                                              */
 /* ------------------------------------------------------------------ */
 

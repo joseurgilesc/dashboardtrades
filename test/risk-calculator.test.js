@@ -264,6 +264,54 @@ eq('stopTicks 0 -> reason stopTicks', invalid.reason, 'stopTicks');
 eq('invalid -> 0 contracts', invalid.contracts, 0);
 
 /* ------------------------------------------------------------------ */
+/* [6] Gain-adjusted available + protections still hold                */
+/* ------------------------------------------------------------------ */
+
+console.log('\n[6] Gain-adjusted available + circuit breakers/small account still hold');
+
+/* The gain term widens available, which computeRisk consumes as the single
+ * source (the UI passes usage.available straight through). */
+const gainTrades = [
+  trade({ entryPrice: 5000, exitPrice: 4998 }),  /* -104.18 */
+  trade({ entryPrice: 5000, exitPrice: 5002 })   /* +95.82  */
+];
+const gainUsage = Store.dailyRiskUsage({ account: 'Sim', riskPct: 2, balance: 100000, today: TODAY, trades: gainTrades });
+eq('gainUsage.used = 104.18', gainUsage.used, 104.18);
+eq('gainUsage.todayGains = 95.82', gainUsage.todayGains, 95.82);
+close('gain-adjusted available = 2000 - 104.18 + 47.91', gainUsage.available, 1943.73, 1e-9);
+eq('gain factor defaults to 50', gainUsage.gainFactor, 50);
+
+/* A boosted available never resurrects a circuit-breaker block. */
+const boostedBlocked = Store.computeRisk({
+  balance: 10000, capital: 10000, riskPct: 2, instrument: 'MES', stopTicks: 8,
+  available: 500, dayLoss: 500
+});
+eq('boosted available + 5% drawdown -> still blocked', boostedBlocked.blocked, true);
+eq('boosted available + 5% drawdown -> 0 contracts', boostedBlocked.contracts, 0);
+
+const boostedStreak = Store.computeRisk({
+  balance: 100000, capital: 100000, riskPct: 2, instrument: 'MES', stopTicks: 8,
+  available: 5000, losingStreak: 3
+});
+eq('boosted available + 3-loss streak -> still blocked', boostedStreak.blocked, true);
+eq('boosted available + 3-loss streak -> 0 contracts', boostedStreak.contracts, 0);
+
+/* A small account stays at 1 contract regardless of a boosted available. */
+const boostedSmall = Store.computeRisk({
+  balance: 5000, capital: 5000, riskPct: 2, instrument: 'MES', stopTicks: 8,
+  available: 10000
+});
+eq('boosted available + small account -> still 1 contract', boostedSmall.contracts, 1);
+eq('small account flag still set', boostedSmall.smallAccount, true);
+
+/* Without a block, the boosted available widens the contract count. */
+const boostedNormal = Store.computeRisk({
+  balance: 10000, capital: 10000, riskPct: 2, instrument: 'MES', stopTicks: 8,
+  tradesPerDay: 1, available: 150
+});
+eq('boosted available 150 -> floor(150 / 10) = 15 contracts', boostedNormal.contracts, 15);
+
+/* ------------------------------------------------------------------ */
 /* Result                                                              */
 /* ------------------------------------------------------------------ */
 

@@ -304,6 +304,31 @@ check('the R/B ratio does not depend on the legacy target',
   Store.ratioTarget({ instrument: 'MES', entryPrice: 5000, direction: 'Largo', ticks: 8, ratio: 3 }).targetPrice === 5006);
 
 /* ------------------------------------------------------------------ */
+/* (g) Gain factor is an Ajustes setting; the R/B preview is untouched */
+/* ------------------------------------------------------------------ */
+
+console.log('\n(g) Gain factor lives in Ajustes; the R/B preview is untouched');
+
+check('#riskGainsToday row exists in the calculator',
+  htmlSrc.indexOf('id="riskGainsToday"') !== -1);
+check('gainFactor selectors live in Ajustes (Sim/Real/Fondeo)',
+  htmlSrc.indexOf('id="gainFactorSim"') !== -1 &&
+  htmlSrc.indexOf('id="gainFactorReal"') !== -1 &&
+  htmlSrc.indexOf('id="gainFactorFondeo"') !== -1);
+check('gainFactor presets are exactly 20/30/50/60',
+  htmlSrc.indexOf('<option value="20">20 %</option>') !== -1 &&
+  htmlSrc.indexOf('<option value="30">30 %</option>') !== -1 &&
+  htmlSrc.indexOf('<option value="50">50 %</option>') !== -1 &&
+  htmlSrc.indexOf('<option value="60">60 %</option>') !== -1);
+
+/* The gain factor never leaks into the R/B target math. */
+Store.setSettings({ gainFactor: { Sim: 60 } });
+const t60 = Store.ratioTarget({ instrument: 'MES', entryPrice: 5000, direction: 'Largo', ticks: 8, ratio: 3 });
+Store.setSettings({ gainFactor: { Sim: 20 } });
+const t20 = Store.ratioTarget({ instrument: 'MES', entryPrice: 5000, direction: 'Largo', ticks: 8, ratio: 3 });
+eq('gain factor never changes the R/B target', t60.targetPrice, t20.targetPrice);
+
+/* ------------------------------------------------------------------ */
 /* Result                                                              */
 /* ------------------------------------------------------------------ */
 

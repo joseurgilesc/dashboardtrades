@@ -232,6 +232,21 @@ eq('stopTicks 0 -> reason stopTicks', invalid.reason, 'stopTicks');
 eq('invalid -> 0 contracts', invalid.contracts, 0);
 
 /* ------------------------------------------------------------------ */
+/* [6] Gain term widens effectiveBudget / maxTicks when it binds       */
+/* ------------------------------------------------------------------ */
+
+console.log('\n[6] Gain term widens the per-trade budget when available binds');
+
+const gainLifted = risk({ tradesPerDay: 1, available: 120 });
+close('boosted available 120 -> effectiveBudget 120', gainLifted.effectiveBudget, 120, 1e-9);
+eq('boosted available 120 -> maxTicks floor(120/1.25)=96', gainLifted.maxTicksForOneContract, 96);
+eq('boosted available 120 -> contracts floor(120/10)=12', gainLifted.contracts, 12);
+
+const gainLifted2 = risk({ tradesPerDay: 1, available: 150 });
+eq('boosted available 150 -> contracts floor(150/10)=15', gainLifted2.contracts, 15);
+check('a larger gain boosts the contract count', gainLifted2.contracts > gainLifted.contracts);
+
+/* ------------------------------------------------------------------ */
 /* Result                                                              */
 /* ------------------------------------------------------------------ */
 
