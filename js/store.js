@@ -1255,6 +1255,7 @@ const Store = (function () {
    *   maxTicksOneContract = floor(effectiveBudget / tickValue)
    *   ticksTP2        = stopTicks * 2
    *   ticksTP3        = stopTicks * 3
+   *   totalReward     = ticksTP * tickValue * contracts  (= targetR * totalRisk)
    *   lossPct         = (P_m * contracts) / capital
    *   recoveryPct     = lossPct / (1 - lossPct)
    *
@@ -1278,7 +1279,7 @@ const Store = (function () {
    * perTradeBudget, effectiveBudget, perTradeRisk, perTradeRiskPct,
    * perTradeCap, effectiveRisk, maxTicksForOneContract, usedToday, available,
    * presupuesto, exhausted, tickValue, stopTicks, ticksSL, ticksTP, ticksTP2,
-   * ticksTP3, pm, riskPerContract, totalRisk, lossPct, recoveryPct, commission,
+   * ticksTP3, pm, riskPerContract, totalRisk, totalReward, lossPct, recoveryPct, commission,
    * contracts, viable, minBalanceForOneContract, size, capital, dayLoss,
    * drawdownPct, losingStreak, smallAccount, blocked, blockReasons }`.
    * `budget`/`riskPerContract` stay backward-compatible aliases for
@@ -1337,6 +1338,7 @@ const Store = (function () {
       pm: 0,
       riskPerContract: 0,
       totalRisk: 0,
+      totalReward: 0,
       lossPct: 0,
       recoveryPct: 0,
       commission: spec ? numOr(spec.commission, 0) : 0,
@@ -1393,6 +1395,11 @@ const Store = (function () {
     }
 
     const totalRisk = pm * contracts;
+    /* Potential gross profit in $: the R/B target distance (ticksTP =
+     * stopTicks × targetR) times the tick value times the contracts held.
+     * Equivalently targetR × totalRisk. Commission is excluded (it is shown
+     * separately), so this stays a gross reward figure. */
+    const totalReward = stopTicks * targetR * tickValue * contracts;
     const lossPct = capital > 0 ? totalRisk / capital : 0;
     const recovery = recoveryPct(lossPct);
 
@@ -1429,6 +1436,7 @@ const Store = (function () {
     result.pm = pm;
     result.riskPerContract = pm;
     result.totalRisk = totalRisk;
+    result.totalReward = totalReward;
     result.lossPct = lossPct;
     result.recoveryPct = recovery;
     result.contracts = contracts;

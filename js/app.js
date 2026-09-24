@@ -2086,7 +2086,7 @@
      * must never blank a recorded loss. */
     const resultIds = ['riskTickValue', 'riskPerContract', 'riskPerTradeBudget',
       'riskEffectiveBudget', 'riskMaxTicks', 'riskStopDaily',
-      'riskTotal', 'riskTicksSL', 'riskTicksTP2', 'riskRRRange', 'riskRecovery',
+      'riskTotal', 'riskTotalReward', 'riskTicksSL', 'riskTicksTP2', 'riskRRRange', 'riskRecovery',
       'riskRR', 'riskCommission', 'riskRealRisk', 'riskRealRiskPct'];
 
     /* Block 4 is always rendered, even when a required input is missing. */
@@ -2211,6 +2211,7 @@
       formatTicks(risk.maxTicksForOneContract * tradesPerDay) + ' · ' + tradesPerDay + ' op',
       blocked ? 'neg' : '');
     setRiskItem('riskTotal', formatMoney(risk.totalRisk));
+    setRiskItem('riskTotalReward', formatMoney(risk.totalReward), 'gain');
     setRiskItem('riskTicksSL', formatTicks(risk.ticksSL));
     /* The take-profit distance and the R/B row both follow the SELECTED ratio. */
     setRiskItem('riskTicksTP2', formatTicks(risk.ticksTP2));
