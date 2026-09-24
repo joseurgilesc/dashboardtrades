@@ -45,6 +45,13 @@
   /* Three concurrent trade drafts; indices 0..2 map to the trade tabs. */
   let drafts = [null, null, null];
 
+  /* Key under which the in-progress trade drafts are persisted so a reload
+   * never loses an unsaved trade. */
+  const DRAFTS_KEY = 'bpt.drafts.v1';
+
+  /* Debounce handle for the draft autosave (keyed on form input). */
+  let persistTimer = null;
+
   /* Named XP levels so the gamification reads as a real progression. */
   const LEVEL_NAMES = ['Novato', 'Aprendiz', 'Intermedio', 'Avanzado', 'Experto', 'Trader', 'Profesional', 'Maestro'];
   const LEVEL_COLORS = ['#2DD4BF', '#22D3EE', '#22C55E', '#A78BFA', '#FBBF24', '#22D3EE', '#A78BFA', '#FBBF24'];
@@ -82,6 +89,10 @@
   /* Last computed risk, so the sizing presets can read suggested contracts and
    * max stop distance without recomputing. */
   let lastRisk = null;
+
+  /* Previous "real risk exceeds the per-trade cupo" verdict, so the advisory
+   * popup fires only on the false -> true transition and never spams. */
+  let lastExceedsCupo = false;
 
   /* True once the user edits the stop-ticks input by hand. A user-typed stop is
    * FINAL: the budget-derived default never re-seeds over it again, not even
@@ -2138,11 +2149,6 @@
       resultIds.forEach(function (id) { setRiskItem(id, '—'); });
       if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
       if (suitabilityEl) { suitabilityEl.hidden = true; suitabilityEl.textContent = ''; }
-      const invalidContractsWarnEl = $('riskContractsWarning');
-      if (invalidContractsWarnEl) {
-        invalidContractsWarnEl.hidden = true;
-        invalidContractsWarnEl.textContent = '';
-      }
       return;
     }
 
@@ -2181,19 +2187,17 @@
       exceedsCupo ? 'warn' : '');
 
     /* Advisory only: never blocks or zeroes the calculation. The circuit
-     * breakers in Block 4 are untouched. */
-    const contractsWarnEl = $('riskContractsWarning');
-    if (contractsWarnEl) {
-      if (exceedsCupo) {
-        contractsWarnEl.textContent = 'Riesgo real ' + formatMoney(realRisk) +
+     * breakers in Block 4 are untouched. When the manual contracts FIRST push
+     * the real risk over the per-operation cupo (false -> true), surface it as
+     * a popup once; staying over the cupo does not spam. */
+    if (exceedsCupo && !lastExceedsCupo) {
+      if (typeof showToast === 'function') {
+        showToast('Riesgo real ' + formatMoney(realRisk) +
           ' supera el cupo por operación (' + formatMoney(risk.perTradeBudget) +
-          '). Es solo un aviso: puedes seguir registrando.';
-        contractsWarnEl.hidden = false;
-      } else {
-        contractsWarnEl.hidden = true;
-        contractsWarnEl.textContent = '';
+          '). Es solo un aviso: puedes seguir registrando.', 'warn');
       }
     }
+    lastExceedsCupo = exceedsCupo;
 
     setRiskItem('riskTickValue', formatMoney(risk.tickValue));
     setRiskItem('riskPerContract', formatMoney(risk.pm));
@@ -2853,6 +2857,39 @@
     renderEmotionDot();
   }
 
+  /** Persists all three drafts so an in-progress trade survives a reload. The
+   * active tab is snapshotted from the form first, then the whole array is
+   * written as JSON. Failures (quota, private mode, missing DOM) are silent:
+   * autosave must never interrupt the user. */
+  function persistDrafts() {
+    try {
+      drafts[state.activeTrade] = captureDraft();
+      localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
+    } catch (err) {
+      /* Autosave is best-effort: ignore quota/parse/serialization errors. */
+    }
+  }
+
+  /** Loads the persisted drafts array, or a fresh [null,null,null] on any
+   * missing key, malformed JSON or non-array payload. */
+  function loadDrafts() {
+    try {
+      const raw = localStorage.getItem(DRAFTS_KEY);
+      if (!raw) return [null, null, null];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [null, null, null];
+      return parsed;
+    } catch (err) {
+      return [null, null, null];
+    }
+  }
+
+  /** Debounced autosave (~500 ms) so every keystroke does not hammer storage. */
+  function schedulePersist() {
+    if (persistTimer) window.clearTimeout(persistTimer);
+    persistTimer = window.setTimeout(persistDrafts, 500);
+  }
+
   /** Reflects the active trade tab in the tab buttons. */
   function updateTradeTabUI() {
     Array.prototype.forEach.call(document.querySelectorAll('[data-trade-tab]'), function (btn) {
@@ -2867,6 +2904,7 @@
   function switchTradeTab(index) {
     if (index === state.activeTrade) return;
     drafts[state.activeTrade] = captureDraft();
+    persistDrafts();
     state.activeTrade = index;
     state.editingId = null;
     const tradeCard = $('tradeCard');
@@ -3941,6 +3979,8 @@
       const el = $(id);
       if (el) el.addEventListener('input', updatePreview);
       if (el) el.addEventListener('change', updatePreview);
+      if (el) el.addEventListener('input', schedulePersist);
+      if (el) el.addEventListener('change', schedulePersist);
     });
 
     /* Instrument note (full product name) follows the canonical form selector. */
@@ -4393,9 +4433,11 @@
       loadBalancesIntoForm();
       loadRiskSettingsIntoForm();
       loadInstrumentConfigIntoForm();
-      drafts = [null, null, null];
+      drafts = loadDrafts();
       state.activeTrade = 0;
       resetForm();
+      if (drafts[0]) restoreDraft(drafts[0]);
+      updateTradeTabUI();
       const gate = $('authGate');
       if (gate) gate.hidden = true;
       const userBox = $('userBox');
@@ -4478,6 +4520,20 @@
     setAuthMode('signin');
     state.filtersOpen = readFiltersSession();
     applyFiltersVisibility();
+
+    /* Autosave the active draft if the user closes or reloads the tab. */
+    window.addEventListener('beforeunload', persistDrafts);
+
+    /* Stop mouse-wheel scroll from changing number inputs: a wheel over a
+     * number field must scroll the page, never mutate the value. Delegated and
+     * non-passive so preventDefault() can cancel the native spin. */
+    document.addEventListener('wheel', function (event) {
+      const target = event.target;
+      if (target && target.tagName === 'INPUT' && target.type === 'number') {
+        event.preventDefault();
+      }
+    }, { passive: false });
+
     /* The global day selector starts on today; clearing it shows every day. */
     state.globalDate = todayISO();
     const globalDateEl = $('globalDate');

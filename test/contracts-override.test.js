@@ -161,6 +161,9 @@ const stubs = [
   'var touchedFields = { stop: false, exitPrice: false };',
   'var editingTarget = 0;',
   'var riskItems = {};',
+  'var lastExceedsCupo = false;',
+  'var toastCalls = [];',
+  'function showToast(msg, kind) { toastCalls.push({ msg: msg, kind: kind }); }',
   'function instrumentMeta(id) { return INSTRUMENTS[id] || null; }',
   'function setRiskItem(id, text, cls) { riskItems[id] = { text: text, cls: cls || "" }; }',
   'function formatMoney(v) { return "$" + Number(v).toFixed(2); }',
@@ -292,26 +295,46 @@ uiContext.renderRiskPanel();
 /* [4] Warning when the real risk exceeds the per-trade cupo           */
 /* ------------------------------------------------------------------ */
 
-console.log('\n[4] Advisory warning on the per-trade cupo');
+console.log('\n[4] Advisory popup on the per-trade cupo (false -> true only)');
+
+/* Reset the transition flag so this section starts from "within the cupo". */
+uiContext.lastExceedsCupo = false;
+uiContext.toastCalls.length = 0;
 
 /* 66 x 10 = 660 <= 666.67 -> within the cupo. */
 uiContext.contractsTouched = true;
 $('contracts').value = '66';
 uiContext.renderRiskPanel();
-eq('within the cupo: no warning', $('riskContractsWarning').hidden, true);
+eq('within the cupo: no popup', uiContext.toastCalls.length, 0);
 eq('within the cupo: no warn class', riskCls('riskRealRisk'), '');
 eq('within the cupo: calculation stays operative', riskText('riskState'), 'Operativo');
 
-/* 67 x 10 = 670 > 666.67 -> exceeds the cupo. */
+/* 67 x 10 = 670 > 666.67 -> exceeds the cupo (transition: popup fires). */
 $('contracts').value = '67';
 uiContext.renderRiskPanel();
-eq('above the cupo: warning shown', $('riskContractsWarning').hidden, false);
-check('warning names the per-operation cupo',
-  $('riskContractsWarning').textContent.indexOf('cupo por operación') !== -1);
+eq('above the cupo: popup fired once', uiContext.toastCalls.length, 1);
+check('popup names the per-operation cupo',
+  uiContext.toastCalls.length === 1 &&
+  uiContext.toastCalls[0].msg.indexOf('cupo por operación') !== -1);
+eq('popup is a warn toast',
+  uiContext.toastCalls.length === 1 ? uiContext.toastCalls[0].kind : null, 'warn');
 eq('above the cupo: warn class on the real risk', riskCls('riskRealRisk'), 'warn');
 eq('above the cupo: warn class on the percentage', riskCls('riskRealRiskPct'), 'warn');
 eq('the calculation is never blocked', riskText('riskState'), 'Operativo');
 eq('the contract count is never zeroed', uiContext.readForm().contracts, 67);
+
+/* Staying over the cupo does NOT spam: no additional popup. */
+$('contracts').value = '100';
+uiContext.renderRiskPanel();
+eq('still above the cupo: no second popup', uiContext.toastCalls.length, 1);
+
+/* Dropping back under, then over again, re-arms the transition. */
+$('contracts').value = '66';
+uiContext.renderRiskPanel();
+eq('back under the cupo: still one popup', uiContext.toastCalls.length, 1);
+$('contracts').value = '67';
+uiContext.renderRiskPanel();
+eq('crossing the cupo again fires a new popup', uiContext.toastCalls.length, 2);
 
 /* A far larger override still only warns (never blocks/zeroes). */
 $('contracts').value = '500';
@@ -404,10 +427,8 @@ check('the old read-only preview span is gone',
   htmlSrc.indexOf('<span class="preview-value" id="riskContracts">') === -1);
 check('#riskRealRisk row exists', htmlSrc.indexOf('id="riskRealRisk"') !== -1);
 check('#riskRealRiskPct row exists', htmlSrc.indexOf('id="riskRealRiskPct"') !== -1);
-check('#riskContractsWarning exists', htmlSrc.indexOf('id="riskContractsWarning"') !== -1);
-check('#riskContractsWarning reuses the risk-hint styling',
-  htmlSrc.slice(htmlSrc.indexOf('id="riskContractsWarning"') - 40,
-    htmlSrc.indexOf('id="riskContractsWarning"')).indexOf('risk-hint') !== -1);
+check('#riskContractsWarning inline element is gone (now a popup)',
+  htmlSrc.indexOf('id="riskContractsWarning"') === -1);
 
 check('app.js defines syncContracts', appSrc.indexOf('function syncContracts(value)') !== -1);
 check('renderRiskPanel prefills the suggestion through syncContracts',
@@ -422,6 +443,10 @@ check('the real-risk formula is contracts x stopTicks x tickValue',
   appSrc.indexOf('reportedContracts * stopTicks * risk.tickValue') !== -1);
 check('the warning compares against the per-trade cupo',
   appSrc.indexOf('realRisk > risk.perTradeBudget') !== -1);
+check('the advisory is surfaced through showToast (popup)',
+  extractFunction(appSrc, 'function renderRiskPanel()').indexOf('showToast') !== -1);
+check('the popup fires only on the false -> true transition',
+  extractFunction(appSrc, 'function renderRiskPanel()').indexOf('lastExceedsCupo') !== -1);
 check('the result reset list includes the new real-risk rows',
   extractFunction(appSrc, 'function renderRiskPanel()').indexOf('riskRealRisk') !== -1 &&
   extractFunction(appSrc, 'function renderRiskPanel()').indexOf("'riskRealRiskPct'") !== -1);
