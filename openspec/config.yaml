@@ -8,57 +8,69 @@ artifact_store: hybrid
 context: |
   Project: trading-journal (static trading journal web app).
   Tech stack: Vanilla HTML/CSS/JavaScript (ES5-style IIFE globals), no framework,
-  no bundler, no build step, runs from file:// and GitHub Pages.
-  Architecture: Static multi-file app. Global singletons Store (persistence,
+  no bundler, no build step, runs as a static site on GitHub Pages.
+  Architecture: Static multi-file app. Global singletons Store (state,
   calculations, KPIs, import/export), DashboardCharts (Chart.js wrappers), and
   reference data in instruments.js; app.js is the DOM/UI controller.
-  Persistence: Browser localStorage under key "bpt.journal.v1"; no backend,
-  no network calls, data is per-device/per-browser.
+  Persistence: Firebase Auth + Cloud Firestore, scoped per user (uid); legacy
+  localStorage key "bpt.journal.v1" is migrated on first sign-in.
   Charts: Chart.js 4.4.4 vendored locally at vendor/chart.umd.js.
-  Testing: none detected (no package.json, no test runner, no linter, no CI).
+  Testing: dev-only Node tooling; 19 standalone VM harnesses + 1 Firestore rules
+  test. No test framework, no coverage, no linter, no CI.
   Language: code comments and identifiers in English; UI copy and README in Spanish.
 
-# Strict TDD fails closed to false: no project marker was discovered and there is
-# no workspace-level test command covering the in-scope project.
+# Strict TDD fails closed to false: a real project marker (package.json) exists
+# and 20 tests are present, but there is no single workspace-level command that
+# wires all of them. The 19 app-logic harnesses run individually via
+# `node test/<name>.test.js` and the rules test runs via `npm run test:rules`
+# (Firestore emulator). No one command covers every in-scope test.
 strict_tdd: false
 
 # Testing capabilities (persisted separately here per the SDD contract).
 testing:
   strict_tdd: false
-  detected: "2026-09-11"
-  runner: none
+  detected: "2026-09-22"
+  runner: node
+  runner_detail: >-
+    Standalone Node VM harnesses (no framework). 19 app-logic tests under test/
+    load the real js/instruments.js + js/store.js + js/app.js into a vm context
+    with a hand-rolled assertion harness and run via `node test/<name>.test.js`.
+    1 Firestore Security Rules test (test/rules.test.js) is a plain Node program
+    using @firebase/rules-unit-testing against the Firestore emulator, run only
+    via `npm run test:rules`.
   workspace_command: null
   reason: >-
-    No project marker (package.json, go.mod, pyproject.toml, Cargo.toml) was
-    discovered and no workspace-level test command exists, so Strict TDD fails
-    closed to false. No test runner, linter, type checker, formatter, coverage
-    tool, or CI is configured.
+    package.json exists (dev-only Firestore rules tooling) and 20 tests are
+    present, but there is no single workspace-level command covering every
+    in-scope test. The 19 app-logic harnesses have no wiring command and no
+    framework; `npm run test:rules` covers only the emulator rules test. Strict
+    TDD therefore fails closed to false. No linter, type checker, formatter,
+    coverage tool, or CI is configured.
   projects:
     - path: "."
-      stack: "Vanilla HTML/CSS/JS static app (no build step)"
-      test_command: null
-      framework: null
+      stack: "Vanilla HTML/CSS/JS static app (no build step); Firebase Auth + Cloud Firestore"
+      test_command: "node test/<name>.test.js (19 app-logic harnesses); npm run test:rules (Firestore rules)"
+      framework: "none (hand-rolled Node VM harness + @firebase/rules-unit-testing)"
       coverage_command: null
       linter_command: null
       type_checker_command: null
       formatter_command: null
       layers:
-        unit: false
-        integration: false
+        unit: true
+        integration: true
         e2e: false
 
-# One entry per discovered project root. This project has no project marker, so
-# the workspace root is the only entry and carries no runnable test command.
+# One entry per discovered project root.
 projects:
   - path: "."
-    stack: "Vanilla HTML/CSS/JS static app (no build step)"
-    test_command: null
-    framework: null
+    stack: "Vanilla HTML/CSS/JS static app (no build step); Firebase Auth + Cloud Firestore"
+    test_command: "node test/<name>.test.js (19 app-logic harnesses); npm run test:rules (Firestore rules)"
+    framework: "none (hand-rolled Node VM harness + @firebase/rules-unit-testing)"
 
 rules:
   proposal:
     - Include rollback plan for risky changes
-    - State the impact on the localStorage schema "bpt.journal.v1" when persisted data changes
+    - State the impact on persisted Firestore data shape when storage changes
   specs:
     - Use Given/When/Then for scenarios
     - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
@@ -72,6 +84,7 @@ rules:
     guidelines:
       - Follow existing code patterns (IIFE globals, ES5-compatible syntax, no ES modules)
       - Keep code comments in English and UI copy in Spanish to match the project
+      - For pure logic changes, add or update the matching `node test/<name>.test.js` VM harness
     tdd: false
     test_command: ""
   verify:

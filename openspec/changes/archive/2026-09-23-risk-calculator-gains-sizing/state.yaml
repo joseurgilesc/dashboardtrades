@@ -1,0 +1,22 @@
+# openspec/changes/risk-calculator-gains-sizing/state.yaml
+# Pre-proposal state for the risk-calculator-gains-sizing change.
+schema: gentle-ai.sdd-preproposal/v1
+revision: 1
+change: risk-calculator-gains-sizing
+phase: propose
+artifact_store: hybrid
+last_updated: "2026-09-22"
+
+exploration:
+  outcome: done
+  reference: openspec/changes/risk-calculator-gains-sizing/exploration.md
+
+research_request:
+  selected: false
+
+product_decisions: confirmed
+proposal_ready: true
+
+artifacts:
+  exploration: true
+  proposal: true

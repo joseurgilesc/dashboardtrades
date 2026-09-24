@@ -8,7 +8,9 @@ Define how per-account risk percentage and daily trade limit are stored, default
 
 ### Requirement: Per-Account Risk Settings
 
-The system MUST store a risk percentage and a daily trade limit independently for each account (`Sim`, `Real`, `Fondeo`).
+The system MUST store a risk percentage, a daily trade limit, and a gain factor independently for each account (`Sim`, `Real`, `Fondeo`). The gain factor MUST default to 50 and accept only presets 20, 30, 50, or 60.
+
+(Previously: stored only `riskPct` and `dailyTradeLimit`.)
 
 #### Scenario: Independent values per account
 
@@ -23,6 +25,14 @@ The system MUST store a risk percentage and a daily trade limit independently fo
 - WHEN the settings are read
 - THEN every account reports `riskPct` = 2
 - AND every account reports `dailyTradeLimit` = 3
+- AND every account reports `gainFactor` = 50
+
+#### Scenario: Gain factor independent per account
+
+- GIVEN the user sets `gainFactor` for `Sim` to 30
+- WHEN the settings are read
+- THEN `Sim` gain factor is 30
+- AND `Real` and `Fondeo` gain factors remain 50
 
 ### Requirement: Additive Settings Persistence
 
@@ -80,3 +90,24 @@ The system MUST reject or normalize non-numeric, negative, or empty risk-setting
 - GIVEN the user enters a daily limit of 0
 - WHEN the value is submitted
 - THEN the limit is stored as 0
+### Requirement: Gain Factor Normalization
+
+`normalizeGainFactor` MUST return the input when it is one of the presets 20, 30, 50, or 60, and MUST return the default 50 for any other, missing, or non-numeric value.
+
+#### Scenario: Valid preset preserved
+
+- GIVEN a stored `gainFactor` of 60
+- WHEN it is normalized
+- THEN it remains 60
+
+#### Scenario: Invalid value falls back to default
+
+- GIVEN a stored `gainFactor` of 45 or a non-numeric value
+- WHEN it is normalized
+- THEN it becomes 50
+
+#### Scenario: Missing value falls back to default
+
+- GIVEN no `gainFactor` is stored for an account
+- WHEN it is read
+- THEN it resolves to 50
