@@ -366,10 +366,13 @@ const flatXp = processXp(flatSet, baseOpts);
 eq('process XP is a fixed multiple of XP_BADGE', flatXp % Store.XP_BADGE, 0);
 check('process XP is positive once rungs are earned', flatXp > 0, 'xp=' + flatXp);
 
-/* The per-trade XP breakdown ignores P&L and contract count. */
+/* The per-trade XP breakdown ignores P&L and contract count. R/R is now
+ * price-derived (|exit - entry| / |entry - stop|), so the base/win sets share
+ * the same stop distance and the same R/R term regardless of the P&L sign or
+ * magnitude. */
 const xpOpts = { limit: 3, riskPct: 2, minRR: 2, initialBalance: 5000 };
-const xpBase = nTrades(3, { stop: 99.9, plannedRisk: 20, target: 60, exitPrice: 100 });
-const xpWin = xpBase.map(function (t, i) { return Object.assign({}, t, { id: 'w' + i, exitPrice: 200 }); });
+const xpBase = nTrades(3, { entryPrice: 100, stop: 99.9, exitPrice: 100.2 }); /* R/R 2 -> meets */
+const xpWin = xpBase.map(function (t, i) { return Object.assign({}, t, { id: 'w' + i, exitPrice: 100.5 }); }); /* R/R 5, bigger win */
 const xpLeveraged = xpBase.map(function (t, i) { return Object.assign({}, t, { id: 'x' + i, contracts: 10 }); });
 eq('xpBreakdown ignores P&L',
   Store.xpBreakdown(xpBase, 'Sim', xpOpts).total, Store.xpBreakdown(xpWin, 'Sim', xpOpts).total);

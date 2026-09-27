@@ -2257,6 +2257,26 @@ const Store = (function () {
   }
 
   /**
+   * Realized risk/reward ratio derived from the trade's actual prices:
+   * `|exitPrice - entryPrice| / |entryPrice - stop|`. Unlike `computeRR`
+   * (which reads the legacy USD `target` / `plannedRisk`), this never depends
+   * on the removed target field, so new trades that save `target = 0` still
+   * produce a usable R/R. Returns NaN when the entry, stop or exit price is
+   * missing (<= 0) or when the stop distance is 0 (entry === stop).
+   */
+  function tradeRR(trade) {
+    const entry = numOr(trade.entryPrice, NaN);
+    const exit = numOr(trade.exitPrice, NaN);
+    const stop = numOr(trade.stop, NaN);
+    if (!Number.isFinite(entry) || entry <= 0) return NaN;
+    if (!Number.isFinite(exit) || exit <= 0) return NaN;
+    if (!Number.isFinite(stop) || stop <= 0) return NaN;
+    const risk = Math.abs(entry - stop);
+    if (risk === 0) return NaN;
+    return Math.abs(exit - entry) / risk;
+  }
+
+  /**
    * Non-linear recovery ratio for a drawdown fraction:
    *   recoveryPct = lossPct / (1 - lossPct)
    * Returns the ratio (0.5 -> 1, displayed as 100%). A full loss (>= 1)
@@ -2577,13 +2597,13 @@ const Store = (function () {
     }).length;
   }
 
-  /** Counts trades whose recorded planned risk / target meet the min R/R. */
+  /** Counts trades whose realized price-derived R/R meets the minimum. */
   function rrMetCount(trades, account, opts) {
     const ctx = gamifyOpts(account, opts);
     let count = 0;
     tradesForAccount(trades, account).forEach(function (t) {
-      const rr = computeRR({ plannedRisk: t.plannedRisk, target: t.target, minRR: ctx.minRR });
-      if (rr.valid && rr.meetsMinimum) count += 1;
+      const ratio = tradeRR(t);
+      if (Number.isFinite(ratio) && ratio >= ctx.minRR) count += 1;
     });
     return count;
   }
@@ -2605,8 +2625,8 @@ const Store = (function () {
       dayCounts[t.entryDate] = n;
       if (n <= ctx.limit) base += XP_TRADE;
       if (numOr(t.stop, 0) > 0) stop += XP_STOP;
-      const res = computeRR({ plannedRisk: t.plannedRisk, target: t.target, minRR: ctx.minRR });
-      if (res.valid && res.meetsMinimum) rr += XP_RR;
+      const ratio = tradeRR(t);
+      if (Number.isFinite(ratio) && ratio >= ctx.minRR) rr += XP_RR;
     });
     const days = disciplineDays(trades, account, ctx.limit);
     let dayBonus = 0;
@@ -3090,10 +3110,10 @@ const Store = (function () {
     list.forEach(function (t) {
       if (numOr(t.stop, 0) > 0) result.withStop += 1;
       else result.missingStop += 1;
-      const rr = computeRR({ plannedRisk: t.plannedRisk, target: t.target, minRR: ctx.minRR });
-      if (rr.valid) {
+      const ratio = tradeRR(t);
+      if (Number.isFinite(ratio)) {
         result.rrEvaluable += 1;
-        if (rr.meetsMinimum) result.metRR += 1;
+        if (ratio >= ctx.minRR) result.metRR += 1;
       }
     });
     result.bestHabit = pickBestHabit(result);
@@ -3834,6 +3854,7 @@ const Store = (function () {
     clampDailyLimit: clampDailyLimit,
     getMinRR: getMinRR,
     computeRR: computeRR,
+    tradeRR: tradeRR,
     recoveryPct: recoveryPct,
     stopDiscipline: stopDiscipline,
     intradayDrawdown: intradayDrawdown,

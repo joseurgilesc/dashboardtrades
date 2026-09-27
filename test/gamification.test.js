@@ -148,25 +148,28 @@ console.log('\n[2] XP is process-only');
 
 const baseOpts = { limit: 3, riskPct: 2, minRR: 2, initialBalance: 5000 };
 
+/* R/R is now derived from prices: |exit - entry| / |entry - stop|. Entry 100
+ * with stop 99.9 gives a 0.1 risk distance, so exit 100.2 -> R/R 2 (meets the
+ * minRR 2). The legacy `plannedRisk`/`target` fields are left at 0 to prove
+ * they no longer drive the R/R term. */
 const processTrades = nTrades(3, {
   entryDate: '2026-01-05',
+  entryPrice: 100,
   stop: 99.9,
-  plannedRisk: 20,
-  target: 60,
-  exitPrice: 100              /* flat: net negative by commission */
+  exitPrice: 100.2            /* R/R 2 -> meets minRR */
 });
 const winnerTrades = processTrades.map(function (t, i) {
-  return Object.assign({}, t, { id: 'w' + i, exitPrice: 200 }); /* big win */
+  return Object.assign({}, t, { id: 'w' + i, exitPrice: 100.5 }); /* R/R 5, bigger win */
 });
 const loserTrades = processTrades.map(function (t, i) {
-  return Object.assign({}, t, { id: 'l' + i, exitPrice: 0 });   /* big loss */
+  return Object.assign({}, t, { id: 'l' + i, exitPrice: 99.8 });  /* R/R 2, a loss */
 });
 
 const xpProcess = Store.xpBreakdown(processTrades, 'Sim', baseOpts).total;
 const xpWinner = Store.xpBreakdown(winnerTrades, 'Sim', baseOpts).total;
 const xpLoser = Store.xpBreakdown(loserTrades, 'Sim', baseOpts).total;
-eq('XP ignores profit (flat == winner)', xpProcess, xpWinner);
-eq('XP ignores loss (flat == loser)', xpProcess, xpLoser);
+eq('XP ignores profit (same R/R, bigger win)', xpProcess, xpWinner);
+eq('XP ignores loss (same R/R, a loss)', xpProcess, xpLoser);
 
 /* Leverage / contract count must not change XP. */
 const leveraged = processTrades.map(function (t, i) {
@@ -174,19 +177,35 @@ const leveraged = processTrades.map(function (t, i) {
 });
 eq('XP ignores leverage (contracts)', xpProcess, Store.xpBreakdown(leveraged, 'Sim', baseOpts).total);
 
-/* Recording a stop is rewarded. */
-const noStop = processTrades.map(function (t, i) {
-  return Object.assign({}, t, { id: 'n' + i, stop: 0 });
+/* Recording a stop is rewarded: keep R/R unmet in both fixtures so only the
+ * stop term differs. */
+const stopMet = nTrades(3, {
+  entryDate: '2026-01-05',
+  entryPrice: 100,
+  stop: 99.9,
+  exitPrice: 100.05           /* R/R 0.5 -> below minRR (no R/R XP) */
+});
+const noStop = stopMet.map(function (t, i) {
+  return Object.assign({}, t, { id: 'n' + i, stop: 0 }); /* no stop -> no R/R */
 });
 eq('stop adds +5 XP per trade',
-  xpProcess - Store.xpBreakdown(noStop, 'Sim', baseOpts).total, 3 * 5);
+  Store.xpBreakdown(stopMet, 'Sim', baseOpts).total -
+  Store.xpBreakdown(noStop, 'Sim', baseOpts).total, 3 * 5);
 
-/* Meeting the min R/R is rewarded. */
-const noRR = processTrades.map(function (t, i) {
-  return Object.assign({}, t, { id: 'r' + i, plannedRisk: 0, target: 0 });
+/* Meeting the min R/R is rewarded: keep the stop present in both so only the
+ * R/R term differs. */
+const rrMet = nTrades(3, {
+  entryDate: '2026-01-05',
+  entryPrice: 100,
+  stop: 99.9,
+  exitPrice: 100.2            /* R/R 2 -> meets minRR */
+});
+const rrMiss = rrMet.map(function (t, i) {
+  return Object.assign({}, t, { id: 'r' + i, exitPrice: 100.1 }); /* R/R 1 -> below */
 });
 eq('meeting min R/R adds +5 XP per trade',
-  xpProcess - Store.xpBreakdown(noRR, 'Sim', baseOpts).total, 3 * 5);
+  Store.xpBreakdown(rrMet, 'Sim', baseOpts).total -
+  Store.xpBreakdown(rrMiss, 'Sim', baseOpts).total, 3 * 5);
 
 /* Volume beyond the daily limit earns nothing (and loses the day bonus). */
 const oneTrade = nTrades(1, { entryDate: '2026-01-05' });
@@ -240,9 +259,9 @@ eq('risk-10 unlocks with 10 respected trades',
 eq('risk-10 locked when risk exceeds the cap',
   earnedMap(notRespected, riskOpts)['risk-10'], false);
 
-/* rr-10: 10 trades meeting the min R/R. */
-const rrGood = nTrades(10, { plannedRisk: 100, target: 300 });
-const rrBad = nTrades(10, { plannedRisk: 100, target: 150 });
+/* rr-10: 10 trades meeting the min R/R (now price-derived). */
+const rrGood = nTrades(10, { entryPrice: 100, stop: 99.9, exitPrice: 100.2 }); /* R/R 2 -> meets */
+const rrBad = nTrades(10, { entryPrice: 100, stop: 99.9, exitPrice: 100.1 });  /* R/R 1 -> below */
 eq('rr-10 locked with 9 compliant trades',
   earnedMap(rrGood.slice(0, 9), baseOpts)['rr-10'], false);
 eq('rr-10 unlocks with 10 compliant trades', earnedMap(rrGood, baseOpts)['rr-10'], true);
@@ -271,7 +290,7 @@ eq('achievement progress is capped at the target',
 console.log('\n[4] Weekly recap + goals');
 
 const week = []
-  .concat(nTrades(2, { entryDate: '2026-01-05', stop: 99.9 }))
+  .concat(nTrades(2, { entryDate: '2026-01-05', stop: 99.9, exitPrice: 0 })) /* open: stop set, no exit yet */
   .concat(nTrades(4, { entryDate: '2026-01-06', stop: 0 }))
   .concat(nTrades(1, { entryDate: '2026-01-12', stop: 99.9 })); /* next week */
 const recap = Store.weeklyRecap(week, 'Sim', { today: '2026-01-07', limit: 3, minRR: 2 });
