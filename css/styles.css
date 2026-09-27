@@ -1560,7 +1560,10 @@ input.is-draft {
  * down the block instead of floating at the end of each label. */
 .preview-group .preview-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* The value/controls column must be allowed to shrink below its content so
+   * the stepper + presets wrap inside the card instead of forcing the label
+   * column to collapse (or the card to overflow) at narrow widths. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
   align-items: baseline;
   gap: 10px;
 }
@@ -1588,11 +1591,19 @@ input.is-draft {
   color: var(--accent);
 }
 
-/* Contracts controls wrap so the stepper + presets never overflow on mobile. */
+/* Contracts controls wrap so the stepper + presets never overflow on mobile.
+ * `min-width: 0` lets the flex line shrink below its widest item, so the
+ * stepper and preset buttons reflow instead of pushing the label out of the
+ * card. */
 .sizing-controls {
+  min-width: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 4px;
+}
+
+.sizing-controls .stepper {
+  min-width: 0;
 }
 
 @media (max-width: 560px) {
