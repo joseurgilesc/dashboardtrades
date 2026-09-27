@@ -264,9 +264,13 @@ $('contracts').value = '7';
 $('riskTradesPerDayInput').value = '1'; /* would suggest 200 */
 uiContext.renderRiskPanel();
 eq('touched: Op/día change never overwrites contracts', $('contracts').value, '7');
+/* NEW last-touched-wins: driving contracts auto-derives Op/día
+ * (floor(2000 / (7 x 10)) = 28) so the calculator re-sizes from it. */
+eq('editing contracts auto-updates Op/día', $('riskTradesPerDayInput').value, '28');
 
 uiContext.contractsTouched = false;
 $('contracts').value = '999';
+$('riskTradesPerDayInput').value = '1'; /* re-drive Op/día for a known suggestion */
 uiContext.renderRiskPanel();
 eq('untouched: the suggestion is re-prefilled', $('contracts').value, '200');
 

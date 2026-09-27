@@ -748,9 +748,10 @@
     });
   }
 
-  /** Reverse sizing: given N contracts, show how many operations fit the
-   *  daily budget. Read-only: it never writes back to the Op/día input (that
-   *  stays the sizing divisor). */
+  /** Reverse sizing: given N contracts, derive how many operations fit the
+   *  daily budget. While the user is driving the contracts number
+   *  (`contractsTouched`), the derived count is mirrored into the Op/día input
+   *  so the calculator re-sizes from it (last-touched-wins). */
   function renderContractsHint() {
     const el = $('contractsHint');
     if (!el) return;
@@ -767,6 +768,15 @@
       ? Math.floor(lastRisk.dailyBudget / (n * lastRisk.stopTicks * lastRisk.tickValue))
       : 0;
     el.textContent = maxOps > 0 ? ('caben ' + maxOps + ' operaciones') : '0 operaciones';
+    /* Last-touched-wins: while contracts is the driver, push the derived
+     * operations into the Op/día field so the live math (cupo, effective
+     * budget, …) follows. Programmatic `.value =` fires no input/change, so
+     * nothing persists and no re-render loop is triggered; the guard on
+     * `contractsTouched` keeps the Op/día -> contracts direction untouched. */
+    if (contractsTouched) {
+      const tradesEl = $('riskTradesPerDayInput');
+      if (tradesEl) tradesEl.value = String(Math.max(1, maxOps));
+    }
   }
 
   /** Positions the shared info tooltip near `el`, clamped to the viewport. */
@@ -1929,6 +1939,9 @@
    */
   function onTradesPerDayChanged() {
     tradesPerDayTouched = true;
+    /* Editing Op/día makes it the driver again (last-touched-wins): release the
+     * contracts override so the suggestion prefill follows on the next render. */
+    contractsTouched = false;
     const el = $('riskTradesPerDayInput');
     if (el) persistTradesPerDay(el.value);
   }
