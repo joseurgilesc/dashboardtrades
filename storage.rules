@@ -1,0 +1,12 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Trade screenshots are scoped to their owner: only an authenticated,
+    // email-verified user may read or write their own trade images.
+    match /trade-images/{userId}/{tradeId}/{fileName} {
+      allow read, write: if request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.uid == userId;
+    }
+  }
+}

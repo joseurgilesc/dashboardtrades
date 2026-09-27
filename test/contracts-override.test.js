@@ -160,6 +160,8 @@ const stubs = [
   'var contractsTouched = false;',
   'var touchedFields = { stop: false, exitPrice: false };',
   'var editingTarget = 0;',
+  'var imageUrl = "";',
+  'function renderTradeImagePreview() {}',
   'var riskItems = {};',
   'var lastExceedsCupo = false;',
   'var toastCalls = [];',

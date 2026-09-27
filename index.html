@@ -592,6 +592,14 @@
                 <label for="planDeviation">Motivo del cambio (si hubo)</label>
                 <input type="text" id="planDeviation" placeholder="Opcional.">
               </div>
+              <div class="field field-wide">
+                <label for="tradeImage">Captura del trade (imagen, opcional)</label>
+                <input type="file" id="tradeImage" accept="image/*">
+                <span class="field-hint" id="tradeImageHint"></span>
+              </div>
+              <div class="field field-wide" id="tradeImagePreview" hidden>
+                <img id="tradeImageImg" alt="Captura del trade" style="max-width:100%; border-radius:6px;">
+              </div>
             </div>
           </details>
 
@@ -1012,6 +1020,7 @@
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-storage-compat.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js" defer></script>
   <script src="vendor/chart.umd.js" defer></script>
   <script src="js/instruments.js" defer></script>

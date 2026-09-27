@@ -115,6 +115,10 @@
    * planning, only preserved on save). */
   let editingTarget = 0;
 
+  /* Current trade screenshot URL for the form (a fresh upload or the existing
+   * image while editing). Persisted on save as `trade.imageUrl`. */
+  let imageUrl = '';
+
   /* Top-level regions hidden until authentication resolves. */
   const APP_REGIONS = ['.tabs', '#globalSearchBar', '#filtersToggle', '#filtersBar', '.app-main', '.app-footer'];
 
@@ -1320,8 +1324,16 @@
       respectedEntry: $('respectedEntry') ? $('respectedEntry').checked : false,
       respectedStop: $('respectedStop') ? $('respectedStop').checked : false,
       respectedSize: $('respectedSize') ? $('respectedSize').checked : false,
-      planDeviation: $('planDeviation') ? $('planDeviation').value.trim() : ''
+      planDeviation: $('planDeviation') ? $('planDeviation').value.trim() : '',
+      imageUrl: imageUrl
     };
+  }
+
+  function renderTradeImagePreview() {
+    const preview = $('tradeImagePreview');
+    const img = $('tradeImageImg');
+    if (preview) preview.hidden = !imageUrl;
+    if (img) img.src = imageUrl || '';
   }
 
   function instrumentMeta(id) {
@@ -2766,6 +2778,9 @@
     if ($('respectedStop')) $('respectedStop').checked = false;
     if ($('respectedSize')) $('respectedSize').checked = false;
     if ($('planDeviation')) $('planDeviation').value = '';
+    imageUrl = '';
+    renderTradeImagePreview();
+    if ($('tradeImage')) $('tradeImage').value = '';
     editingTarget = 0;
     /* New trade: the stop and exit fields are draftable again, and any stale
      * draft mark from the previous trade is cleared. */
@@ -2822,6 +2837,7 @@
       respectedStop: $('respectedStop') ? $('respectedStop').checked : false,
       respectedSize: $('respectedSize') ? $('respectedSize').checked : false,
       planDeviation: $('planDeviation') ? $('planDeviation').value : '',
+      imageUrl: imageUrl,
       ratio: $('riskRatio') ? $('riskRatio').value : ''
     };
   }
@@ -2851,6 +2867,8 @@
     if (d.respectedStop !== undefined && $('respectedStop')) $('respectedStop').checked = !!d.respectedStop;
     if (d.respectedSize !== undefined && $('respectedSize')) $('respectedSize').checked = !!d.respectedSize;
     if (d.planDeviation !== undefined && $('planDeviation')) $('planDeviation').value = d.planDeviation;
+    imageUrl = d.imageUrl || '';
+    renderTradeImagePreview();
     if (d.ratio !== undefined && $('riskRatio')) $('riskRatio').value = d.ratio;
     /* Restored values are user-owned: the calculator must not re-seed them. */
     contractsTouched = true;
@@ -2987,6 +3005,8 @@
     if ($('respectedStop')) $('respectedStop').checked = !!trade.respectedStop;
     if ($('respectedSize')) $('respectedSize').checked = !!trade.respectedSize;
     if ($('planDeviation')) $('planDeviation').value = trade.planDeviation || '';
+    imageUrl = trade.imageUrl || '';
+    renderTradeImagePreview();
     $('formTitle').textContent = 'Editar trade #' + trade.tradeNumber;
     $('btnSave').textContent = 'Guardar cambios';
     $('btnCancel').hidden = false;
@@ -3773,6 +3793,32 @@
           });
         }
         showToast('Revisión guardada', 'ok');
+      });
+    }
+
+    /* Trade screenshot: upload to Firebase Storage on file select. */
+    const imageInput = $('tradeImage');
+    if (imageInput) {
+      imageInput.addEventListener('change', function () {
+        const file = imageInput.files && imageInput.files[0];
+        if (!file) return;
+        const hint = $('tradeImageHint');
+        const user = (typeof FirebaseService !== 'undefined' && FirebaseService.getCurrentUser)
+          ? FirebaseService.getCurrentUser() : null;
+        if (!user || !user.uid || typeof FirebaseService.uploadTradeImage !== 'function') {
+          if (hint) hint.textContent = 'Subida no disponible (Storage no configurado).';
+          return;
+        }
+        if (hint) hint.textContent = 'Subiendo…';
+        FirebaseService.uploadTradeImage(user.uid, state.editingId || 'draft', file)
+          .then(function (url) {
+            imageUrl = url;
+            renderTradeImagePreview();
+            if (hint) hint.textContent = 'Imagen lista.';
+          })
+          .catch(function () {
+            if (hint) hint.textContent = 'No se pudo subir la imagen.';
+          });
       });
     }
 

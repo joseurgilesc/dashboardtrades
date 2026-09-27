@@ -57,6 +57,30 @@ const FirebaseService = (function () {
     return firebase.auth();
   }
 
+  function getStorage() {
+    if (!hasSdk() || typeof firebase.storage !== 'function') return null;
+    try {
+      return firebase.storage();
+    } catch (err) {
+      return null;
+    }
+  }
+
+  /**
+   * Uploads a trade screenshot to Firebase Storage and resolves its download
+   * URL. Requires the `firebase-storage-compat` SDK and an enabled Storage
+   * bucket (see `storage.rules` + Firebase Console).
+   */
+  function uploadTradeImage(uid, tradeId, file) {
+    const storage = getStorage();
+    if (!storage) return Promise.reject(new Error('storage-unavailable'));
+    const safe = file && file.name ? String(file.name).replace(/[^a-zA-Z0-9._-]/g, '_') : 'captura.jpg';
+    const ref = storage.ref('trade-images/' + uid + '/' + tradeId + '/' + Date.now() + '-' + safe);
+    return ref.put(file).then(function () {
+      return ref.getDownloadURL();
+    });
+  }
+
   function isPersistenceEnabled() {
     return persistenceEnabled;
   }
@@ -622,6 +646,9 @@ const FirebaseService = (function () {
     getCurrentUser: getCurrentUser,
 
     adapter: adapter,
+
+    getStorage: getStorage,
+    uploadTradeImage: uploadTradeImage,
 
     migrateLocalData: migrateLocalData,
     deleteAccount: deleteAccount

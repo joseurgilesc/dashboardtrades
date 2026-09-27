@@ -336,6 +336,7 @@ const Store = (function () {
       exitType: strOr(raw.exitType, ''),
       emotion: strOr(raw.emotion, ''),
       notes: strOr(raw.notes, ''),
+      imageUrl: strOr(raw.imageUrl, ''),
       respectedEntry: !!raw.respectedEntry,
       respectedStop: !!raw.respectedStop,
       respectedSize: !!raw.respectedSize,
