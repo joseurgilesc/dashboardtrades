@@ -840,8 +840,8 @@
   }
 
   const TABLE_COLUMNS = [
-    { key: 'tradeNumber', label: '#' },
     { key: 'entryDate', label: 'Fecha' },
+    { key: 'tradeNumber', label: '#' },
     { key: 'account', label: 'Cuenta' },
     { key: 'instrument', label: 'Instrumento' },
     { key: 'direction', label: 'Dirección' },
@@ -960,9 +960,10 @@
 
   function tradeRowHtml(t) {
     const editing = state.editingId && t.id === state.editingId;
-    return '<tr' + (editing ? ' class="editing"' : '') + '>' +
-      '<td>' + escapeHtml(t.tradeNumber) + '</td>' +
+    const rowClass = editing ? 'editing' : (Number(t.net) > 0 ? 'row-pos' : 'row-neg');
+    return '<tr' + (rowClass ? ' class="' + rowClass + '"' : '') + '>' +
       '<td><span class="cell-main">' + escapeHtml(t.entryDate) + '</span> <span class="muted">' + escapeHtml(t.entryTime) + '</span></td>' +
+      '<td>' + escapeHtml(t.tradeNumber) + '</td>' +
       '<td>' + escapeHtml(t.account) + '</td>' +
       '<td>' + escapeHtml(t.instrument) + missingStopBadge(t) + '</td>' +
       '<td>' + directionCellHtml(t.direction) + '</td>' +
@@ -2322,8 +2323,10 @@
       const reqHtml = reqs.map(function (id) {
         const b = map[id];
         const earned = !!(b && b.earned);
+        const prog = (!earned && b && Number.isFinite(b.value) && Number.isFinite(b.target) && b.target > 0)
+          ? ' <span class="muted">' + b.value + '/' + b.target + '</span>' : '';
         return '<span class="level-step-req' + (earned ? ' done' : '') + '">' +
-          (earned ? '✓ ' : '○ ') + escapeHtml(b ? b.label : id) + '</span>';
+          (earned ? '✓ ' : '○ ') + escapeHtml(b ? b.label : id) + prog + '</span>';
       }).join('');
       return '<div class="level-step' + (state ? ' ' + state : '') + '">' +
         '<span class="level-step-icon" style="color:' + LEVEL_COLORS[index] + '">' + LEVEL_ICONS[index] + '</span>' +
@@ -2357,7 +2360,9 @@
         const nextName = LEVEL_NAMES[lvl];
         const parts = next.map(function (id) {
           const b = map[id];
-          return (b && b.earned ? '✓ ' : '○ ') + (b ? b.label : id);
+          const prog = (b && !b.earned && Number.isFinite(b.value) && Number.isFinite(b.target) && b.target > 0)
+            ? ' (' + b.value + '/' + b.target + ')' : '';
+          return (b && b.earned ? '✓ ' : '○ ') + (b ? b.label : id) + prog;
         });
         reqEl.textContent = 'Para subir a Nivel ' + (lvl + 1) + ' · ' + nextName + ': ' + parts.join(' · ');
       }

@@ -1654,6 +1654,11 @@ input.is-draft {
 .trades-table td.num.pos { background: rgba(34, 197, 94, 0.07); }
 .trades-table td.num.neg { background: rgba(239, 68, 68, 0.07); }
 
+/* Full-row win/loss signal: a clearer tint than the +/- cell alone, so each
+ * trade's result is obvious at a glance. Persists over the hover state. */
+.trades-table tbody tr.row-pos td { background: rgba(34, 197, 94, 0.10); }
+.trades-table tbody tr.row-neg td { background: rgba(239, 68, 68, 0.10); }
+
 /* Compact "now" button beside the time inputs. */
 .btn-mini {
   height: var(--control-sm);
