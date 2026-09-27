@@ -935,6 +935,53 @@ section[role='tabpanel'][data-accent='purple'] { --section-accent: var(--purple)
   color: var(--text);
 }
 
+/* Collapsible Registro cards (Meta de proceso de hoy / Cierre de sesión).
+ * Native <details> reusing the risk calculator's disclosure pattern; the
+ * summary header carries a live status so state is visible while collapsed. */
+details.card > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 14px;
+  list-style: none;
+  cursor: pointer;
+}
+
+details.card > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.card > summary::before {
+  content: '▸';
+  display: inline-block;
+  color: var(--text-muted);
+  transition: transform 0.12s ease;
+}
+
+details.card[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+details.card > summary:hover {
+  color: var(--text);
+}
+
+details.card > summary h2 {
+  margin-right: auto;
+}
+
+.card-summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  max-width: 44ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .hint {
   margin: -4px 0 14px;
   color: var(--text-muted);

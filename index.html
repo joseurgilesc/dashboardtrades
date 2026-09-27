@@ -147,11 +147,12 @@
   <main class="app-main">
     <!-- ============================ REGISTRO ============================ -->
     <section id="tab-registro" role="tabpanel" data-accent="accent" aria-labelledby="tab-registro">
-      <div class="card">
-        <div class="card-header card-header-row">
+      <details class="card" id="dailyGoalCard">
+        <summary class="card-header">
           <h2>Meta de proceso de hoy</h2>
+          <span class="card-summary" id="dailyGoalSummary">Sin definir</span>
           <span class="muted" id="dailyGoalPrevAction"></span>
-        </div>
+        </summary>
         <p class="hint">Define una conducta concreta antes de operar y márcala al cierre. Lo que se puede controlar, no el resultado.</p>
         <div class="form-grid">
           <div class="field field-wide">
@@ -175,12 +176,13 @@
         <div class="form-actions">
           <button type="button" class="btn btn-primary" id="btnSaveDailyGoal">Guardar meta</button>
         </div>
-      </div>
+      </details>
 
-      <div class="card">
-        <div class="card-header">
+      <details class="card" id="reviewCard">
+        <summary class="card-header">
           <h2>Cierre de sesión</h2>
-        </div>
+          <span class="card-summary" id="reviewSummary">Pendiente</span>
+        </summary>
         <p class="hint">Tres preguntas breves al final del día. La próxima acción aparece mañana al abrir.</p>
         <div class="form-grid">
           <div class="field field-wide">
@@ -199,7 +201,7 @@
         <div class="form-actions">
           <button type="button" class="btn btn-primary" id="btnSaveSessionReview">Guardar revisión</button>
         </div>
-      </div>
+      </details>
 
       <div class="card">
         <div class="card-header card-header-row">

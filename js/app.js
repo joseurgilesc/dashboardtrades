@@ -1244,6 +1244,12 @@
         ? Store.getPreviousSessionAction(date) : '';
       prevEl.textContent = prev ? ('→ Acción de la sesión anterior: ' + prev) : '';
     }
+    /* Collapsed-card summary: show the goal text (or "Sin definir") so the
+     * state is visible without expanding the card. */
+    const summaryEl = $('dailyGoalSummary');
+    if (summaryEl) {
+      summaryEl.textContent = (goal && String(goal.goal || '').trim()) ? goal.goal : 'Sin definir';
+    }
   }
 
   /** Loads today's session review (the three close questions). */
@@ -1256,6 +1262,11 @@
     if (q1) q1.value = review ? review.q1 : '';
     if (q2) q2.value = review ? review.q2 : '';
     if (q3) q3.value = review ? review.q3 : '';
+    /* Collapsed-card summary: "Revisada" once a review exists for the day. */
+    const summaryEl = $('reviewSummary');
+    if (summaryEl) {
+      summaryEl.textContent = review ? 'Revisada' : 'Pendiente';
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -2949,6 +2960,33 @@
     renderAll();
   }
 
+  /**
+   * Non-blocking process nudges fired only before SAVING A NEW trade (never on
+   * edit/update). Counts the active account's trades for the SAME date the
+   * daily goal and session review use (`state.globalDate || today`), so the
+   * reminder stays aligned with what the Registro cards show. Neither nudge
+   * ever blocks the save.
+   */
+  function nudgeBeforeNewTrade() {
+    const date = state.globalDate || todayISO();
+    const account = activeAccount();
+    const tradesToday = Store.getTrades().filter(function (t) {
+      return t && t.account === account && t.entryDate === date;
+    }).length;
+    const goal = (typeof Store.getDailyGoal === 'function') ? Store.getDailyGoal(date) : null;
+    const hasGoal = !!(goal && String(goal.goal || '').trim());
+    const review = (typeof Store.getSessionReview === 'function') ? Store.getSessionReview(date) : null;
+
+    /* First trade of the day with no goal defined yet. */
+    if (tradesToday === 0 && !hasGoal) {
+      showToast('Define tu meta de proceso antes de operar', 'warn');
+    }
+    /* Third trade of the day with no session review yet. */
+    if (tradesToday === 2 && !review) {
+      showToast('Cierra la sesión: completa tu revisión diaria', 'warn');
+    }
+  }
+
   function handleSubmit(event) {
     event.preventDefault();
     const errors = validateForm();
@@ -2966,6 +3004,7 @@
       Store.updateTrade(state.editingId, trade);
       showToast('Trade actualizado', 'ok');
     } else {
+      nudgeBeforeNewTrade();
       trade.tradeNumber = Number.isFinite(trade.tradeNumber) && trade.tradeNumber > 0
         ? trade.tradeNumber
         : Store.nextTradeNumber();
@@ -3788,6 +3827,7 @@
             note: $('dailyGoalNote') ? $('dailyGoalNote').value : ''
           });
         }
+        renderDailyGoal();
         showToast('Meta guardada', 'ok');
       });
     }
@@ -3805,6 +3845,7 @@
             nextAction: $('reviewQ3') ? $('reviewQ3').value.trim() : ''
           });
         }
+        renderSessionReview();
         showToast('Revisión guardada', 'ok');
       });
     }
