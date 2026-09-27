@@ -931,6 +931,12 @@ section[role='tabpanel'][data-accent='amber'] { --section-accent: var(--amber); 
   gap: 12px;
 }
 
+/* The trade card keeps its Trade 1/2/3 tabs left-aligned next to the title
+ * instead of spread to the far right. */
+.trade-card .card-header-row {
+  justify-content: flex-start;
+}
+
 .card-header h2 {
   font-size: 14px;
   font-weight: 600;
