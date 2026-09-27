@@ -178,6 +178,30 @@
       </div>
 
       <div class="card">
+        <div class="card-header">
+          <h2>Cierre de sesión</h2>
+        </div>
+        <p class="hint">Tres preguntas breves al final del día. La próxima acción aparece mañana al abrir.</p>
+        <div class="form-grid">
+          <div class="field field-wide">
+            <label for="reviewQ1">¿Qué hice bien y quiero repetir?</label>
+            <textarea id="reviewQ1" rows="2"></textarea>
+          </div>
+          <div class="field field-wide">
+            <label for="reviewQ2">¿Qué patrón me perjudicó o qué regla incumplí?</label>
+            <textarea id="reviewQ2" rows="2"></textarea>
+          </div>
+          <div class="field field-wide">
+            <label for="reviewQ3">¿Qué acción concreta haré en la próxima sesión?</label>
+            <textarea id="reviewQ3" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="btnSaveSessionReview">Guardar revisión</button>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-header card-header-row">
           <h2>Calculadora de riesgo</h2>
           <span class="risk-account-hint" id="riskAccountHint"></span>

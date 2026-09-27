@@ -1197,6 +1197,7 @@
     renderInstrumentNote();
     updateDuplicateButton();
     renderDailyGoal();
+    renderSessionReview();
     const filtered = getFilteredTrades();
     const dashboardTrades = getDashboardTrades();
     renderTable(filtered);
@@ -1229,6 +1230,18 @@
         ? Store.getPreviousSessionAction(date) : '';
       prevEl.textContent = prev ? ('→ Acción de la sesión anterior: ' + prev) : '';
     }
+  }
+
+  /** Loads today's session review (the three close questions). */
+  function renderSessionReview() {
+    const date = state.globalDate || todayISO();
+    const review = (typeof Store.getSessionReview === 'function') ? Store.getSessionReview(date) : null;
+    const q1 = $('reviewQ1');
+    const q2 = $('reviewQ2');
+    const q3 = $('reviewQ3');
+    if (q1) q1.value = review ? review.q1 : '';
+    if (q2) q2.value = review ? review.q2 : '';
+    if (q3) q3.value = review ? review.q3 : '';
   }
 
   /* ------------------------------------------------------------------ */
@@ -3743,6 +3756,23 @@
           });
         }
         showToast('Meta guardada', 'ok');
+      });
+    }
+
+    /* Session review (Steenbarger): persist the three close questions. */
+    const saveReviewBtn = $('btnSaveSessionReview');
+    if (saveReviewBtn) {
+      saveReviewBtn.addEventListener('click', function () {
+        const date = state.globalDate || todayISO();
+        if (typeof Store.setSessionReview === 'function') {
+          Store.setSessionReview(date, {
+            q1: $('reviewQ1') ? $('reviewQ1').value : '',
+            q2: $('reviewQ2') ? $('reviewQ2').value : '',
+            q3: $('reviewQ3') ? $('reviewQ3').value : '',
+            nextAction: $('reviewQ3') ? $('reviewQ3').value.trim() : ''
+          });
+        }
+        showToast('Revisión guardada', 'ok');
       });
     }
 
