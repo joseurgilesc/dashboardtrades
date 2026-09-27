@@ -39,13 +39,13 @@ Chain strategy: stacked-to-main
 
 ## Phase 2: DOM wiring (`js/app.js`, `index.html`)
 
-- [ ] 2.1 `index.html`: add segmented control (`#dashboardViewToggle`) inside `#tab-dashboard`, above `dashboard-filter` (PRD-1; design Decision 1).
-- [ ] 2.2 `index.html`: add `data-view` to each top-level card — `proceso`: level-hero, `#disciplineCard`, `#achievementsCard`, `#weeklyRecapCard`; `resultados`: chart-hero, `kpi-grid`, `#outcomeCard`, `charts-grid` (PRD-1).
-- [ ] 2.3 `index.html`: add `#processIndicatorsCard` (plan %, respected stop/risk %, goal compliance, sessions reviewed, patterns) and `#weeklyReviewCard` (comparison grid + three question fields + save button), both `data-view="proceso"` (PRD-2..6, WR-3/WR-5).
-- [ ] 2.4 `js/app.js`: add `state.dashboardView`/`state.reviewWeekStart`; `renderDashboardView()` toggles `hidden` on `#tab-dashboard [data-view]` (PRD-1).
-- [ ] 2.5 `js/app.js`: `renderProcessIndicators()` reads `Store.getProcessIndicators(account)` and fills `#processIndicatorsCard` (PRD-2..6).
-- [ ] 2.6 `js/app.js`: `renderWeeklyReview()` calls `pickBestWorstExecution` + `getWeeklyReview`, renders 8-field comparison and question values (WR-2/WR-3/WR-5).
-- [ ] 2.7 `js/app.js`: wire toggle click → set `state.dashboardView` + `renderAll()`; save button → `Store.setWeeklyReview(...)` with the three answers (PRD-1, WR-5/WR-6).
+- [x] 2.1 `index.html`: add segmented control (`#dashboardViewToggle`) inside `#tab-dashboard`, above `dashboard-filter` (PRD-1; design Decision 1).
+- [x] 2.2 `index.html`: add `data-view` to each top-level card — `proceso`: level-hero, `#disciplineCard`, `#achievementsCard`, `#weeklyRecapCard`; `resultados`: chart-hero, `kpi-grid`, `#outcomeCard`, `charts-grid` (PRD-1).
+- [x] 2.3 `index.html`: add `#processIndicatorsCard` (plan %, respected stop/risk %, goal compliance, sessions reviewed, patterns) and `#weeklyReviewCard` (comparison grid + three question fields + save button), both `data-view="proceso"` (PRD-2..6, WR-3/WR-5).
+- [x] 2.4 `js/app.js`: add `state.dashboardView`/`state.reviewWeekStart`; `renderDashboardView()` toggles `hidden` on `#tab-dashboard [data-view]` (PRD-1).
+- [x] 2.5 `js/app.js`: `renderProcessIndicators()` reads `Store.getProcessIndicators(account)` and fills `#processIndicatorsCard` (PRD-2..6).
+- [x] 2.6 `js/app.js`: `renderWeeklyReview()` calls `pickBestWorstExecution` + `getWeeklyReview`, renders 8-field comparison and question values (WR-2/WR-3/WR-5).
+- [x] 2.7 `js/app.js`: wire toggle click → set `state.dashboardView` + `renderAll()`; save button → `Store.setWeeklyReview(...)` with the three answers (PRD-1, WR-5/WR-6).
 
 ## Phase 3: Styles (`css/styles.css`)
 

@@ -34,7 +34,11 @@
     dfTo: '',
     /* Filters bar disclosure, remembered for the browser session. */
     filtersOpen: false,
-    chartsDirty: true
+    chartsDirty: true,
+    /* Dashboard Proceso/Resultados segmented view (defaults to financial KPIs). */
+    dashboardView: 'resultados',
+    /* Monday (ISO) of the week the weekly review is currently showing. */
+    reviewWeekStart: ''
   };
 
   /* Auth/session state (module scope, outside the UI `state` object). */
@@ -1217,6 +1221,9 @@
     renderTable(filtered);
     renderKpis(dashboardTrades);
     renderGamification();
+    renderDashboardView();
+    renderProcessIndicators();
+    renderWeeklyReview();
     renderChartsIfVisible(dashboardTrades);
   }
 
@@ -2674,6 +2681,135 @@
       '</div>';
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Dashboard Proceso / Resultados view + weekly review                 */
+  /* ------------------------------------------------------------------ */
+
+  /** Shows/hides the dashboard cards by their `data-view` and marks the active
+   *  toggle segment. The toggle and the shared date filter carry no `data-view`
+   *  on a card, so they stay visible in both views. */
+  function renderDashboardView() {
+    const view = state.dashboardView || 'resultados';
+
+    const toggle = $('dashboardViewToggle');
+    if (toggle) {
+      Array.prototype.forEach.call(toggle.querySelectorAll('[data-view]'), function (btn) {
+        const active = btn.getAttribute('data-view') === view;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+
+    /* Only the top-level cards are view-scoped: `> [data-view]` excludes the
+     * nested toggle segments themselves. */
+    Array.prototype.forEach.call(document.querySelectorAll('#tab-dashboard > [data-view]'), function (card) {
+      card.hidden = card.getAttribute('data-view') !== view;
+    });
+  }
+
+  /** Writes one process-indicator readout, leaving it untouched when absent. */
+  function setProcessIndicator(id, text) {
+    const el = $(id);
+    if (el) el.textContent = text;
+  }
+
+  /** Compact, ranked "value ×count" summary of the most frequent patterns. */
+  function formatPatterns(patterns) {
+    const labels = { emotion: 'Emoción', exitType: 'Salida', planDeviation: 'Desvío' };
+    const lines = [];
+    Object.keys(patterns).forEach(function (field) {
+      const map = patterns[field] || {};
+      const top = Object.keys(map)
+        .sort(function (a, b) { return map[b] - map[a]; })
+        .slice(0, 3)
+        .map(function (value) { return value + ' ×' + map[value]; });
+      if (top.length) lines.push(labels[field] + ': ' + top.join(', '));
+    });
+    return lines.length ? lines.join(' · ') : '—';
+  }
+
+  /** Reads `Store.getProcessIndicators(account)` into the indicators card. */
+  function renderProcessIndicators() {
+    if (typeof Store.getProcessIndicators !== 'function') return;
+    const ind = Store.getProcessIndicators(activeAccount());
+    setProcessIndicator('procPlanRegistered', formatNumber(ind.planRegisteredPct, 1) + ' %');
+    setProcessIndicator('procRespected', formatNumber(ind.respectedStopRiskPct, 1) + ' %');
+    const gc = ind.goalCompliance;
+    setProcessIndicator('procGoalCompliance', gc.total > 0
+      ? formatNumber(gc.pct, 1) + ' % (' + gc.complied + '/' + gc.total + ')'
+      : '—');
+    setProcessIndicator('procSessionsReviewed', String(ind.sessionsReviewed));
+    setProcessIndicator('procPatterns', formatPatterns(ind.patterns));
+  }
+
+  /** The eight-field comparison column for one trade (best or worst). */
+  function executionColumnHtml(trade) {
+    const risk = Store.tradeRiskUsd(trade);
+    const rr = Store.realizedRResult(trade);
+    const rows = [
+      { label: 'Estrategia', value: strategyLabelOf(trade.strategy) + ' · ' + trade.direction },
+      { label: 'Contexto', value: trade.instrument + ' · ' + trade.exitType },
+      { label: 'Emoción', value: trade.emotion },
+      { label: 'Plan (riesgo/stop/objetivo)', value: formatNumber(trade.plannedRisk) + ' / ' + formatNumber(trade.stop) + ' / ' + formatNumber(trade.target) },
+      { label: 'Riesgo', value: Number.isFinite(risk) ? formatMoney(risk) : '—' },
+      { label: 'Cambios', value: trade.planDeviation || '—' },
+      { label: 'Resultado R', value: Number.isFinite(rr) ? formatNumber(rr, 2) + ' R' : '—' },
+      { label: 'Aprendizaje', value: trade.notes || '—' }
+    ];
+    return rows.map(function (row) {
+      return '<div class="weekly-compare-row">' +
+        '<span class="weekly-compare-label">' + escapeHtml(row.label) + '</span>' +
+        '<span class="weekly-compare-value">' + escapeHtml(row.value) + '</span>' +
+        '</div>';
+    }).join('');
+  }
+
+  /** Renders the best/worst comparison plus the three persisted answers. */
+  function renderWeeklyReview() {
+    if (typeof Store.pickBestWorstExecution !== 'function') return;
+    const account = activeAccount();
+    const weekStart = state.reviewWeekStart || weekStartISO();
+    state.reviewWeekStart = weekStart;
+
+    const picked = Store.pickBestWorstExecution(Store.getTrades(), account, weekStart);
+    const review = (typeof Store.getWeeklyReview === 'function')
+      ? Store.getWeeklyReview(account, weekStart)
+      : null;
+
+    const rangeEl = $('weeklyReviewRange');
+    if (rangeEl) {
+      rangeEl.textContent = picked ? (picked.weekStart + ' → ' + picked.weekEnd) : weekStart;
+    }
+
+    const bestEl = $('weeklyBest');
+    const worstEl = $('weeklyWorst');
+    if (picked) {
+      if (bestEl) bestEl.innerHTML = executionColumnHtml(picked.best);
+      if (worstEl) worstEl.innerHTML = executionColumnHtml(picked.worst);
+    } else {
+      if (bestEl) bestEl.innerHTML = '<span class="recap-empty">Menos de dos trades esta semana: sin comparación.</span>';
+      if (worstEl) worstEl.innerHTML = '';
+    }
+
+    const repeatEl = $('weeklyRepeat');
+    const devEl = $('weeklyDeviationTrigger');
+    const nextEl = $('weeklyNextGoal');
+    if (repeatEl) repeatEl.value = review ? review.repeat : '';
+    if (devEl) devEl.value = review ? review.deviationTrigger : '';
+    if (nextEl) nextEl.value = review ? review.nextGoal : '';
+  }
+
+  /** Moves the weekly-review cursor a whole week (±1) and re-renders it. */
+  function shiftReviewWeek(delta) {
+    const current = state.reviewWeekStart || weekStartISO();
+    const d = new Date(current + 'T00:00:00');
+    d.setDate(d.getDate() + delta * 7);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    state.reviewWeekStart = d.getFullYear() + '-' + mm + '-' + dd;
+    renderWeeklyReview();
+  }
+
   function validateForm() {
     const errors = [];
     const form = readForm();
@@ -3248,6 +3384,9 @@
 
     if (tab === 'dashboard') {
       renderGamification();
+      renderDashboardView();
+      renderProcessIndicators();
+      renderWeeklyReview();
       renderChartsIfVisible(getFilteredTrades());
     }
   }
@@ -3847,6 +3986,38 @@
         }
         renderSessionReview();
         showToast('Revisión guardada', 'ok');
+      });
+    }
+
+    /* Dashboard Proceso/Resultados segmented toggle. */
+    const viewToggle = $('dashboardViewToggle');
+    if (viewToggle) {
+      Array.prototype.forEach.call(viewToggle.querySelectorAll('[data-view]'), function (btn) {
+        btn.addEventListener('click', function () {
+          state.dashboardView = btn.getAttribute('data-view');
+          renderDashboardView();
+        });
+      });
+    }
+
+    /* Weekly review: navigate weeks and persist the three answers. */
+    const btnReviewPrev = $('btnReviewPrevWeek');
+    if (btnReviewPrev) btnReviewPrev.addEventListener('click', function () { shiftReviewWeek(-1); });
+    const btnReviewNext = $('btnReviewNextWeek');
+    if (btnReviewNext) btnReviewNext.addEventListener('click', function () { shiftReviewWeek(1); });
+    const btnSaveWeeklyReview = $('btnSaveWeeklyReview');
+    if (btnSaveWeeklyReview) {
+      btnSaveWeeklyReview.addEventListener('click', function () {
+        const account = activeAccount();
+        const weekStart = state.reviewWeekStart || weekStartISO();
+        if (typeof Store.setWeeklyReview === 'function') {
+          Store.setWeeklyReview(account, weekStart, {
+            repeat: $('weeklyRepeat') ? $('weeklyRepeat').value : '',
+            deviationTrigger: $('weeklyDeviationTrigger') ? $('weeklyDeviationTrigger').value : '',
+            nextGoal: $('weeklyNextGoal') ? $('weeklyNextGoal').value : ''
+          });
+        }
+        showToast('Revisión semanal guardada', 'ok');
       });
     }
 

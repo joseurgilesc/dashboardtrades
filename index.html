@@ -659,6 +659,10 @@
 
     <!-- ============================ DASHBOARD =========================== -->
     <section id="tab-dashboard" role="tabpanel" data-accent="cyan" aria-labelledby="tab-dashboard" hidden>
+      <div class="segmented" id="dashboardViewToggle" role="group" aria-label="Vista del dashboard">
+        <button type="button" class="segmented-btn" data-view="proceso" aria-pressed="false">Proceso</button>
+        <button type="button" class="segmented-btn active" data-view="resultados" aria-pressed="true">Resultados</button>
+      </div>
       <div class="dashboard-filter" aria-label="Rango de fechas del dashboard">
         <div class="dashboard-filter-group">
           <button type="button" class="df-btn active" data-df="all">Todo</button>
@@ -675,13 +679,13 @@
         </div>
       </div>
       <!-- Equity curve is the dashboard protagonist: first and slightly taller. -->
-      <div class="card chart-card chart-hero">
+      <div class="card chart-card chart-hero" data-view="resultados">
         <h3>Curva de equity</h3>
         <div class="chart-body"><canvas id="chartEquity"></canvas></div>
       </div>
 
       <!-- XP hero: level + progress + level ladder, front and center. -->
-      <div class="card level-hero">
+      <div class="card level-hero" id="level-hero" data-view="proceso">
         <div class="level-hero-head">
           <div class="level-hero-badge-wrap">
             <span class="level-hero-badge" id="levelHeroBadge">Nivel 1 · Novato</span>
@@ -701,7 +705,7 @@
         <div class="level-ladder" id="levelLadder"></div>
       </div>
 
-      <div class="kpi-grid">
+      <div class="kpi-grid" data-view="resultados">
         <div class="kpi-card"><span class="kpi-label">Total trades <i class="info-tip" data-tip="Número total de operaciones registradas.">i</i></span><span class="kpi-value" id="kpiTotalTrades">0</span></div>
         <div class="kpi-card"><span class="kpi-label">Tasa de acierto <i class="info-tip" data-tip="Porcentaje de operaciones ganadoras sobre el total.">i</i></span><span class="kpi-value" id="kpiWinRate">0 %</span></div>
         <div class="kpi-card"><span class="kpi-label">Neto total <i class="info-tip" data-tip="Suma del resultado neto (ganancias − pérdidas − comisiones).">i</i></span><span class="kpi-value" id="kpiNetTotal">$0.00</span></div>
@@ -714,7 +718,7 @@
         <div class="kpi-card"><span class="kpi-label">Peor trade <i class="info-tip" data-tip="La operación con mayor pérdida.">i</i></span><span class="kpi-value" id="kpiWorstTrade">$0.00</span></div>
       </div>
 
-      <div class="card" id="disciplineCard">
+      <div class="card" id="disciplineCard" data-view="proceso">
         <div class="card-header card-header-row">
           <h2>Metas y disciplina <i class="info-tip" data-tip="Objetivos semanales que premian tu constancia con XP.">i</i></h2>
         </div>
@@ -722,7 +726,7 @@
         <div class="goals-list" id="goalsList"></div>
       </div>
 
-      <div class="card" id="achievementsCard">
+      <div class="card" id="achievementsCard" data-view="proceso">
         <div class="card-header card-header-row">
           <h2>Logros de proceso <i class="info-tip" data-tip="Badges por hábitos de disciplina. Otorgan XP al conseguirlos.">i</i></h2>
           <span class="table-summary" id="achievementsSummary"></span>
@@ -730,7 +734,7 @@
         <div class="achievements-grid" id="achievementsList"></div>
       </div>
 
-      <div class="card" id="outcomeCard">
+      <div class="card" id="outcomeCard" data-view="resultados">
         <div class="card-header card-header-row">
           <h2>Estadística de resultado <i class="info-tip" data-tip="Métricas informativas del resultado. No otorgan XP.">i</i></h2>
           <span class="table-summary" id="outcomeSummary"></span>
@@ -739,7 +743,7 @@
         <div class="achievements-grid" id="outcomeList"></div>
       </div>
 
-      <div class="card" id="weeklyRecapCard">
+      <div class="card" id="weeklyRecapCard" data-view="proceso">
         <div class="card-header card-header-row">
           <h2>Resumen semanal</h2>
           <span class="table-summary" id="weeklyRange"></span>
@@ -747,7 +751,73 @@
         <div class="weekly-recap" id="weeklyRecap"></div>
       </div>
 
-      <div class="charts-grid">
+      <div class="card" id="processIndicatorsCard" data-view="proceso">
+        <div class="card-header card-header-row">
+          <h2>Indicadores de proceso <i class="info-tip" data-tip="Métricas derivadas del plan, la disciplina y la revisión. No dependen del resultado.">i</i></h2>
+        </div>
+        <div class="process-indicator-grid">
+          <div class="process-indicator">
+            <span class="process-indicator-label">Plan registrado</span>
+            <span class="process-indicator-value" id="procPlanRegistered">0 %</span>
+          </div>
+          <div class="process-indicator">
+            <span class="process-indicator-label">Stop y riesgo respetados</span>
+            <span class="process-indicator-value" id="procRespected">0 %</span>
+          </div>
+          <div class="process-indicator">
+            <span class="process-indicator-label">Cumplimiento de meta diaria</span>
+            <span class="process-indicator-value" id="procGoalCompliance">—</span>
+          </div>
+          <div class="process-indicator">
+            <span class="process-indicator-label">Sesiones revisadas</span>
+            <span class="process-indicator-value" id="procSessionsReviewed">0</span>
+          </div>
+          <div class="process-indicator process-indicator-wide">
+            <span class="process-indicator-label">Patrones repetidos</span>
+            <span class="process-indicator-value" id="procPatterns">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="weeklyReviewCard" data-view="proceso">
+        <div class="card-header card-header-row">
+          <h2>Revisión semanal <i class="info-tip" data-tip="Compara tu mejor y peor ejecución de la semana por calidad de proceso y registra tus conclusiones.">i</i></h2>
+          <div class="weekly-review-nav">
+            <button type="button" class="btn btn-ghost" id="btnReviewPrevWeek" aria-label="Semana anterior">←</button>
+            <span class="table-summary" id="weeklyReviewRange"></span>
+            <button type="button" class="btn btn-ghost" id="btnReviewNextWeek" aria-label="Semana siguiente">→</button>
+          </div>
+        </div>
+        <div class="weekly-compare">
+          <div class="weekly-compare-col">
+            <h4>Mejor ejecución</h4>
+            <div id="weeklyBest"></div>
+          </div>
+          <div class="weekly-compare-col">
+            <h4>Peor ejecución</h4>
+            <div id="weeklyWorst"></div>
+          </div>
+        </div>
+        <div class="weekly-review-questions">
+          <div class="field">
+            <label for="weeklyRepeat">¿Qué repetir la próxima semana?</label>
+            <textarea id="weeklyRepeat" rows="2"></textarea>
+          </div>
+          <div class="field">
+            <label for="weeklyDeviationTrigger">¿Qué disparó la desviación del plan?</label>
+            <textarea id="weeklyDeviationTrigger" rows="2"></textarea>
+          </div>
+          <div class="field">
+            <label for="weeklyNextGoal">Meta para la próxima semana</label>
+            <textarea id="weeklyNextGoal" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn" id="btnSaveWeeklyReview">Guardar revisión</button>
+        </div>
+      </div>
+
+      <div class="charts-grid" data-view="resultados">
         <div class="card chart-card">
           <h3>Neto por instrumento</h3>
           <div class="chart-body"><canvas id="chartInstrument"></canvas></div>

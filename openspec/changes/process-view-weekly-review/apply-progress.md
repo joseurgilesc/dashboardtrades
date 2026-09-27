@@ -2,16 +2,18 @@
 
 ## Status
 
-**PR 1 of 3** (chained PRs, stacked-to-main). Pure `js/store.js` logic plus its two
-test harnesses are complete. PR 2 (`js/app.js`, `index.html`) and PR 3
-(`css/styles.css`) are NOT started.
+**PR 2 of 3** (chained PRs, stacked-to-main). Pure `js/store.js` logic (PR 1) and
+the DOM wiring in `js/app.js` + `index.html` (PR 2) are complete. PR 3
+(`css/styles.css`) is NOT started.
 
 ## Chain Strategy
 
 - **stacked-to-main**: PR 1 targets `main`; PR 2 stacks on PR 1; PR 3 stacks on PR 2.
-- This batch is the PR 1 work unit only: one deliverable scope, verification included.
+- Each batch is one deliverable scope, verification included.
 
-## Completed Tasks (this batch)
+## Completed Tasks
+
+### PR 1 (pure store logic — done)
 
 - [x] 1.1 `isPlanRegistered(trade)` → `plannedRisk>0 && stop>0 && target>0`
 - [x] 1.2 Extract private `riskRespectedList`; `riskRespectedCount` = `filter(respected).length`
@@ -27,17 +29,28 @@ test harnesses are complete. PR 2 (`js/app.js`, `index.html`) and PR 3
 - [x] 4.2 Create `test/weekly-review.test.js`
 - [x] 4.3 Regression: `test/gamification.test.js` stays green
 
+### PR 2 (DOM wiring — done this batch)
+
+- [x] 2.1 `index.html`: `#dashboardViewToggle` segmented control above `dashboard-filter`
+- [x] 2.2 `index.html`: `data-view` on each top-level card (proceso vs resultados)
+- [x] 2.3 `index.html`: `#processIndicatorsCard` + `#weeklyReviewCard`, both `data-view="proceso"`
+- [x] 2.4 `js/app.js`: `state.dashboardView`/`state.reviewWeekStart`; `renderDashboardView()`
+- [x] 2.5 `js/app.js`: `renderProcessIndicators()` fills `#processIndicatorsCard`
+- [x] 2.6 `js/app.js`: `renderWeeklyReview()` + `executionColumnHtml()` (8-field comparison + questions)
+- [x] 2.7 `js/app.js`: toggle click, week prev/next, save via `Store.setWeeklyReview`
+
 ## Work Unit Evidence
 
 | Evidence | Value |
 |---|---|
 | Focused test (PRD) | `node test/process-dashboard.test.js` → **30 passed, 0 failed** |
 | Focused test (WR) | `node test/weekly-review.test.js` → **31 passed, 0 failed** |
+| Focused test (UI) | `node test/process-dashboard-ui.test.js` → **34 passed, 0 failed** |
 | Runtime/regression | `node test/gamification.test.js` → **57 passed, 0 failed** |
-| Full suite | `Ran 27 harnesses` → **ALL PASS** |
-| Rollback boundary | Revert `js/store.js`; delete `test/process-dashboard.test.js` + `test/weekly-review.test.js` |
+| Full suite | `Ran 28 harnesses` → **ALL PASS** |
+| Rollback boundary (PR 2) | Revert `js/app.js`, `index.html`; delete `test/process-dashboard-ui.test.js` |
 
-## Next (PR 2 / PR 3)
+## Next (PR 3)
 
-- PR 2: Phase 2 tasks 2.1–2.7 (`js/app.js`, `index.html`).
-- PR 3: Phase 3 task 3.1 (`css/styles.css`).
+- PR 3: Phase 3 task 3.1 — `.segmented`, `.process-indicator-grid`, `.weekly-compare`
+  styles in `css/styles.css`. New PR 2 elements are intentionally unstyled until then.
