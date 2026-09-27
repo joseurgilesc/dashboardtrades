@@ -1196,6 +1196,7 @@
     renderEntryWarnings();
     renderInstrumentNote();
     updateDuplicateButton();
+    renderDailyGoal();
     const filtered = getFilteredTrades();
     const dashboardTrades = getDashboardTrades();
     renderTable(filtered);
@@ -1209,6 +1210,25 @@
     renderTable(filtered);
     renderKpis(filtered);
     renderChartsIfVisible(filtered);
+  }
+
+  /** Loads today's process goal into the fields and shows the previous
+   *  session's "next action" as a gentle reminder (Steenbarger Fase 1). */
+  function renderDailyGoal() {
+    const date = state.globalDate || todayISO();
+    const goal = (typeof Store.getDailyGoal === 'function') ? Store.getDailyGoal(date) : null;
+    const goalEl = $('dailyGoalText');
+    const statusEl = $('dailyGoalStatus');
+    const noteEl = $('dailyGoalNote');
+    if (goalEl) goalEl.value = goal ? goal.goal : '';
+    if (statusEl) statusEl.value = goal ? goal.status : '';
+    if (noteEl) noteEl.value = goal ? goal.note : '';
+    const prevEl = $('dailyGoalPrevAction');
+    if (prevEl) {
+      const prev = (typeof Store.getPreviousSessionAction === 'function')
+        ? Store.getPreviousSessionAction(date) : '';
+      prevEl.textContent = prev ? ('→ Acción de la sesión anterior: ' + prev) : '';
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -3686,6 +3706,22 @@
       globalDateField.addEventListener('change', function () {
         state.globalDate = globalDateField.value;
         renderAll();
+      });
+    }
+
+    /* Daily process goal (Steenbarger): persist the goal for the active day. */
+    const saveGoalBtn = $('btnSaveDailyGoal');
+    if (saveGoalBtn) {
+      saveGoalBtn.addEventListener('click', function () {
+        const date = state.globalDate || todayISO();
+        if (typeof Store.setDailyGoal === 'function') {
+          Store.setDailyGoal(date, {
+            goal: $('dailyGoalText') ? $('dailyGoalText').value : '',
+            status: $('dailyGoalStatus') ? $('dailyGoalStatus').value : '',
+            note: $('dailyGoalNote') ? $('dailyGoalNote').value : ''
+          });
+        }
+        showToast('Meta guardada', 'ok');
       });
     }
 

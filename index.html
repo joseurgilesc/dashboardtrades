@@ -149,6 +149,36 @@
     <section id="tab-registro" role="tabpanel" data-accent="accent" aria-labelledby="tab-registro">
       <div class="card">
         <div class="card-header card-header-row">
+          <h2>Meta de proceso de hoy</h2>
+          <span class="muted" id="dailyGoalPrevAction"></span>
+        </div>
+        <p class="hint">Define una conducta concreta antes de operar y márcala al cierre. Lo que se puede controlar, no el resultado.</p>
+        <div class="form-grid">
+          <div class="field field-wide">
+            <label for="dailyGoalText">¿Qué conducta voy a practicar hoy?</label>
+            <input type="text" id="dailyGoalText" placeholder="Ej.: Esperaré mi señal y respetaré el stop inicial.">
+          </div>
+          <div class="field">
+            <label for="dailyGoalStatus">Cumplimiento</label>
+            <select id="dailyGoalStatus">
+              <option value="">Pendiente</option>
+              <option value="cumplida">Cumplida</option>
+              <option value="parcial">Parcial</option>
+              <option value="no">No cumplida</option>
+            </select>
+          </div>
+          <div class="field field-wide">
+            <label for="dailyGoalNote">Nota breve (opcional)</label>
+            <input type="text" id="dailyGoalNote" placeholder="Qué pasó y qué ajustar.">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="btnSaveDailyGoal">Guardar meta</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header card-header-row">
           <h2>Calculadora de riesgo</h2>
           <span class="risk-account-hint" id="riskAccountHint"></span>
         </div>

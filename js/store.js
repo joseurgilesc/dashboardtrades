@@ -587,6 +587,66 @@ const Store = (function () {
     return getSettings();
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Training: daily process goal + session review (Steenbarger Fase 1). */
+  /* Persisted inside `state.settings` (additive keys) so they ride the   */
+  /* existing settings doc and need no Firestore migration.              */
+  /* ------------------------------------------------------------------ */
+
+  function dailyGoalsMap() {
+    return (state.settings && typeof state.settings.dailyGoals === 'object')
+      ? state.settings.dailyGoals : {};
+  }
+
+  function sessionReviewsMap() {
+    return (state.settings && typeof state.settings.sessionReviews === 'object')
+      ? state.settings.sessionReviews : {};
+  }
+
+  function getDailyGoal(date) {
+    const raw = dailyGoalsMap()[date];
+    return raw ? {
+      goal: strOr(raw.goal, ''),
+      status: strOr(raw.status, ''),
+      note: strOr(raw.note, '')
+    } : null;
+  }
+
+  function setDailyGoal(date, patch) {
+    const goals = dailyGoalsMap();
+    goals[date] = Object.assign({}, goals[date] || {}, patch || {});
+    setSettings({ dailyGoals: goals });
+    return getDailyGoal(date);
+  }
+
+  function getSessionReview(date) {
+    const raw = sessionReviewsMap()[date];
+    return raw ? {
+      q1: strOr(raw.q1, ''),
+      q2: strOr(raw.q2, ''),
+      q3: strOr(raw.q3, ''),
+      nextAction: strOr(raw.nextAction, '')
+    } : null;
+  }
+
+  function setSessionReview(date, patch) {
+    const reviews = sessionReviewsMap();
+    reviews[date] = Object.assign({}, reviews[date] || {}, patch || {});
+    setSettings({ sessionReviews: reviews });
+    return getSessionReview(date);
+  }
+
+  /** The "next action" from the most recent review strictly BEFORE `date`. */
+  function getPreviousSessionAction(date) {
+    const reviews = sessionReviewsMap();
+    let latest = null;
+    Object.keys(reviews).forEach(function (key) {
+      if (key < date && (latest === null || key > latest)) latest = key;
+    });
+    if (!latest) return '';
+    return strOr(reviews[latest] && reviews[latest].nextAction, '');
+  }
+
   function nextTradeNumber() {
     let max = 0;
     state.trades.forEach(function (t) {
@@ -3467,6 +3527,11 @@ const Store = (function () {
     getStrategies: getStrategies,
     setBalances: setBalances,
     setSettings: setSettings,
+    getDailyGoal: getDailyGoal,
+    setDailyGoal: setDailyGoal,
+    getSessionReview: getSessionReview,
+    setSessionReview: setSessionReview,
+    getPreviousSessionAction: getPreviousSessionAction,
     nextTradeNumber: nextTradeNumber,
     addTrade: addTrade,
     updateTrade: updateTrade,
