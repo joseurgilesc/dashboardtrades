@@ -66,13 +66,15 @@ check('toggle container exists', hasId('dashboardViewToggle'));
 check('toggle has a proceso segment', /<button[^>]*data-view="proceso"[^>]*>/.test(html));
 check('toggle has a resultados segment', /<button[^>]*data-view="resultados"[^>]*>/.test(html));
 
-/* Proceso cards. */
-eq('level-hero is proceso', dataViewOf('level-hero'), 'proceso');
-eq('disciplineCard is proceso', dataViewOf('disciplineCard'), 'proceso');
-eq('achievementsCard is proceso', dataViewOf('achievementsCard'), 'proceso');
-eq('weeklyRecapCard is proceso', dataViewOf('weeklyRecapCard'), 'proceso');
+/* Proceso cards (indicators + weekly review stay behind the toggle). */
 eq('processIndicatorsCard is proceso', dataViewOf('processIndicatorsCard'), 'proceso');
 eq('weeklyReviewCard is proceso', dataViewOf('weeklyReviewCard'), 'proceso');
+
+/* Gamification cards are always visible (no data-view), not part of the toggle. */
+eq('level-hero is always-visible', dataViewOf('level-hero'), null);
+eq('disciplineCard is always-visible', dataViewOf('disciplineCard'), null);
+eq('achievementsCard is always-visible', dataViewOf('achievementsCard'), null);
+eq('weeklyRecapCard is always-visible', dataViewOf('weeklyRecapCard'), null);
 
 /* Resultados cards. */
 eq('outcomeCard is resultados', dataViewOf('outcomeCard'), 'resultados');

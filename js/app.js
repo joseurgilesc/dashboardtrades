@@ -1049,7 +1049,7 @@
     const editing = state.editingId && t.id === state.editingId;
     const rowClass = editing ? 'editing' : (Number(t.net) > 0 ? 'row-pos' : 'row-neg');
     return '<tr' + (rowClass ? ' class="' + rowClass + '"' : '') + '>' +
-      '<td><span class="cell-main">' + escapeHtml(t.entryDate) + '</span> <span class="muted">' + escapeHtml(t.entryTime) + '</span></td>' +
+      '<td><span class="cell-main">' + escapeHtml(t.entryTime) + '</span> <span class="muted">' + escapeHtml(t.entryDate) + '</span></td>' +
       '<td>' + escapeHtml(t.tradeNumber) + '</td>' +
       '<td>' + escapeHtml(t.account) + '</td>' +
       '<td>' + escapeHtml(t.instrument) + missingStopBadge(t) + '</td>' +
