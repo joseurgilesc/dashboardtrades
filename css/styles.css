@@ -1560,10 +1560,10 @@ input.is-draft {
  * down the block instead of floating at the end of each label. */
 .preview-group .preview-item {
   display: grid;
-  /* The value/controls column must be allowed to shrink below its content so
-   * the stepper + presets wrap inside the card instead of forcing the label
-   * column to collapse (or the card to overflow) at narrow widths. */
-  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  /* The value/controls column may shrink below its content so the stepper +
+   * presets wrap inside the card, while the label column keeps a minimum width
+   * so words like "Contratos" never collapse to one letter per line. */
+  grid-template-columns: minmax(96px, 1fr) minmax(0, auto);
   align-items: baseline;
   gap: 10px;
 }
