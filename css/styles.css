@@ -3451,6 +3451,9 @@ input[type="number"] { -moz-appearance: textfield; }
 }
 
 .segmented-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   height: var(--control-sm);
   padding: 0 14px;
   background: transparent;
