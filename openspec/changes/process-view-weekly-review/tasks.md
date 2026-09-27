@@ -49,7 +49,13 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: Styles (`css/styles.css`)
 
-- [ ] 3.1 Add `.segmented`, `.process-indicator-grid`, `.weekly-compare` styles matching existing card/grid tokens (PRD-1/WR-3).
+- [x] 3.1 Add `.segmented`, `.process-indicator-grid`, `.weekly-compare` styles matching existing card/grid tokens (PRD-1/WR-3).
+
+> Scope completion (user request #5): the trades list (`js/app.js`) now also renders
+> four process columns — Plan, Ejecución, R real and Riesgo — wired to the store
+> helpers `isPlanRegistered` / `executionQualityScore` / `realizedRResult` /
+> `riskRespectedList`. `Store.riskRespectedList` was exported for this (single source,
+> no duplicated cap math). Verified by `test/trades-process-columns.test.js`.
 
 ## Phase 4: Tests
 

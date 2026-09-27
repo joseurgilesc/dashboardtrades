@@ -870,7 +870,11 @@
     { key: 'emotion', label: 'Emoción' },
     { key: 'points', label: 'Puntos' },
     { key: 'net', label: 'Neto' },
-    { key: 'cumulative', label: 'Acumulado' }
+    { key: 'cumulative', label: 'Acumulado' },
+    { key: 'plan', label: 'Plan' },
+    { key: 'execution', label: 'Ejecución' },
+    { key: 'rReal', label: 'R real' },
+    { key: 'risk', label: 'Riesgo' }
   ];
 
   function renderTableHeaders() {
@@ -887,6 +891,44 @@
     head.innerHTML = '<tr>' + cells.join('') + '</tr>';
   }
 
+  /**
+   * Per-trade "respected stop + risk" signal (user request #5): maps each trade
+   * id to whether it respected BOTH its recorded stop (`respectedStop`) and the
+   * account's per-trade risk cap. Reads `Store.riskRespectedList` — the single
+   * source the process indicators already use — so the table can never drift
+   * from the dashboard's "Stop y riesgo respetados" figure.
+   */
+  function respectedStopRiskMap() {
+    const map = {};
+    if (typeof Store.riskRespectedList !== 'function') return map;
+    ACCOUNTS.forEach(function (account) {
+      Store.riskRespectedList(Store.getTrades(), account).forEach(function (r) {
+        map[r.trade.id] = !!(r.respected && r.trade.respectedStop);
+      });
+    });
+    return map;
+  }
+
+  /**
+   * Enriches trades with the four process readouts shown in the trades table
+   * (user request #5). Mirrors the Neto/Puntos/Acumulado pattern: each value is
+   * computed once from the store helpers, then sorted and rendered from the
+   * enriched fields, so sorting a process column compares the computed values
+   * rather than `undefined`.
+   */
+  function withProcessColumns(trades) {
+    const respected = respectedStopRiskMap();
+    return (trades || []).map(function (t) {
+      const rReal = Store.realizedRResult(t);
+      return Object.assign({}, t, {
+        plan: Store.isPlanRegistered(t),
+        execution: Store.executionQualityScore(t),
+        rReal: rReal,
+        risk: !!respected[t.id]
+      });
+    });
+  }
+
   function renderTable(trades) {
     const body = $('tradesBody');
     if (!body) return;
@@ -894,7 +936,7 @@
     const totalTrades = Store.getTrades().length;
     /* Compute before sorting so the Neto/Puntos/Acumulado columns render real
      * values and sorting by result/net compares numbers, not `undefined`. */
-    const rows = sortTrades(Store.computeAll((trades || []).filter(matchesSearch)));
+    const rows = sortTrades(withProcessColumns(Store.computeAll((trades || []).filter(matchesSearch))));
 
     if (rows.length === 0) {
       const empty = totalTrades === 0
@@ -993,6 +1035,10 @@
       '<td class="num ' + signClass(t.points) + '">' + signedNumber(t.points) + '</td>' +
       '<td class="num ' + signClass(t.net) + '">' + signedMoney(t.net) + '</td>' +
       '<td class="num ' + signClass(t.cumulative) + '">' + signedMoney(t.cumulative) + '</td>' +
+      '<td>' + (t.plan ? '✓' : '—') + '</td>' +
+      '<td class="num">' + escapeHtml(t.execution) + '</td>' +
+      '<td class="num">' + (Number.isFinite(t.rReal) ? formatNumber(t.rReal, 2) : '—') + '</td>' +
+      '<td>' + (t.risk ? '✓' : '—') + '</td>' +
       '<td class="col-actions">' +
         '<button type="button" class="btn-icon" data-action="edit" data-id="' + escapeHtml(t.id) + '">Editar</button>' +
         '<button type="button" class="btn-icon danger" data-action="delete" data-id="' + escapeHtml(t.id) + '">Eliminar</button>' +

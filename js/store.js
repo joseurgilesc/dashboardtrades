@@ -3804,6 +3804,7 @@ const Store = (function () {
     disciplineDays: disciplineDays,
     disciplineStreak: disciplineStreak,
     tradeRiskUsd: tradeRiskUsd,
+    riskRespectedList: riskRespectedList,
     riskRespectedCount: riskRespectedCount,
     rrMetCount: rrMetCount,
     xpBreakdown: xpBreakdown,

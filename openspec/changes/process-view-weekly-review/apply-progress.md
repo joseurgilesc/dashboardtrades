@@ -2,9 +2,10 @@
 
 ## Status
 
-**PR 2 of 3** (chained PRs, stacked-to-main). Pure `js/store.js` logic (PR 1) and
-the DOM wiring in `js/app.js` + `index.html` (PR 2) are complete. PR 3
-(`css/styles.css`) is NOT started.
+**PR 3 of 3 — FINAL** (chained PRs, stacked-to-main). Pure `js/store.js` logic
+(PR 1), the DOM wiring in `js/app.js` + `index.html` (PR 2) and the PR 3 styles
+(`css/styles.css`) plus the trades-list process columns (user request #5) are all
+complete and verified. The change is ready for `sdd-verify`.
 
 ## Chain Strategy
 
@@ -39,6 +40,23 @@ the DOM wiring in `js/app.js` + `index.html` (PR 2) are complete. PR 3
 - [x] 2.6 `js/app.js`: `renderWeeklyReview()` + `executionColumnHtml()` (8-field comparison + questions)
 - [x] 2.7 `js/app.js`: toggle click, week prev/next, save via `Store.setWeeklyReview`
 
+### PR 3 (final — styles + trades-list process columns)
+
+- [x] 3.1 `css/styles.css`: `.segmented`/`.segmented-btn`, `.process-indicator-grid`
+      (+ `.process-indicator*` readouts), `.weekly-compare` (+ `.weekly-compare-col`,
+      `.weekly-compare-row/label/value`, `.weekly-review-nav`, `.weekly-review-questions`)
+- [x] #5 (scope completion): `js/app.js` trades table gains four process columns —
+      **Plan** (`Store.isPlanRegistered` → ✓/—), **Ejecución**
+      (`Store.executionQualityScore` → -1..3), **R real** (`Store.realizedRResult` →
+      number, "—" when empty) and **Riesgo** (per-trade `respectedStop` + within-cap,
+      via a new exported `Store.riskRespectedList`). Enriched once in
+      `withProcessColumns()` before sort/render (mirrors the Neto/Puntos/Acumulado
+      pattern); sorted by the enriched fields, not `undefined`.
+- [x] `js/store.js`: export `riskRespectedList` (already extracted in PR 1) so the
+      table reuses the single cap-math source instead of duplicating it.
+- [x] `test/trades-process-columns.test.js`: structural (headers + wiring) + behavior
+      (store helpers + `withProcessColumns` + `tradeRowHtml` cells).
+
 ## Work Unit Evidence
 
 | Evidence | Value |
@@ -46,11 +64,12 @@ the DOM wiring in `js/app.js` + `index.html` (PR 2) are complete. PR 3
 | Focused test (PRD) | `node test/process-dashboard.test.js` → **30 passed, 0 failed** |
 | Focused test (WR) | `node test/weekly-review.test.js` → **31 passed, 0 failed** |
 | Focused test (UI) | `node test/process-dashboard-ui.test.js` → **34 passed, 0 failed** |
+| Focused test (columns) | `node test/trades-process-columns.test.js` → **27 passed, 0 failed** |
 | Runtime/regression | `node test/gamification.test.js` → **57 passed, 0 failed** |
-| Full suite | `Ran 28 harnesses` → **ALL PASS** |
-| Rollback boundary (PR 2) | Revert `js/app.js`, `index.html`; delete `test/process-dashboard-ui.test.js` |
+| Syntax check | `node --check js/app.js` + `node --check js/store.js` → **OK** |
+| Full suite | `Ran 29 harnesses` → **ALL PASS** |
+| Rollback boundary (PR 3) | Revert `css/styles.css`, `js/app.js`, `js/store.js`; delete `test/trades-process-columns.test.js` |
 
-## Next (PR 3)
+## Next
 
-- PR 3: Phase 3 task 3.1 — `.segmented`, `.process-indicator-grid`, `.weekly-compare`
-  styles in `css/styles.css`. New PR 2 elements are intentionally unstyled until then.
+- Independent `sdd-verify` (no further apply work pending).
