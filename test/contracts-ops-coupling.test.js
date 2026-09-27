@@ -157,6 +157,7 @@ const stubs = [
   'function renderRiskMarketTable() {}',
   'function renderPriceSuggestions() {}',
   'function renderRiskPreview() {}',
+  'function renderHeaderRiskCard() {}',
   'function riskBlockMessage() { return "blocked"; }',
   'function readRatio() { var el = $("riskRatio"); var n = el ? parseFloat(el.value) : NaN; return (isFinite(n) && n > 0) ? n : 2; }',
   'function ratioLabel(v) { return "1:" + v; }'
@@ -182,8 +183,8 @@ $('entryPrice').value = '5000';
 $('riskRatio').value = '2';
 $('riskDailyPctInput').value = '2';
 $('riskTradesPerDayInput').value = '3';
-$('riskStopTicks').value = '8';
-uiContext.stopTicksTouched = true;
+$('stop').value = '4998';   /* entry 5000 - 2 points = 8 ticks (MES tick 0.25) */
+uiContext.touchedFields.stop = true;
 uiContext.contractsTouched = false;
 uiContext.lastRiskAccount = null;
 uiContext.renderRiskPanel();
@@ -201,7 +202,7 @@ eq('typed contracts stays', $('contracts').value, '5');
 eq('the calculator view mirrors the typed value', $('riskContracts').value, '5');
 /* The readout still derives operations FROM contracts (one direction). */
 uiContext.renderContractsHint();
-check('the hint still derives ops from the typed contracts', hintText().indexOf('op/día') !== -1);
+check('the hint still derives ops from the typed contracts', hintText().indexOf('operaciones') !== -1);
 
 /* ------------------------------------------------------------------ */
 /* [2] contracts -> operations (readout, budget-bounded)               */
@@ -213,14 +214,14 @@ uiContext.contractsTouched = true;
 $('contracts').value = '2';
 uiContext.renderRiskPanel();
 uiContext.renderContractsHint();
-/* maxStop = floor(533 / 2) = 266; maxOps = floor(2000 / (2 x 10)) = 100. */
-eq('2 contracts -> 266 max stop', hintText(), 'stop máx. 266 ticks · 100 op/día');
+/* maxOps = floor(2000 / (2 x 10)) = 100. */
+eq('2 contracts -> 100 operations', hintText(), 'caben 100 operaciones');
 
 $('contracts').value = '66';
 uiContext.renderRiskPanel();
 uiContext.renderContractsHint();
 /* maxOps = floor(2000 / (66 x 10)) = 3. */
-eq('66 contracts -> 3 op/día', hintText(), 'stop máx. 8 ticks · 3 op/día');
+eq('66 contracts -> 3 operations', hintText(), 'caben 3 operaciones');
 
 /* ------------------------------------------------------------------ */
 /* [3] operations -> contracts (suggestion while untouched)            */
@@ -250,7 +251,7 @@ $('contracts').value = '300'; /* 300 x 10 = 3000 > 2000 budget */
 uiContext.renderRiskPanel();
 uiContext.renderContractsHint();
 /* maxOps = floor(2000 / (300 x 10)) = 0; the readout respects the budget. */
-eq('300 contracts -> 0 op/día (budget-bounded)', hintText(), 'stop máx. 1 ticks · 0 op/día');
+eq('300 contracts -> 0 operations (budget-bounded)', hintText(), '0 operaciones');
 
 /* ------------------------------------------------------------------ */
 /* [5] gating: contractsTouched stops the suggestion prefill           */
@@ -283,7 +284,7 @@ eq('maxContracts 10 caps the suggestion (66 -> 10)', $('contracts').value, '10')
 
 /* The hint still derives from the ACTUAL contracts (10), not the uncapped 66. */
 uiContext.renderContractsHint();
-eq('hint derives from the clamped contracts', hintText(), 'stop máx. 53 ticks · 20 op/día');
+eq('hint derives from the clamped contracts', hintText(), 'caben 20 operaciones');
 
 Store.setMaxContracts(0);
 uiContext.renderRiskPanel();

@@ -156,6 +156,7 @@ const stubs = [
   'function formatNumber(v, d) { return String(v); }',
   'function formatTicks(v) { return String(v) + " ticks"; }',
   'function renderRiskMarketTable() {}',
+  'function renderHeaderRiskCard() {}',
   'function renderPriceSuggestions() {}',
   'function renderRiskPreview() {}',
   'function riskBlockMessage() { return "blocked"; }',
@@ -188,8 +189,6 @@ $('direction').value = 'Largo';
 $('entryPrice').value = '5000';
 $('riskRatio').value = '2';
 $('riskDailyPctInput').value = '2';
-$('riskStopTicks').value = '';
-uiContext.stopTicksTouched = false;
 uiContext.tradesPerDayTouched = false;
 uiContext.lastRiskAccount = null;
 
@@ -211,12 +210,10 @@ eq('initial render seeds the account limit (Sim 2)', $('riskTradesPerDayInput').
 /* The math follows the typed value (Sim 5000 / 2% -> daily budget 100). */
 type('1');
 uiContext.renderRiskPanel();
-eq('1 op/day -> per-op 80 ticks', riskText('riskMaxTicks'), '80 ticks');
-eq('1 op/day -> day row labels 1 op', riskText('riskStopDaily'), '80 ticks · 1 op');
+eq('1 op/day -> stop 80 ticks', riskText('riskTicksSL'), '80 ticks');
 type('4');
 uiContext.renderRiskPanel();
-eq('4 op/day -> per-op 20 ticks', riskText('riskMaxTicks'), '20 ticks');
-eq('4 op/day -> day row labels 4 op', riskText('riskStopDaily'), '80 ticks · 4 op');
+eq('4 op/day -> stop 20 ticks', riskText('riskTicksSL'), '20 ticks');
 
 /* ------------------------------------------------------------------ */
 /* [2] Clearing to '' does not snap back; math uses the fallback       */
@@ -231,9 +228,8 @@ uiContext.renderRiskPanel();
 eq('empty field stays empty in the DOM', $('riskTradesPerDayInput').value, '');
 check('empty field never snaps back to the default 3',
   $('riskTradesPerDayInput').value !== '3');
-eq('math falls back to the account default (Sim 2 -> 40 per-op ticks)',
-  riskText('riskMaxTicks'), '40 ticks');
-eq('day row reflects the fallback count', riskText('riskStopDaily'), '80 ticks · 2 op');
+eq('math falls back to the account default (Sim 2 -> 40 stop ticks)',
+  riskText('riskTicksSL'), '40 ticks');
 
 /* ------------------------------------------------------------------ */
 /* [3] Account switch: re-seeds untouched, keeps the value touched     */

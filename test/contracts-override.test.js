@@ -163,13 +163,16 @@ const stubs = [
   'var riskItems = {};',
   'var lastExceedsCupo = false;',
   'var toastCalls = [];',
+  'var warnCalls = [];',
   'function showToast(msg, kind) { toastCalls.push({ msg: msg, kind: kind }); }',
+  'function showRiskWarning(msg) { warnCalls.push(msg); }',
   'function instrumentMeta(id) { return INSTRUMENTS[id] || null; }',
   'function setRiskItem(id, text, cls) { riskItems[id] = { text: text, cls: cls || "" }; }',
   'function formatMoney(v) { return "$" + Number(v).toFixed(2); }',
   'function formatNumber(v, d) { return Number(v).toFixed(d); }',
   'function formatTicks(v) { return String(v) + " ticks"; }',
   'function renderRiskMarketTable() {}',
+  'function renderHeaderRiskCard() {}',
   'function renderPriceSuggestions() {}',
   'function renderRiskPreview() {}',
   'function riskBlockMessage() { return "blocked"; }',
@@ -201,8 +204,8 @@ $('entryPrice').value = '5000';
 $('riskRatio').value = '2';
 $('riskDailyPctInput').value = '2';
 $('riskTradesPerDayInput').value = '3';
-$('riskStopTicks').value = '8';
-uiContext.stopTicksTouched = true;   /* fix the stop so the chain is stable */
+$('stop').value = '4998';   /* entry 5000 - 2 points = 8 ticks (MES tick 0.25) */
+uiContext.touchedFields.stop = true;   /* fix the stop so the chain is stable */
 uiContext.contractsTouched = false;
 uiContext.lastRiskAccount = null;
 uiContext.renderRiskPanel();
@@ -280,15 +283,14 @@ const CAPITAL = 100000;
 });
 
 /* The report follows a stop change too (same formula, new stop). */
-uiContext.stopTicksTouched = true;
-$('riskStopTicks').value = '16';
+$('stop').value = '4996';   /* entry 5000 - 4 points = 16 ticks */
 $('contracts').value = '4';
 uiContext.renderRiskPanel();
 eq('real risk follows the stop distance', riskText('riskRealRisk'), '$' + (4 * 16 * TICK_VALUE).toFixed(2));
 eq('per-contract risk follows the stop distance', riskText('riskPerContract'), '$' + (16 * TICK_VALUE).toFixed(2));
 
 /* Restore the 8-tick fixture for the remaining checks. */
-$('riskStopTicks').value = '8';
+$('stop').value = '4998';
 uiContext.renderRiskPanel();
 
 /* ------------------------------------------------------------------ */
@@ -299,25 +301,23 @@ console.log('\n[4] Advisory popup on the per-trade cupo (false -> true only)');
 
 /* Reset the transition flag so this section starts from "within the cupo". */
 uiContext.lastExceedsCupo = false;
-uiContext.toastCalls.length = 0;
+uiContext.warnCalls.length = 0;
 
 /* 66 x 10 = 660 <= 666.67 -> within the cupo. */
 uiContext.contractsTouched = true;
 $('contracts').value = '66';
 uiContext.renderRiskPanel();
-eq('within the cupo: no popup', uiContext.toastCalls.length, 0);
+eq('within the cupo: no popup', uiContext.warnCalls.length, 0);
 eq('within the cupo: no warn class', riskCls('riskRealRisk'), '');
 eq('within the cupo: calculation stays operative', riskText('riskState'), 'Operativo');
 
 /* 67 x 10 = 670 > 666.67 -> exceeds the cupo (transition: popup fires). */
 $('contracts').value = '67';
 uiContext.renderRiskPanel();
-eq('above the cupo: popup fired once', uiContext.toastCalls.length, 1);
+eq('above the cupo: popup fired once', uiContext.warnCalls.length, 1);
 check('popup names the per-operation cupo',
-  uiContext.toastCalls.length === 1 &&
-  uiContext.toastCalls[0].msg.indexOf('cupo por operación') !== -1);
-eq('popup is a warn toast',
-  uiContext.toastCalls.length === 1 ? uiContext.toastCalls[0].kind : null, 'warn');
+  uiContext.warnCalls.length === 1 &&
+  uiContext.warnCalls[0].indexOf('cupo por operación') !== -1);
 eq('above the cupo: warn class on the real risk', riskCls('riskRealRisk'), 'warn');
 eq('above the cupo: warn class on the percentage', riskCls('riskRealRiskPct'), 'warn');
 eq('the calculation is never blocked', riskText('riskState'), 'Operativo');
@@ -326,15 +326,15 @@ eq('the contract count is never zeroed', uiContext.readForm().contracts, 67);
 /* Staying over the cupo does NOT spam: no additional popup. */
 $('contracts').value = '100';
 uiContext.renderRiskPanel();
-eq('still above the cupo: no second popup', uiContext.toastCalls.length, 1);
+eq('still above the cupo: no second popup', uiContext.warnCalls.length, 1);
 
 /* Dropping back under, then over again, re-arms the transition. */
 $('contracts').value = '66';
 uiContext.renderRiskPanel();
-eq('back under the cupo: still one popup', uiContext.toastCalls.length, 1);
+eq('back under the cupo: still one popup', uiContext.warnCalls.length, 1);
 $('contracts').value = '67';
 uiContext.renderRiskPanel();
-eq('crossing the cupo again fires a new popup', uiContext.toastCalls.length, 2);
+eq('crossing the cupo again fires a new popup', uiContext.warnCalls.length, 2);
 
 /* A far larger override still only warns (never blocks/zeroes). */
 $('contracts').value = '500';
@@ -356,10 +356,7 @@ const before = {
   stopTicks: riskText('riskTicksSL'),
   dailyBudget: riskText('riskBudget'),
   perTradeBudget: riskText('riskPerTradeBudget'),
-  maxTicks: riskText('riskMaxTicks'),
   effectiveBudget: riskText('riskEffectiveBudget'),
-  stopDaily: riskText('riskStopDaily'),
-  tickValue: riskText('riskTickValue'),
   perContract: riskText('riskPerContract'),
   realRisk: riskText('riskRealRisk')
 };
@@ -370,16 +367,13 @@ const after = {
   stopTicks: riskText('riskTicksSL'),
   dailyBudget: riskText('riskBudget'),
   perTradeBudget: riskText('riskPerTradeBudget'),
-  maxTicks: riskText('riskMaxTicks'),
   effectiveBudget: riskText('riskEffectiveBudget'),
-  stopDaily: riskText('riskStopDaily'),
-  tickValue: riskText('riskTickValue'),
   perContract: riskText('riskPerContract'),
   realRisk: riskText('riskRealRisk')
 };
 
-['stopTicks', 'dailyBudget', 'perTradeBudget', 'maxTicks', 'effectiveBudget',
-  'stopDaily', 'tickValue', 'perContract'].forEach(function (key) {
+['stopTicks', 'dailyBudget', 'perTradeBudget', 'effectiveBudget',
+  'perContract'].forEach(function (key) {
   eq('changing contracts leaves ' + key + ' unchanged', after[key], before[key]);
 });
 check('only the reported real risk moved', before.realRisk !== after.realRisk,
@@ -389,7 +383,6 @@ check('only the reported real risk moved', before.realRisk !== after.realRisk,
 eq('stop ticks stay the manual 8', before.stopTicks, '8 ticks');
 eq('daily budget stays 2000', before.dailyBudget, '$2000.00');
 eq('per-trade cupo stays 666.67', before.perTradeBudget, '$666.67');
-eq('max-ticks-one-contract stays 533', before.maxTicks, '533 ticks');
 
 /* Pure level: computeRisk has no contracts input, so two identical calls can
  * never disagree because of the DOM override. */
@@ -443,8 +436,8 @@ check('the real-risk formula is contracts x stopTicks x tickValue',
   appSrc.indexOf('reportedContracts * stopTicks * risk.tickValue') !== -1);
 check('the warning compares against the per-trade cupo',
   appSrc.indexOf('realRisk > risk.perTradeBudget') !== -1);
-check('the advisory is surfaced through showToast (popup)',
-  extractFunction(appSrc, 'function renderRiskPanel()').indexOf('showToast') !== -1);
+check('the advisory is surfaced through showRiskWarning (modal popup)',
+  extractFunction(appSrc, 'function renderRiskPanel()').indexOf('showRiskWarning') !== -1);
 check('the popup fires only on the false -> true transition',
   extractFunction(appSrc, 'function renderRiskPanel()').indexOf('lastExceedsCupo') !== -1);
 check('the result reset list includes the new real-risk rows',

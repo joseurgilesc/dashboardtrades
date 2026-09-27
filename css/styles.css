@@ -291,6 +291,30 @@ textarea {
   font-weight: 500;
 }
 
+/* Compact header readout next to the daily-risk stepper: the daily risk
+ * amount in $ and the configured operations/day, derived from the calculator.
+ * Reuses the chip tokens but lays the two values side by side. */
+.risk-header-card {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 5px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.risk-header-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.risk-header-item + .risk-header-item {
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+
 /* Time fields use flatpickr (CDN) — a compact mono input. */
 .time-input {
   width: 72px;
@@ -1357,6 +1381,10 @@ input.is-draft {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
+  /* Labels may wrap instead of overflowing the card on narrow widths. */
+  white-space: normal;
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 
 .preview-value {

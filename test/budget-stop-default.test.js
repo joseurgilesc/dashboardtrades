@@ -11,7 +11,7 @@
  *   (b) it CHANGES with capital, risk %, trades/day and instrument (numbers
  *       are printed)
  *   (c) a fixed per-instrument value overrides the derived one
- *   (d) a user-touched #riskStopTicks is never re-seeded
+ *   (d) the manual stop-ticks input is gone (stop is AUTO or stop-price only)
  *   (e) MES vs ES no longer share a default and each default risk fits the
  *       per-trade budget
  *
@@ -163,54 +163,30 @@ eq('null -> AUTO again', cleared.stopTicksAuto, true);
 eq('null -> derived value restored', cleared.stopTicks, mes100k.stopTicks);
 
 /* ------------------------------------------------------------------ */
-/* (d) a user-touched #riskStopTicks is never re-seeded                */
+/* (d) the manual stop-ticks input is gone                             */
 /* ------------------------------------------------------------------ */
 
-console.log('\n(d) A user-touched stop is never re-seeded');
+console.log('\n(d) The manual stop-ticks input is gone (stop is AUTO or stop-price)');
 
-/* Pure decision + a tiny input simulation across input changes. */
-const input = { value: '' };
-let touched = false;
-function seed(resolved) {
-  const v = Store.resolveStopTicksSeed(touched, resolved);
-  if (v !== null) input.value = String(v);
-}
+/* Structural: the manual stop-ticks input is gone, so the seed decision and
+ * the provenance hint no longer exist. The stop is AUTO (budget-derived)
+ * unless a stop PRICE is entered in the trade form. */
+check('app.js no longer delegates a stop-tick seed decision',
+  appSrc.indexOf('resolveStopTicksSeed') === -1);
+check('app.js no longer tracks a stop-ticks touched flag',
+  appSrc.indexOf('stopTicksTouched') === -1);
+check('app.js no longer marks a stop-ticks field touched on input',
+  appSrc.indexOf('markStopTicksTouched') === -1);
 
-seed(26);
-eq('untouched seeds the derived value', input.value, '26');
-seed(53);
-eq('untouched re-seeds when capital changes', input.value, '53');
-seed(800);
-eq('untouched re-seeds when risk % changes', input.value, '800');
-
-touched = true;
-input.value = '12'; /* the user's own value */
-seed(53);
-eq('touched keeps the user value on capital change', input.value, '12');
-seed(1600);
-eq('touched keeps the user value on trades/day change', input.value, '12');
-eq('touched returns null (no write)', Store.resolveStopTicksSeed(true, 533), null);
-eq('non-positive resolved value never seeds', Store.resolveStopTicksSeed(false, 0), null);
-
-/* Structural: the UI delegates the decision and never resets the touched flag. */
-check('app.js delegates the seed decision to the Store',
-  appSrc.indexOf('resolveStopTicksSeed') !== -1);
-/* The only `= false` is the initial declaration; a re-seed reset would add
- * another assignment. */
-const touchedResets = appSrc.split('stopTicksTouched = false').length - 1;
-check('app.js never resets the touched flag after it is set', touchedResets === 1);
-check('app.js marks the field touched on input',
-  appSrc.indexOf('markStopTicksTouched') !== -1);
-
-/* Structural: the hardcoded value="8" is gone and a provenance hint exists. */
-const stopFieldIdx = htmlSrc.indexOf('id="riskStopTicks"');
-const stopField = stopFieldIdx === -1 ? '' : htmlSrc.slice(stopFieldIdx, htmlSrc.indexOf('>', stopFieldIdx));
-check('#riskStopTicks exists', stopFieldIdx !== -1);
-check('#riskStopTicks no longer hardcodes value="8"', stopField.indexOf('value="8"') === -1);
-check('#riskStopTicks carries the Auto placeholder', stopField.indexOf('placeholder="Auto"') !== -1);
-check('#riskStopHint exists', htmlSrc.indexOf('id="riskStopHint"') !== -1);
-check('UI shows the AUTO provenance copy',
-  appSrc.indexOf('Auto: máx. que aguanta tu presupuesto') !== -1);
+/* Structural: the input and its hint are removed from the markup. */
+check('#riskStopTicks input removed from the markup',
+  htmlSrc.indexOf('id="riskStopTicks"') === -1);
+check('#riskStopHint provenance hint removed from the markup',
+  htmlSrc.indexOf('id="riskStopHint"') === -1);
+check('app.js derives the stop from AUTO or the form stop PRICE only',
+  appSrc.indexOf('derivedStopTicks > 0 ? derivedStopTicks : cfg.stopTicks') !== -1);
+check('the single Stop row #riskTicksSL remains in the markup',
+  htmlSrc.indexOf('id="riskTicksSL"') !== -1);
 check('Ajustes table renders an Auto label', appSrc.indexOf("'Auto (' + cfg.stopTicks") !== -1);
 
 /* ------------------------------------------------------------------ */

@@ -168,6 +168,7 @@ const stubs = [
   'function formatNumber(v, d) { return String(v); }',
   'function formatTicks(v) { return String(v) + " ticks"; }',
   'function renderRiskMarketTable() { marketRenders += 1; }',
+  'function renderHeaderRiskCard() {}',
   'function renderPriceSuggestions(ticks) { suggestions.push(ticks); }',
   'function renderRiskPreview(ctx) { previews.push(ctx); }',
   'function riskBlockMessage() { return "blocked"; }',
@@ -252,14 +253,9 @@ eq('readForm reads the canonical form select', draft.instrument, elements.instru
 
 console.log('\n[5] Derived values + AUTO stop default follow the instrument');
 
-uiContext.stopTicksTouched = false;
-
 elements.instrument.value = 'MES';
 elements.riskInstrument.value = 'MES';
-elements.riskStopTicks.value = '';
 uiContext.renderRiskPanel();
-const mesAutoTicks = elements.riskStopTicks.value;
-const mesTickValue = riskItemsOf('riskTickValue');
 const mesSL = riskItemsOf('riskTicksSL');
 const mesSuggestion = lastSuggestion();
 const mesPreviewStop = lastPreview().stopTicks;
@@ -268,22 +264,16 @@ const mesMarketRenders = uiContext.marketRenders;
 elements.riskInstrument.value = 'ES';
 uiContext.syncInstrument(elements.riskInstrument.value);
 uiContext.renderRiskPanel();
-const esAutoTicks = elements.riskStopTicks.value;
-const esTickValue = riskItemsOf('riskTickValue');
 const esSL = riskItemsOf('riskTicksSL');
 const esSuggestion = lastSuggestion();
 const esPreviewStop = lastPreview().stopTicks;
 
-console.log('  MES: AUTO ' + mesAutoTicks + ' ticks · tickValue ' + mesTickValue +
-  ' · SL ' + mesSL + ' · suggestion ' + mesSuggestion + ' ticks');
-console.log('  ES : AUTO ' + esAutoTicks + ' ticks · tickValue ' + esTickValue +
-  ' · SL ' + esSL + ' · suggestion ' + esSuggestion + ' ticks');
+console.log('  MES: SL ' + mesSL + ' · suggestion ' + mesSuggestion + ' ticks');
+console.log('  ES : SL ' + esSL + ' · suggestion ' + esSuggestion + ' ticks');
 
-eq('MES AUTO stop default is 26 ticks (capital 5000, 2%, 3/day)', mesAutoTicks, '26');
-eq('ES AUTO stop default is 2 ticks (same budget)', esAutoTicks, '2');
-check('the AUTO stop default changes with the instrument', mesAutoTicks !== esAutoTicks);
-check('the calculator tick value changes with the instrument', mesTickValue !== esTickValue);
-check('the R/B SL ticks change with the instrument', mesSL !== esSL);
+eq('MES AUTO stop default is 26 ticks (capital 5000, 2%, 3/day)', mesSL, '26 ticks');
+eq('ES AUTO stop default is 2 ticks (same budget)', esSL, '2 ticks');
+check('the AUTO stop default changes with the instrument', mesSL !== esSL);
 check('the price suggestion ticks follow the instrument', mesSuggestion !== esSuggestion);
 check('the NinjaTrader preview stop ticks follow the instrument', mesPreviewStop !== esPreviewStop);
 check('the market lookup table is re-rendered on the change', uiContext.marketRenders > mesMarketRenders);

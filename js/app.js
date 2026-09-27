@@ -94,11 +94,6 @@
    * popup fires only on the false -> true transition and never spams. */
   let lastExceedsCupo = false;
 
-  /* True once the user edits the stop-ticks input by hand. A user-typed stop is
-   * FINAL: the budget-derived default never re-seeds over it again, not even
-   * when the instrument or the account changes. */
-  let stopTicksTouched = false;
-
   /* True once the user edits the calculator's trades-per-day input by hand.
    * A user-typed value is FINAL: the account default never re-seeds over it
    * again, not even when the account changes. While the field is transiently
@@ -509,10 +504,6 @@
     fillSelect($('exitType'), EXIT_TYPES);
     fillSelect($('emotion'), EMOTIONS);
     fillSelect($('tradeMode'), ['Scalping', 'Intradía', 'Swing']);
-    fillSelect($('marketTrend'), ['Lateral', 'Alcista', 'Bajista']);
-    fillSelect($('marketTrendPeriod'), ['1h', '4h', '24h', '48h']);
-    const trendPeriodEl = $('marketTrendPeriod');
-    if (trendPeriodEl) trendPeriodEl.value = '24h';
     const maxContractsEl = $('maxContracts');
     if (maxContractsEl) {
       maxContractsEl.innerHTML = '';
@@ -753,7 +744,9 @@
     });
   }
 
-  /** Reverse sizing: given N contracts, show the max stop and max ops/day. */
+  /** Reverse sizing: given N contracts, show how many operations fit the
+   *  daily budget. Read-only: it never writes back to the Op/día input (that
+   *  stays the sizing divisor). */
   function renderContractsHint() {
     const el = $('contractsHint');
     if (!el) return;
@@ -763,15 +756,13 @@
       el.textContent = '—';
       return;
     }
-    const maxStop = (Number.isFinite(lastRisk.maxTicksForOneContract) && lastRisk.maxTicksForOneContract > 0)
-      ? Math.floor(lastRisk.maxTicksForOneContract / n)
-      : 0;
+    /* M = floor(dailyBudget / (N x P_m)), with P_m = stopTicks x tickValue. */
     const maxOps = (Number.isFinite(lastRisk.dailyBudget) && lastRisk.dailyBudget > 0 &&
         Number.isFinite(lastRisk.stopTicks) && lastRisk.stopTicks > 0 &&
         Number.isFinite(lastRisk.tickValue) && lastRisk.tickValue > 0)
       ? Math.floor(lastRisk.dailyBudget / (n * lastRisk.stopTicks * lastRisk.tickValue))
       : 0;
-    el.textContent = 'stop máx. ' + maxStop + ' ticks · ' + maxOps + ' op/día';
+    el.textContent = maxOps > 0 ? ('caben ' + maxOps + ' operaciones') : '0 operaciones';
   }
 
   /** Positions the shared info tooltip near `el`, clamped to the viewport. */
@@ -1442,6 +1433,18 @@
     el.className = 'preview-value' + (cls ? ' ' + cls : '');
   }
 
+  /** Compact header readout beside the daily-risk stepper: the daily risk
+   *  amount in $ and the configured operations/day, from the SAME capital /
+   *  risk % / trades-per-day the calculator sizes from. */
+  function renderHeaderRiskCard(riskPct, dailyBudget, tradesPerDay) {
+    const amountEl = $('headerRiskAmount');
+    if (amountEl) {
+      amountEl.textContent = formatNumber(riskPct, 1) + '% = ' + formatMoney(dailyBudget);
+    }
+    const opsEl = $('headerOpsCount');
+    if (opsEl) opsEl.textContent = tradesPerDay + ' op/día';
+  }
+
   /** Clamps the daily risk % to the spec band [1, 3]; non-numeric -> default. */
   function clampDailyRiskPct(value) {
     const n = Number(value);
@@ -1919,7 +1922,6 @@
     const formDirectionEl = $('direction');
     const direction = formDirectionEl ? formDirectionEl.value : '';
 
-    const stopEl = $('riskStopTicks');
     const formStopEl = $('stop');
     const entryPriceEl = $('entryPrice');
     /* The selected R/B ratio is the planning multiple: it replaces the old USD
@@ -1998,25 +2000,13 @@
         })
       : { stopTicks: 1, stopTicksAuto: true, targetR: 2, targetRAlt: 3, valid: false };
 
-    /* Seed the stop-ticks input from the resolved value whenever the inputs
-     * that determine it change, but NEVER once the user has edited it: a
-     * user-typed stop is final. The pure decision lives in the Store so it is
-     * testable without a DOM. */
-    const stopSeed = (typeof Store.resolveStopTicksSeed === 'function')
-      ? Store.resolveStopTicksSeed(stopTicksTouched, cfg.stopTicks)
-      : cfg.stopTicks;
-    if (stopEl && stopSeed !== null) {
-      stopEl.value = String(stopSeed);
-    }
-
-    const manualStopTicks = stopEl ? parseFloat(stopEl.value) : NaN;
     const formStop = formStopEl ? parseFloat(formStopEl.value) : NaN;
     const entryPrice = entryPriceEl ? parseFloat(entryPriceEl.value) : NaN;
 
-    /* A recorded stop price yields the stop in ticks and takes precedence over
-     * the calculator's own tick input. A DRAFT stop (written by the autofill
-     * while the field is untouched) is NOT user input, so it must not feed the
-     * calculator: only a touched stop does. */
+    /* The stop distance comes ONLY from the AUTO budget-derived value, or from
+     * the form's stop PRICE when one is entered. A DRAFT stop (written by the
+     * autofill while the field is untouched) is NOT user input, so it must not
+     * feed the calculator: only a touched stop price does. */
     const derivedStopPoints = (touchedFields.stop && Number.isFinite(formStop) &&
       Number.isFinite(entryPrice) && formStop !== entryPrice)
       ? Math.abs(entryPrice - formStop)
@@ -2024,9 +2014,7 @@
     const derivedStopTicks = (Number.isFinite(derivedStopPoints) && tick > 0)
       ? Number((derivedStopPoints / tick).toFixed(4))
       : NaN;
-    const stopTicks = derivedStopTicks > 0
-      ? derivedStopTicks
-      : ((Number.isFinite(manualStopTicks) && manualStopTicks > 0) ? manualStopTicks : cfg.stopTicks);
+    const stopTicks = derivedStopTicks > 0 ? derivedStopTicks : cfg.stopTicks;
 
     const hint = $('riskAccountHint');
     if (hint) {
@@ -2034,22 +2022,7 @@
         tradesPerDay + ' op/día · capital inicio ' + formatMoney(capital);
     }
 
-    /* Provenance of the stop distance: the user must never wonder where the
-     * number came from. */
-    const stopHintEl = $('riskStopHint');
-    if (stopHintEl) {
-      if (stopTicksTouched) {
-        stopHintEl.textContent = 'Manual: valor introducido por ti.';
-      } else if (cfg.stopTicksAuto) {
-        stopHintEl.textContent = 'Auto: máx. que aguanta tu presupuesto (' +
-          formatTicks(cfg.stopTicks) + ').';
-      } else {
-        stopHintEl.textContent = 'Fijo (Ajustes): ' + formatTicks(cfg.stopTicks) + '.';
-      }
-    }
-
-    setRiskItem('riskCapital', formatMoney(capital));
-    setRiskItem('riskDailyPct', formatNumber(riskPct, 1) + ' %');
+    renderHeaderRiskCard(riskPct, capital * riskPct / 100, tradesPerDay);
     renderRiskMarketTable(capital, riskPct, tradesPerDay, account);
 
     const risk = Store.computeRisk({
@@ -2095,8 +2068,8 @@
     /* `riskBudget`/`riskUsedToday`/`riskAvailable` are realized-usage rows, not
      * calculator outputs, so they stay OUT of this reset list: invalid input
      * must never blank a recorded loss. */
-    const resultIds = ['riskTickValue', 'riskPerContract', 'riskPerTradeBudget',
-      'riskEffectiveBudget', 'riskMaxTicks', 'riskStopDaily',
+    const resultIds = ['riskPerContract', 'riskPerTradeBudget',
+      'riskEffectiveBudget',
       'riskTotal', 'riskTotalReward', 'riskTicksSL', 'riskTicksTP2', 'riskRRRange', 'riskRecovery',
       'riskRR', 'riskCommission', 'riskRealRisk', 'riskRealRiskPct'];
 
@@ -2191,29 +2164,18 @@
      * the real risk over the per-operation cupo (false -> true), surface it as
      * a popup once; staying over the cupo does not spam. */
     if (exceedsCupo && !lastExceedsCupo) {
-      if (typeof showToast === 'function') {
-        showToast('Riesgo real ' + formatMoney(realRisk) +
+      if (typeof showRiskWarning === 'function') {
+        showRiskWarning('Riesgo real ' + formatMoney(realRisk) +
           ' supera el cupo por operación (' + formatMoney(risk.perTradeBudget) +
-          '). Es solo un aviso: puedes seguir registrando.', 'warn');
+          '). Es solo un aviso: puedes seguir registrando.');
       }
     }
     lastExceedsCupo = exceedsCupo;
 
-    setRiskItem('riskTickValue', formatMoney(risk.tickValue));
     setRiskItem('riskPerContract', formatMoney(risk.pm));
     setRiskItem('riskPerTradeBudget', formatMoney(risk.perTradeBudget));
     setRiskItem('riskEffectiveBudget', formatMoney(risk.effectiveBudget),
       risk.exhausted ? 'warn' : '');
-    setRiskItem('riskMaxTicks', formatTicks(risk.maxTicksForOneContract),
-      blocked ? 'neg' : '');
-    /* Explicit per-operation vs whole-day comparison. The day figure is the
-     * SAME per-operation source (`maxTicksForOneContract`, derived from the
-     * per-trade budget) scaled by the trades/day divisor, so it can never
-     * drift from the calculator's model. It is labelled with the operation
-     * count so "por operación" and "total del día" cannot be confused. */
-    setRiskItem('riskStopDaily',
-      formatTicks(risk.maxTicksForOneContract * tradesPerDay) + ' · ' + tradesPerDay + ' op',
-      blocked ? 'neg' : '');
     setRiskItem('riskTotal', formatMoney(risk.totalRisk));
     setRiskItem('riskTotalReward', formatMoney(risk.totalReward), 'gain');
     setRiskItem('riskTicksSL', formatTicks(risk.ticksSL));
@@ -2316,32 +2278,6 @@
         disciplineEl.hidden = true;
         disciplineEl.textContent = '';
       }
-    }
-
-    renderTrendWarning();
-  }
-
-  /** Advisory: warns when the trade direction goes against the marked trend. */
-  function renderTrendWarning() {
-    const el = $('trendWarning');
-    if (!el) return;
-    const trendEl = $('marketTrend');
-    const dirEl = $('direction');
-    const trend = trendEl ? trendEl.value : 'Lateral';
-    const direction = dirEl ? dirEl.value : '';
-    const period = ($('marketTrendPeriod') && $('marketTrendPeriod').value) || '24h';
-    let msg = '';
-    if (trend === 'Alcista' && direction === 'Corto') {
-      msg = 'Operando contra la tendencia alcista (' + period + '). Es solo un aviso.';
-    } else if (trend === 'Bajista' && direction === 'Largo') {
-      msg = 'Operando contra la tendencia bajista (' + period + '). Es solo un aviso.';
-    }
-    if (msg) {
-      el.textContent = msg;
-      el.hidden = false;
-    } else {
-      el.hidden = true;
-      el.textContent = '';
     }
   }
 
@@ -2718,6 +2654,20 @@
     if (modal) modal.hidden = true;
   }
 
+  /** Shows the risk-cupo advisory as a modal popup with an explicit Aceptar.
+   *  Advisory only: it never blocks saving. */
+  function showRiskWarning(message) {
+    const text = $('riskWarningModalText');
+    if (text) text.textContent = message;
+    const modal = $('riskWarningModal');
+    if (modal) modal.hidden = false;
+  }
+
+  function hideRiskWarning() {
+    const modal = $('riskWarningModal');
+    if (modal) modal.hidden = true;
+  }
+
   /**
    * Prefills the primary entry selects from the last-used selections persisted
    * in settings. Called on reset so a new trade starts from the user's usual
@@ -2822,7 +2772,6 @@
       exitType: $('exitType').value,
       emotion: $('emotion').value,
       notes: $('notes').value,
-      stopTicks: $('riskStopTicks') ? $('riskStopTicks').value : '',
       ratio: $('riskRatio') ? $('riskRatio').value : ''
     };
   }
@@ -2848,11 +2797,9 @@
     $('exitType').value = d.exitType;
     $('emotion').value = d.emotion;
     $('notes').value = d.notes;
-    if (d.stopTicks !== undefined && $('riskStopTicks')) $('riskStopTicks').value = d.stopTicks;
     if (d.ratio !== undefined && $('riskRatio')) $('riskRatio').value = d.ratio;
     /* Restored values are user-owned: the calculator must not re-seed them. */
     contractsTouched = true;
-    stopTicksTouched = !!($('riskStopTicks') && $('riskStopTicks').value);
     applyTradeMode();
     renderEmotionDot();
   }
@@ -3800,12 +3747,7 @@
     if (oneContractBtn) {
       oneContractBtn.addEventListener('click', function () {
         contractsTouched = true;
-        stopTicksTouched = true;
         syncContracts(1);
-        if (lastRisk && Number.isFinite(lastRisk.maxTicksForOneContract) && lastRisk.maxTicksForOneContract > 0) {
-          const stopEl = $('riskStopTicks');
-          if (stopEl) stopEl.value = String(lastRisk.maxTicksForOneContract);
-        }
         renderRiskPanel();
       });
     }
@@ -3834,6 +3776,18 @@
     if (errorModal) {
       errorModal.addEventListener('click', function (event) {
         if (event.target === errorModal) hideErrorModal();
+      });
+    }
+
+    /* Risk-cupo advisory modal: close on Aceptar, X, or backdrop click. */
+    ['btnCloseRiskWarningModal', 'btnRiskWarningOk'].forEach(function (id) {
+      const el = $(id);
+      if (el) el.addEventListener('click', hideRiskWarning);
+    });
+    const riskWarningModal = $('riskWarningModal');
+    if (riskWarningModal) {
+      riskWarningModal.addEventListener('click', function (event) {
+        if (event.target === riskWarningModal) hideRiskWarning();
       });
     }
 
@@ -3936,15 +3890,6 @@
       exitField.addEventListener('input', markExitTouched);
       exitField.addEventListener('change', markExitTouched);
     }
-    /* The calculator's stop-ticks input is user-owned once edited; the
-     * per-instrument config stops re-seeding it until the instrument changes. */
-    const riskStopField = $('riskStopTicks');
-    if (riskStopField) {
-      const markStopTicksTouched = function () { stopTicksTouched = true; };
-      riskStopField.addEventListener('input', markStopTicksTouched);
-      riskStopField.addEventListener('change', markStopTicksTouched);
-    }
-
     /* The calculator's trades-per-day input is user-owned once edited: it is
      * never re-seeded while touched, and a valid positive integer is persisted
      * to the account's daily trade limit so it survives a reload and stays in
@@ -3975,7 +3920,7 @@
     ['instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
       'stop', 'plannedRisk', 'commission',
       'entryDate',
-      'riskStopTicks', 'riskRatio', 'riskDailyPctInput', 'riskTradesPerDayInput', 'marketTrend', 'marketTrendPeriod'].forEach(function (id) {
+      'riskRatio', 'riskDailyPctInput', 'riskTradesPerDayInput'].forEach(function (id) {
       const el = $(id);
       if (el) el.addEventListener('input', updatePreview);
       if (el) el.addEventListener('change', updatePreview);

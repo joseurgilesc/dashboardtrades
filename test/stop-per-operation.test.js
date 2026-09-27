@@ -244,6 +244,7 @@ const stubs = [
   'function formatNumber(v, d) { return String(v); }',
   'function formatTicks(v) { return String(v) + " ticks"; }',
   'function renderRiskMarketTable() {}',
+  'function renderHeaderRiskCard() {}',
   'function renderPriceSuggestions() {}',
   'function renderRiskPreview() {}',
   'function riskBlockMessage() { return "blocked"; }',
@@ -263,31 +264,25 @@ $('riskRatio').value = '2';
 $('riskDailyPctInput').value = '2';
 $('riskTradesPerDayInput').value = '3';
 
-uiContext.stopTicksTouched = false;
 uiContext.renderRiskPanel();
 
 function riskText(id) { return (uiContext.riskItems[id] || {}).text; }
 
-console.log('  MES 5000/2%/3 -> per-op "' + riskText('riskMaxTicks') + '" | day "' + riskText('riskStopDaily') + '"');
-eq('UI per-operation row = 26 ticks', riskText('riskMaxTicks'), '26 ticks');
-eq('UI day row = 26 x 3 = 78 ticks (3 op)', riskText('riskStopDaily'), '78 ticks · 3 op');
+console.log('  MES 5000/2%/3 -> stop "' + riskText('riskTicksSL') + '"');
+eq('UI stop row = 26 ticks', riskText('riskTicksSL'), '26 ticks');
 
-/* Change trades/day: both rows move, still tied to the same source. */
+/* Change trades/day: the AUTO stop moves with the per-trade budget. */
 $('riskTradesPerDayInput').value = '1';
 uiContext.renderRiskPanel();
-console.log('  MES 5000/2%/1 -> per-op "' + riskText('riskMaxTicks') + '" | day "' + riskText('riskStopDaily') + '"');
-eq('UI per-operation row follows trades/day = 80 ticks', riskText('riskMaxTicks'), '80 ticks');
-eq('UI day row follows trades/day = 80 x 1', riskText('riskStopDaily'), '80 ticks · 1 op');
-check('both UI rows changed with trades/day',
-  riskText('riskMaxTicks') === '80 ticks' && riskText('riskStopDaily') === '80 ticks · 1 op');
+eq('UI stop row follows trades/day = 80 ticks', riskText('riskTicksSL'), '80 ticks');
 
-/* Invalid input still blanks the day row (no stale numbers). */
+/* Invalid input still blanks the stop row (no stale numbers). */
 $('riskTradesPerDayInput').value = '3';
 $('riskDailyPctInput').value = '2';
 $('instrument').value = '';
 $('riskInstrument').value = '';
 uiContext.renderRiskPanel();
-eq('missing instrument blanks the day row', riskText('riskStopDaily'), '—');
+eq('missing instrument blanks the stop row', riskText('riskTicksSL'), '—');
 
 /* ------------------------------------------------------------------ */
 /* [5] Structural: labels + relative favicon                           */
@@ -295,19 +290,16 @@ eq('missing instrument blanks the day row', riskText('riskStopDaily'), '—');
 
 console.log('\n[5] Structural: per-operation label + relative SVG favicon');
 
-check('stop field is labelled "por operación"',
-  htmlSrc.indexOf('Distancia del stop (ticks) — por operación') !== -1);
-check('day row #riskStopDaily exists in the markup',
-  htmlSrc.indexOf('id="riskStopDaily"') !== -1);
-check('per-operation row #riskMaxTicks exists in the markup',
-  htmlSrc.indexOf('id="riskMaxTicks"') !== -1);
-check('day total is derived from maxTicksForOneContract x tradesPerDay in app.js',
-  appSrc.indexOf('risk.maxTicksForOneContract * tradesPerDay') !== -1);
-check('app.js writes the day row via setRiskItem',
-  appSrc.indexOf("setRiskItem('riskStopDaily'") !== -1);
-check('day row is reset with the other results when input is invalid',
-  appSrc.indexOf("'riskStopDaily'") !== -1 &&
-  extractFunction(appSrc, 'function renderRiskPanel()').indexOf('resultIds') !== -1);
+check('the manual stop-distance input is gone (Stop is AUTO or stop-price)',
+  htmlSrc.indexOf('Distancia del stop (ticks)') === -1);
+check('the single Stop row #riskTicksSL exists in the markup',
+  htmlSrc.indexOf('id="riskTicksSL"') !== -1);
+check('the old day row #riskStopDaily is gone',
+  htmlSrc.indexOf('id="riskStopDaily"') === -1);
+check('the old per-operation row #riskMaxTicks is gone',
+  htmlSrc.indexOf('id="riskMaxTicks"') === -1);
+check('the Stop row is reset with the other results when input is invalid',
+  extractFunction(appSrc, 'function renderRiskPanel()').indexOf("'riskTicksSL'") !== -1);
 
 /* Favicon: a real SVG, referenced by a RELATIVE path, no CDN. */
 check('favicon.svg exists and starts with <svg',
