@@ -1759,7 +1759,14 @@ input.is-draft {
 
 /* Two columns on desktop: the calculator blocks on the left, the visual
  * plan on the right. The plan stacks below the blocks on narrow screens. */
+/* The calculator's two-column layout collapsed to a single column: the visual
+ * preview now lives in the trade card next to the form. */
 .risk-layout {
+  display: block;
+}
+
+/* Trade card: the form (left) + the sticky visual-plan preview (right). */
+.trade-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
   gap: 16px;
@@ -2434,8 +2441,8 @@ input.is-draft {
     grid-column: span 6;
   }
 
-  /* Stack the visual plan below the calculator blocks on narrow screens. */
-  .risk-layout {
+  /* Stack the visual plan below the trade form on narrow screens. */
+  .trade-layout {
     grid-template-columns: 1fr;
   }
 

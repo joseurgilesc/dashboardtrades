@@ -385,18 +385,6 @@
         <p class="risk-hint" id="riskSuitabilityHint" role="status" aria-live="polite" hidden></p>
         <p class="risk-warning" id="disciplineWarning" role="status" aria-live="polite" hidden></p>
           </div><!-- /.risk-main -->
-
-          <!-- Compact visual plan: the SVG levels are rendered by app.js from
-               the calculator's current values (no chart library). -->
-          <aside class="risk-preview" id="riskPreview" aria-label="Vista previa del plan">
-            <div class="risk-preview-head">
-              <span class="risk-preview-title">Vista previa</span>
-              <span class="risk-preview-tag" title="Grupo de órdenes ATM">ATM</span>
-            </div>
-            <div class="risk-preview-chart" id="riskPreviewChart" aria-live="polite" hidden></div>
-            <p class="risk-preview-empty" id="riskPreviewEmpty">Introduce el precio de entrada para ver el plan.</p>
-            <p class="risk-preview-rb" id="riskPreviewRB">R/B —</p>
-          </aside>
         </div><!-- /.risk-layout -->
       </div>
 
@@ -469,6 +457,7 @@
 
         <div id="formErrors" class="form-errors" role="alert" hidden></div>
 
+        <div class="trade-layout">
         <form id="tradeForm" class="trade-form" novalidate>
           <!-- Grouped rows of three fields (two on tablet, one on mobile).
                Identity/metadata first, then the plan, the three price levels
@@ -647,6 +636,16 @@
             <button type="button" class="btn btn-ghost" id="btnDuplicateLast">Duplicar último trade</button>
           </div>
         </form>
+        <aside class="risk-preview" id="riskPreview" aria-label="Vista previa del plan">
+          <div class="risk-preview-head">
+            <span class="risk-preview-title">Vista previa</span>
+            <span class="risk-preview-tag" title="Grupo de órdenes ATM">ATM</span>
+          </div>
+          <div class="risk-preview-chart" id="riskPreviewChart" aria-live="polite" hidden></div>
+          <p class="risk-preview-empty" id="riskPreviewEmpty">Introduce el precio de entrada para ver el plan.</p>
+          <p class="risk-preview-rb" id="riskPreviewRB">R/B —</p>
+        </aside>
+        </div><!-- /.trade-layout -->
       </div>
 
       <div class="card">
