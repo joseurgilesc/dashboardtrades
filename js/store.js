@@ -2501,25 +2501,34 @@ const Store = (function () {
   }
 
   /**
-   * Counts trades that respected the account's risk budget at the moment they
-   * were taken: each trade's risk (`tradeRiskUsd`) must be at most the
-   * per-trade cap `(riskPct / 100) * runningBalance / tradesPerDay`, where the
-   * running balance is the initial balance plus the net of every earlier
-   * trade. Pure: reads only the passed trades and options.
+   * Evaluates, in entry order, whether each trade respected the account's
+   * risk budget at the moment it was taken: its risk (`tradeRiskUsd`) must be
+   * at most the per-trade cap `(riskPct / 100) * runningBalance / tradesPerDay`,
+   * where the running balance is the initial balance plus the net of every
+   * earlier trade. Returns one entry per trade as
+   * `{ trade, risk, cap, respected }`. Pure: reads only the passed trades and
+   * options. Shared by `riskRespectedCount` and `respectedStopRiskCount` so
+   * the two counts can never drift.
    */
-  function riskRespectedCount(trades, account, opts) {
+  function riskRespectedList(trades, account, opts) {
     const ctx = gamifyOpts(account, opts);
     const list = sortChronologically(tradesForAccount(trades, account));
     const perDay = resolveTradesPerDay(ctx.limit);
     let balance = ctx.initialBalance;
-    let count = 0;
-    list.forEach(function (t) {
+    return list.map(function (t) {
       const cap = (ctx.riskPct / 100) * balance / perDay;
       const risk = tradeRiskUsd(t);
-      if (Number.isFinite(risk) && risk > 0 && cap > 0 && risk <= cap + 1e-9) count += 1;
+      const respected = Number.isFinite(risk) && risk > 0 && cap > 0 && risk <= cap + 1e-9;
       balance += computeTrade(t).net;
+      return { trade: t, risk: risk, cap: cap, respected: respected };
     });
-    return count;
+  }
+
+  /** Counts trades that respected the account's per-trade risk cap. */
+  function riskRespectedCount(trades, account, opts) {
+    return riskRespectedList(trades, account, opts).filter(function (r) {
+      return r.respected;
+    }).length;
   }
 
   /** Counts trades whose recorded planned risk / target meet the min R/R. */
@@ -3200,6 +3209,204 @@ const Store = (function () {
   }
 
   /* ------------------------------------------------------------------ */
+  /* Process indicators + weekly review (pure + additive persistence)    */
+  /* ------------------------------------------------------------------ */
+
+  /** Plan registered: `plannedRisk`, `stop` and `target` all greater than 0. */
+  function isPlanRegistered(trade) {
+    return numOr(trade.plannedRisk, 0) > 0 && numOr(trade.stop, 0) > 0 && numOr(trade.target, 0) > 0;
+  }
+
+  /** Percentage of the account's trades with a plan registered (0 when empty). */
+  function planRegisteredPct(trades, account) {
+    const list = tradesForAccount(trades, account);
+    if (!list.length) return 0;
+    const registered = list.filter(isPlanRegistered).length;
+    return (registered / list.length) * 100;
+  }
+
+  /** Trades respecting BOTH the planned stop and the per-trade risk cap. */
+  function respectedStopRiskCount(trades, account, opts) {
+    return riskRespectedList(trades, account, opts).filter(function (r) {
+      return r.respected && !!r.trade.respectedStop;
+    }).length;
+  }
+
+  /** Share of the account's trades respecting stop AND risk (0 when empty). */
+  function respectedStopRiskPct(trades, account, opts) {
+    const list = riskRespectedList(trades, account, opts);
+    if (!list.length) return 0;
+    const respected = list.filter(function (r) {
+      return r.respected && !!r.trade.respectedStop;
+    }).length;
+    return (respected / list.length) * 100;
+  }
+
+  /**
+   * Daily process-goal compliance from the `settings.dailyGoals` map: the
+   * share of recorded days whose `status` is `cumplida`. `parcial`, `no` and
+   * empty statuses never count. Returns `{ total, complied, pct }`; a total
+   * of 0 is the empty state.
+   */
+  function goalCompliance(dailyGoals) {
+    const goals = (dailyGoals && typeof dailyGoals === 'object') ? dailyGoals : {};
+    const keys = Object.keys(goals);
+    let complied = 0;
+    keys.forEach(function (key) {
+      if (goals[key] && strOr(goals[key].status, '') === 'cumplida') complied += 1;
+    });
+    return {
+      total: keys.length,
+      complied: complied,
+      pct: keys.length > 0 ? (complied / keys.length) * 100 : 0
+    };
+  }
+
+  /** Number of distinct dates present in `settings.sessionReviews`. */
+  function sessionsReviewedCount(sessionReviews) {
+    const reviews = (sessionReviews && typeof sessionReviews === 'object') ? sessionReviews : {};
+    return Object.keys(reviews).length;
+  }
+
+  /**
+   * Repeating behavior patterns with case counts across the categorical
+   * `emotion`, `exitType` and `planDeviation` fields. Each field is counted
+   * independently; empty-string values are excluded.
+   */
+  function behaviorPatternCounts(trades, account) {
+    const out = { emotion: {}, exitType: {}, planDeviation: {} };
+    tradesForAccount(trades, account).forEach(function (t) {
+      Object.keys(out).forEach(function (field) {
+        const value = strOr(t[field], '');
+        if (value !== '') out[field][value] = (out[field][value] || 0) + 1;
+      });
+    });
+    return out;
+  }
+
+  /**
+   * Derived execution-quality score (independent of P&L):
+   * `respectedEntry + respectedStop + respectedSize - (planDeviation ? 1 : 0)`,
+   * where booleans count as 1/0 and a non-empty `planDeviation` subtracts 1.
+   */
+  function executionQualityScore(trade) {
+    const entry = trade.respectedEntry ? 1 : 0;
+    const stop = trade.respectedStop ? 1 : 0;
+    const size = trade.respectedSize ? 1 : 0;
+    const deviation = (strOr(trade.planDeviation, '') !== '') ? 1 : 0;
+    return entry + stop + size - deviation;
+  }
+
+  /**
+   * "R result" column: realized money R (`net / tradeRiskUsd`) when a stop is
+   * recorded and the risk is usable, otherwise the planned ratio from
+   * `computeRR` (`target / plannedRisk`), otherwise NaN (empty state).
+   */
+  function realizedRResult(trade) {
+    const stop = numOr(trade.stop, 0);
+    const risk = tradeRiskUsd(trade);
+    if (stop > 0 && Number.isFinite(risk) && risk > 0) {
+      return computeTrade(trade).net / risk;
+    }
+    const rr = computeRR({ plannedRisk: trade.plannedRisk, target: trade.target });
+    return rr.valid ? rr.ratio : NaN;
+  }
+
+  /**
+   * Picks the best (highest score) and worst (lowest score) execution of the
+   * account's trades for the week containing `weekStart` (ISO Monday). Ties
+   * break by higher `net` for best / lower `net` for worst, then earliest
+   * entry datetime. Returns `{ best, worst, total, weekStart, weekEnd }`, or
+   * null when the week has fewer than two trades or `weekStart` is invalid.
+   */
+  function pickBestWorstExecution(trades, account, weekStart) {
+    const bounds = weekBounds(weekStart);
+    if (!bounds) return null;
+    const list = tradesForAccount(trades, account).filter(function (t) {
+      return t.entryDate >= bounds.start && t.entryDate <= bounds.end;
+    });
+    if (list.length < 2) return null;
+
+    const ranked = list.map(function (t) {
+      return {
+        trade: t,
+        score: executionQualityScore(t),
+        net: computeTrade(t).net,
+        ts: entryTimestamp(t)
+      };
+    });
+
+    let best = ranked[0];
+    let worst = ranked[0];
+    ranked.forEach(function (r) {
+      if (r.score > best.score ||
+          (r.score === best.score && r.net > best.net) ||
+          (r.score === best.score && r.net === best.net && r.ts < best.ts)) {
+        best = r;
+      }
+      if (r.score < worst.score ||
+          (r.score === worst.score && r.net < worst.net) ||
+          (r.score === worst.score && r.net === worst.net && r.ts < worst.ts)) {
+        worst = r;
+      }
+    });
+
+    return {
+      best: best.trade,
+      worst: worst.trade,
+      total: list.length,
+      weekStart: bounds.start,
+      weekEnd: bounds.end
+    };
+  }
+
+  /** The additive `settings.weeklyReviews` map, or `{}` when absent. */
+  function weeklyReviewsMap() {
+    return (state.settings && typeof state.settings.weeklyReviews === 'object')
+      ? state.settings.weeklyReviews : {};
+  }
+
+  /** Stable map key: `account|weekStart`. */
+  function weeklyReviewKey(account, weekStart) {
+    return strOr(account, '') + '|' + strOr(weekStart, '');
+  }
+
+  function getWeeklyReview(account, weekStart) {
+    const raw = weeklyReviewsMap()[weeklyReviewKey(account, weekStart)];
+    if (!raw) return null;
+    return {
+      bestTradeId: strOr(raw.bestTradeId, ''),
+      worstTradeId: strOr(raw.worstTradeId, ''),
+      repeat: strOr(raw.repeat, ''),
+      deviationTrigger: strOr(raw.deviationTrigger, ''),
+      nextGoal: strOr(raw.nextGoal, '')
+    };
+  }
+
+  function setWeeklyReview(account, weekStart, patch) {
+    const key = weeklyReviewKey(account, weekStart);
+    const reviews = weeklyReviewsMap();
+    reviews[key] = Object.assign({}, reviews[key] || {}, patch || {});
+    setSettings({ weeklyReviews: reviews });
+    return getWeeklyReview(account, weekStart);
+  }
+
+  /**
+   * Composite process-indicator view for one account: plan-registered %,
+   * respected stop+risk %, daily-goal compliance, sessions reviewed, and
+   * repeating behavior patterns.
+   */
+  function getProcessIndicators(account) {
+    return {
+      planRegisteredPct: planRegisteredPct(state.trades, account),
+      respectedStopRiskPct: respectedStopRiskPct(state.trades, account),
+      goalCompliance: goalCompliance(dailyGoalsMap()),
+      sessionsReviewed: sessionsReviewedCount(sessionReviewsMap()),
+      patterns: behaviorPatternCounts(state.trades, account)
+    };
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Import / export                                                     */
   /* ------------------------------------------------------------------ */
 
@@ -3615,6 +3822,21 @@ const Store = (function () {
     ACHIEVEMENTS: ACHIEVEMENTS,
     BADGES: BADGES,
     XP_BADGE: XP_BADGE,
+
+    /* Process indicators + weekly review. */
+    isPlanRegistered: isPlanRegistered,
+    planRegisteredPct: planRegisteredPct,
+    respectedStopRiskCount: respectedStopRiskCount,
+    respectedStopRiskPct: respectedStopRiskPct,
+    goalCompliance: goalCompliance,
+    sessionsReviewedCount: sessionsReviewedCount,
+    behaviorPatternCounts: behaviorPatternCounts,
+    executionQualityScore: executionQualityScore,
+    realizedRResult: realizedRResult,
+    pickBestWorstExecution: pickBestWorstExecution,
+    getWeeklyReview: getWeeklyReview,
+    setWeeklyReview: setWeeklyReview,
+    getProcessIndicators: getProcessIndicators,
 
     importJSON: importJSON,
     exportJSON: exportJSON,
