@@ -31,12 +31,12 @@ Chain strategy: pending
 
 ## Phase 2: DOM wiring — detail row + Calculadora tab (`js/app.js`, `index.html`)
 
-- [ ] 2.1 `index.html`: add nav button `data-tab="calculadora"` after Registro (line 98) and a `#tab-calculadora` section BEFORE `#tab-registro` (before line 149) — calculator-tab "Calculadora Tab"; design Decision 3.
-- [ ] 2.2 `index.html`: MOVE the "Calculadora de riesgo" card (lines 206–447, incl. `#riskPreview`) into `#tab-calculadora` unchanged. ⚠ Keep `#riskInstrument` before `#tradeForm` (don't break `instrument-sync.test.js` calcIdx<formIdx; also `instrument-info-panel.test.js` single `.instrument-info`).
-- [ ] 2.3 `js/app.js`: extend `switchTab` list (line 3424) to `['registro','calculadora','dashboard','ajustes']` — calculator-tab spec. ⚠ Do not touch `renderRiskPanel`/`syncContracts` bodies.
-- [ ] 2.4 `js/app.js`: add `tradePlanSvg(trade)` → `{ svg, note }`: no entry → empty; entry-only → minimal single-level inline SVG + note; entry+stop → `Store.tradePreviewGeometry({entry,stopTicks,tick,direction,ticksTP:finite(targetTicks)?[targetTicks]:[]})` → `riskPreviewSvg` — trade-plan-chart "Plan Rendering"/"Degraded"; design Decision 2.
-- [ ] 2.5 `js/app.js`: add `tradePlanDetailRowHtml(t)` + `toggleTradePlan(id)`; push the detail `<tr hidden>` after `tradeRowHtml(t)` in `buildTradeRows` (line 1005) — trade-plan-chart "Expandable Detail Row".
-- [ ] 2.6 `js/app.js`: add Plan toggle button in `tradeRowHtml` (line 1021) and a `toggle-plan` branch in the `tradesBody` click delegation (line 4365).
+- [x] 2.1 `index.html`: add nav button `data-tab="calculadora"` after Registro (line 98) and a `#tab-calculadora` section BEFORE `#tab-registro` (before line 149) — calculator-tab "Calculadora Tab"; design Decision 3.
+- [x] 2.2 `index.html`: MOVE the "Calculadora de riesgo" card (lines 206–447, incl. `#riskPreview`) into `#tab-calculadora` unchanged. ⚠ Keep `#riskInstrument` before `#tradeForm` (don't break `instrument-sync.test.js` calcIdx<formIdx; also `instrument-info-panel.test.js` single `.instrument-info`).
+- [x] 2.3 `js/app.js`: extend `switchTab` list (line 3424) to `['registro','calculadora','dashboard','ajustes']` — calculator-tab spec. ⚠ Do not touch `renderRiskPanel`/`syncContracts` bodies.
+- [x] 2.4 `js/app.js`: add `tradePlanSvg(trade)` → `{ svg, note }`: no entry → empty; entry-only → minimal single-level inline SVG + note; entry+stop → `Store.tradePreviewGeometry({entry,stopTicks,tick,direction,ticksTP:finite(targetTicks)?[targetTicks]:[]})` → `riskPreviewSvg` — trade-plan-chart "Plan Rendering"/"Degraded"; design Decision 2.
+- [x] 2.5 `js/app.js`: add `tradePlanDetailRowHtml(t)` + `toggleTradePlan(id)`; push the detail `<tr hidden>` after `tradeRowHtml(t)` in `buildTradeRows` (line 1005) — trade-plan-chart "Expandable Detail Row".
+- [x] 2.6 `js/app.js`: add Plan toggle button in `tradeRowHtml` (line 1021) and a `toggle-plan` branch in the `tradesBody` click delegation (line 4365).
 
 ## Phase 3: Readouts (`js/app.js`, `index.html`)
 
@@ -50,6 +50,6 @@ Chain strategy: pending
 
 ## Phase 5: Tests (`test/*.test.js`) + regression
 
-- [ ] 5.1 Create `test/trade-plan-chart.test.js`: `tradePlanTicks` Largo/Corto absolute, FDAX tick scale, missing tick/entry/stop/exit; `tradePlanSvg` degraded paths (entry-only, stop-no-exit, no-entry). _(PR 1 shipped the `tradePlanTicks` coverage in this harness; the `tradePlanSvg` degraded-path coverage lands in PR 2 with task 2.4.)_
-- [ ] 5.2 Create `test/calculator-tab.test.js`: structural `#tab-calculadora` + button, `switchTab` has `calculadora`, calculator/`#riskPreview` in Calculadora + form/trades in Registro, sync reads `#instrument/#stop/#entryPrice/#contracts`, readouts rendered + hidden on invalid tick.
-- [ ] 5.3 Regression green: `node test/instrument-sync.test.js`, `instrument-info-panel.test.js`, `contracts-ops-coupling.test.js`, `contracts-override.test.js`, `risk-calculator.test.js`, `trade-preview.test.js`, `draft-autofill-ui.test.js`.
+- [x] 5.1 Create `test/trade-plan-chart.test.js`: `tradePlanTicks` Largo/Corto absolute, FDAX tick scale, missing tick/entry/stop/exit; `tradePlanSvg` degraded paths (entry-only, stop-no-exit, no-entry). _(PR 1 shipped the `tradePlanTicks` coverage in this harness; the `tradePlanSvg` degraded-path coverage landed in PR 2 with task 2.4, asserted in `calculator-tab.test.js` §6.)_
+- [x] 5.2 Create `test/calculator-tab.test.js`: structural `#tab-calculadora` + button, `switchTab` has `calculadora`, calculator/`#riskPreview` in Calculadora + form/trades in Registro, sync reads `#instrument/#stop/#entryPrice/#contracts`, readouts rendered + hidden on invalid tick.
+- [x] 5.3 Regression green: `node test/instrument-sync.test.js`, `instrument-info-panel.test.js`, `contracts-ops-coupling.test.js`, `contracts-override.test.js`, `risk-calculator.test.js`, `trade-preview.test.js`, `draft-autofill-ui.test.js`.

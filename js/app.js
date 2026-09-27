@@ -1003,6 +1003,7 @@
         lastDay = t.entryDate;
       }
       html.push(tradeRowHtml(t));
+      html.push(tradePlanDetailRowHtml(t));
     });
     return html.join('');
   }
@@ -1040,10 +1041,40 @@
       '<td class="num">' + (Number.isFinite(t.rReal) ? formatNumber(t.rReal, 2) : '—') + '</td>' +
       '<td>' + (t.risk ? '✓' : '—') + '</td>' +
       '<td class="col-actions">' +
+        '<button type="button" class="btn-icon" data-action="toggle-plan" data-id="' + escapeHtml(t.id) + '" aria-expanded="false" aria-controls="trade-detail-' + escapeHtml(t.id) + '">Plan</button>' +
         '<button type="button" class="btn-icon" data-action="edit" data-id="' + escapeHtml(t.id) + '">Editar</button>' +
         '<button type="button" class="btn-icon danger" data-action="delete" data-id="' + escapeHtml(t.id) + '">Eliminar</button>' +
       '</td>' +
     '</tr>';
+  }
+
+  /**
+   * Hidden detail row rendered under each trade: a full-width cell carrying
+   * that trade's compact plan SVG (see `tradePlanSvg`). Collapsed by default;
+   * `toggleTradePlan` flips its `hidden` state. It is never part of the
+   * sortable/filterable columns — it is a sibling `<tr>` emitted right after
+   * the trade's own row.
+   */
+  function tradePlanDetailRowHtml(t) {
+    const plan = tradePlanSvg(t);
+    const note = plan.note
+      ? '<p class="trade-plan-note">' + escapeHtml(plan.note) + '</p>'
+      : '';
+    return '<tr class="trade-detail-row" id="trade-detail-' + escapeHtml(t.id) + '" hidden>' +
+      '<td class="trade-detail-cell" colspan="' + (TABLE_COLUMNS.length + 1) + '">' +
+      '<div class="trade-plan" id="trade-plan-' + escapeHtml(t.id) + '">' +
+      plan.svg + note +
+      '</div>' +
+      '</td></tr>';
+  }
+
+  /** Expands/collapses one trade's plan detail row (hidden attribute toggle). */
+  function toggleTradePlan(id) {
+    const row = $('trade-detail-' + id);
+    if (!row) return;
+    row.hidden = !row.hidden;
+    const button = document.querySelector('button[data-action="toggle-plan"][data-id="' + id + '"]');
+    if (button) button.setAttribute('aria-expanded', row.hidden ? 'false' : 'true');
   }
 
   /** Amber "Sin stop" flag for a row whose normalized stop is not positive. */
@@ -1966,6 +1997,88 @@
         ? 'R/B ' + ratioLabel(ratio)
         : 'R/B —';
     }
+  }
+
+  /**
+   * Builds a saved trade's compact plan from its stored PRICES (not ticks).
+   *
+   * The pure `Store.tradePlanTicks` adapter derives absolute stop/target tick
+   * distances from the entry/stop/exit prices and the instrument tick size.
+   * Degradation follows the spec and NEVER emits a broken or invalid SVG:
+   *
+   *   - no usable entry        -> { svg: '', note: '' } (no SVG emitted)
+   *   - entry only (no stop)   -> minimal single-level SVG + note
+   *   - entry + stop           -> `tradePreviewGeometry` -> `riskPreviewSvg`
+   *                               (target only when an exit price exists);
+   *                               note when the exit is missing
+   *
+   * A saved trade without a direction (or any unusable geometry input) also
+   * degrades to a note rather than drawing an invalid two-sided plan.
+   */
+  function tradePlanSvg(trade) {
+    const plan = (typeof Store.tradePlanTicks === 'function')
+      ? Store.tradePlanTicks(trade)
+      : { valid: false, entry: NaN, stopTicks: NaN, targetTicks: NaN, tick: NaN, direction: '' };
+
+    if (!plan.valid) {
+      return { svg: '', note: '' };
+    }
+
+    const instrument = (trade && trade.instrument) ? trade.instrument : '';
+    const hasStop = Number.isFinite(plan.stopTicks);
+    const hasTarget = Number.isFinite(plan.targetTicks);
+
+    /* Entry only: no stop distance, so the two-sided geometry cannot run. */
+    if (!hasStop) {
+      return {
+        svg: entryOnlyPlanSvg(plan, instrument),
+        note: 'Solo hay precio de entrada: añade stop y salida para ver el plan completo.'
+      };
+    }
+
+    const geometry = (typeof Store.tradePreviewGeometry === 'function')
+      ? Store.tradePreviewGeometry({
+          entry: plan.entry,
+          stopTicks: plan.stopTicks,
+          tick: plan.tick,
+          direction: plan.direction,
+          ticksTP: hasTarget ? [plan.targetTicks] : []
+        })
+      : { valid: false, reason: 'entry' };
+
+    if (!geometry.valid) {
+      return { svg: '', note: 'No se puede dibujar el plan de esta operación.' };
+    }
+
+    return {
+      svg: riskPreviewSvg(geometry, {
+        instrument: instrument,
+        direction: plan.direction,
+        decimals: decimalsForTick(plan.tick)
+      }),
+      note: hasTarget ? '' : 'Sin precio de salida: se muestra entrada y stop sin objetivo.'
+    };
+  }
+
+  /**
+   * Minimal single-level inline SVG for a trade that only has an entry price.
+   * Mirrors the `riskPreviewSvg` vocabulary (Entrada / Entry (Market)) without
+   * fabricating a stop or target the trade never had.
+   */
+  function entryOnlyPlanSvg(plan, instrument) {
+    const W = 340;
+    const H = 96;
+    const decimals = decimalsForTick(plan.tick);
+    const price = Number.isFinite(plan.entry) ? Number(plan.entry).toFixed(decimals) : '—';
+    const title = (plan.direction ? plan.direction + ' · ' : '') + instrument;
+    return '<svg class="risk-preview-svg" viewBox="0 0 ' + W + ' ' + H + '" ' +
+      'role="img" aria-label="' + escapeHtml('Vista previa del plan ' + title) + '">' +
+      '<text class="rp-dir" x="124" y="12">' + escapeHtml(title) + '</text>' +
+      '<line x1="124" y1="48" x2="266" y2="48" stroke="var(--text)" stroke-width="2" />' +
+      '<text class="rp-label-es" x="118" y="46" text-anchor="end">Entrada</text>' +
+      '<text class="rp-label-nt" x="118" y="57" text-anchor="end">Entry (Market)</text>' +
+      '<text class="rp-price" x="270" y="51">' + escapeHtml(price) + '</text>' +
+      '</svg>';
   }
 
   /**
@@ -3421,7 +3534,7 @@
       btn.setAttribute('aria-selected', active ? 'true' : 'false');
     });
 
-    ['registro', 'dashboard', 'ajustes'].forEach(function (name) {
+    ['registro', 'calculadora', 'dashboard', 'ajustes'].forEach(function (name) {
       const section = $('tab-' + name);
       if (section) section.hidden = name !== tab;
     });
@@ -4364,6 +4477,7 @@
       const id = button.getAttribute('data-id');
       if (action === 'edit') handleEdit(id);
       else if (action === 'delete') handleDelete(id);
+      else if (action === 'toggle-plan') toggleTradePlan(id);
     });
 
     $('tradesHead').addEventListener('click', function (event) {
