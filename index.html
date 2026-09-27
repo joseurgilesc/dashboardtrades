@@ -96,7 +96,6 @@
 
   <nav class="tabs" role="tablist" aria-label="Secciones">
     <button type="button" class="tab-button active" role="tab" data-tab="registro" data-accent="accent" aria-selected="true" aria-controls="tab-registro">Registro</button>
-    <button type="button" class="tab-button" role="tab" data-tab="calculadora" data-accent="amber" aria-selected="false" aria-controls="tab-calculadora">Calculadora</button>
     <button type="button" class="tab-button" role="tab" data-tab="dashboard" data-accent="cyan" aria-selected="false" aria-controls="tab-dashboard">Dashboard</button>
     <button type="button" class="tab-button" role="tab" data-tab="ajustes" data-accent="purple" aria-selected="false" aria-controls="tab-ajustes">Ajustes</button>
   </nav>
@@ -146,9 +145,15 @@
   </div>
 
   <main class="app-main">
-    <!-- ========================== CALCULADORA =========================== -->
-    <section id="tab-calculadora" role="tabpanel" data-accent="amber" aria-labelledby="tab-calculadora" hidden>
-      <div class="card">
+    <!-- ============================ REGISTRO ============================ -->
+    <section id="tab-registro" role="tabpanel" data-accent="accent" aria-labelledby="tab-registro">
+      <!-- Sub-toggle: the trade form and the risk calculator share the same
+           space inside Registro. -->
+      <div class="segmented" id="registroSubTab" role="group" aria-label="Modo de registro">
+        <button type="button" class="segmented-btn active" data-sub="formulario" aria-pressed="true">Formulario</button>
+        <button type="button" class="segmented-btn" data-sub="calculadora" aria-pressed="false">Calculadora</button>
+      </div>
+      <div class="card" id="calculatorCard" hidden>
         <div class="card-header card-header-row">
           <h2>Calculadora de riesgo</h2>
           <span class="risk-account-hint" id="riskAccountHint"></span>
@@ -394,10 +399,7 @@
           </aside>
         </div><!-- /.risk-layout -->
       </div>
-    </section>
 
-    <!-- ============================ REGISTRO ============================ -->
-    <section id="tab-registro" role="tabpanel" data-accent="accent" aria-labelledby="tab-registro">
       <details class="card" id="dailyGoalCard">
         <summary class="card-header">
           <h2>Meta de proceso de hoy</h2>

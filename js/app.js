@@ -3589,10 +3589,14 @@
       btn.setAttribute('aria-selected', active ? 'true' : 'false');
     });
 
-    ['registro', 'calculadora', 'dashboard', 'ajustes'].forEach(function (name) {
+    ['registro', 'dashboard', 'ajustes'].forEach(function (name) {
       const section = $('tab-' + name);
       if (section) section.hidden = name !== tab;
     });
+
+    /* Entering Registro always lands on the trade form, so the edit/duplicate
+     * flows (which scroll to #tradeForm) never target a hidden card. */
+    if (tab === 'registro') switchRegistroSub('formulario');
 
     applyFiltersVisibility();
 
@@ -3602,6 +3606,28 @@
       renderProcessIndicators();
       renderWeeklyReview();
       renderChartsIfVisible(getFilteredTrades());
+    }
+  }
+
+  /**
+   * Toggles the Registro sub-tab between the trade form (`formulario`) and the
+   * risk calculator (`calculadora`). Both cards share the same space, so
+   * exactly one is visible at a time; the daily goal / session review cards
+   * above them stay put.
+   */
+  function switchRegistroSub(sub) {
+    const showCalc = sub === 'calculadora';
+    const formCard = $('tradeCard');
+    const calcCard = $('calculatorCard');
+    if (formCard) formCard.hidden = showCalc;
+    if (calcCard) calcCard.hidden = !showCalc;
+    const toggle = $('registroSubTab');
+    if (toggle) {
+      toggle.querySelectorAll('.segmented-btn').forEach(function (btn) {
+        const active = btn.getAttribute('data-sub') === sub;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
     }
   }
 
@@ -4607,6 +4633,16 @@
         switchTab(btn.getAttribute('data-tab'));
       });
     });
+
+    /* Registro sub-toggle: Formulario vs Calculadora in the same space. */
+    const registroSubTab = $('registroSubTab');
+    if (registroSubTab) {
+      registroSubTab.querySelectorAll('[data-sub]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          switchRegistroSub(btn.getAttribute('data-sub'));
+        });
+      });
+    }
 
     $('btnSaveBalances').addEventListener('click', handleSaveBalances);
     const saveRiskButton = $('btnSaveRiskSettings');

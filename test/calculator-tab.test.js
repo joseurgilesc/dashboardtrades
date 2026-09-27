@@ -9,10 +9,11 @@
  * Firebase, no build step.
  *
  * Proves:
- *   [1] the Calculadora nav button and #tab-calculadora section exist;
- *   [2] switchTab's tab list includes 'calculadora';
- *   [3] the calculator card (riskInstrument/riskPreview) lives inside
- *       #tab-calculadora, which sits BEFORE #tab-registro in DOM order;
+ *   [1] the Calculadora top-level tab is gone and the Registro sub-toggle
+ *       (#registroSubTab) exists;
+ *   [2] switchTab's tab list is reverted to registro/dashboard/ajustes;
+ *   [3] the calculator card (riskInstrument/riskPreview/instrumentInfo) lives
+ *       inside #tab-registro, which sits before #tradeForm in DOM order;
  *   [4] #riskInstrument still precedes #tradeForm (sync structural invariant);
  *   [5] the detail-row wiring (tradePlanDetailRowHtml + toggleTradePlan + Plan
  *       button + toggle-plan delegation) is present;
@@ -110,47 +111,54 @@ const uiContext = vm.createContext({
 vm.runInContext(extracted, uiContext, { filename: 'app-plan-functions.js' });
 
 /* ------------------------------------------------------------------ */
-/* [1] Nav button + #tab-calculadora exist                             */
+/* [1] Calculadora top-level tab is gone; Registro sub-toggle exists   */
 /* ------------------------------------------------------------------ */
 
-console.log('\n[1] Calculadora tab button and section');
+console.log('\n[1] Calculadora top-level tab is gone; Registro sub-toggle exists');
 
-check('nav exposes a data-tab="calculadora" button', htmlSrc.indexOf('data-tab="calculadora"') !== -1);
-check('the Calculadora nav button is labelled "Calculadora"',
-  /data-tab="calculadora"[^>]*>\s*Calculadora\s*</.test(htmlSrc));
-check('a #tab-calculadora section exists', htmlSrc.indexOf('id="tab-calculadora"') !== -1);
+check('no data-tab="calculadora" nav button remains', htmlSrc.indexOf('data-tab="calculadora"') === -1);
+check('no #tab-calculadora section remains', htmlSrc.indexOf('id="tab-calculadora"') === -1);
+check('the #registroSubTab sub-toggle exists', htmlSrc.indexOf('id="registroSubTab"') !== -1);
+check('the sub-toggle exposes data-sub="formulario" and data-sub="calculadora"',
+  htmlSrc.indexOf('data-sub="formulario"') !== -1 &&
+  htmlSrc.indexOf('data-sub="calculadora"') !== -1);
 
 /* ------------------------------------------------------------------ */
-/* [2] switchTab list includes 'calculadora'                           */
+/* [2] switchTab list reverts to the three top-level tabs              */
 /* ------------------------------------------------------------------ */
 
-console.log('\n[2] switchTab toggles the Calculadora tab');
+console.log('\n[2] switchTab toggles only the three top-level tabs');
 
 const switchTabSrc = extractFunction(appSrc, 'function switchTab(tab)');
-check('switchTab list includes "calculadora"',
-  switchTabSrc.indexOf("'calculadora'") !== -1);
+check('switchTab list drops "calculadora"',
+  switchTabSrc.indexOf("'calculadora'") === -1);
+check('switchTab list keeps registro/dashboard/ajustes',
+  switchTabSrc.indexOf("'registro'") !== -1 &&
+  switchTabSrc.indexOf("'dashboard'") !== -1 &&
+  switchTabSrc.indexOf("'ajustes'") !== -1);
+check('app.js defines switchRegistroSub', appSrc.indexOf('function switchRegistroSub(sub)') !== -1);
 
 /* ------------------------------------------------------------------ */
-/* [3] The calculator card lives inside #tab-calculadora (before Registro) */
+/* [3] The calculator card lives inside #tab-registro (before the form) */
 /* ------------------------------------------------------------------ */
 
-console.log('\n[3] Calculator card is inside #tab-calculadora');
+console.log('\n[3] Calculator card is inside #tab-registro');
 
-const calcTabIdx = htmlSrc.indexOf('id="tab-calculadora"');
 const regTabIdx = htmlSrc.indexOf('id="tab-registro"');
 const riskIdx = htmlSrc.indexOf('id="riskInstrument"');
 const previewIdx = htmlSrc.indexOf('id="riskPreview"');
 const infoIdx = htmlSrc.indexOf('id="instrumentInfo"');
 const formIdx = htmlSrc.indexOf('id="tradeForm"');
+const calcCardIdx = htmlSrc.indexOf('id="calculatorCard"');
 
-check('#tab-calculadora sits BEFORE #tab-registro in DOM',
-  calcTabIdx !== -1 && regTabIdx !== -1 && calcTabIdx < regTabIdx);
-check('#riskInstrument is inside #tab-calculadora (after section, before Registro)',
-  calcTabIdx !== -1 && riskIdx !== -1 && regTabIdx !== -1 && calcTabIdx < riskIdx && riskIdx < regTabIdx);
-check('#riskPreview is inside #tab-calculadora',
-  previewIdx !== -1 && calcTabIdx !== -1 && calcTabIdx < previewIdx && previewIdx < regTabIdx);
-check('#instrumentInfo is inside #tab-calculadora',
-  infoIdx !== -1 && calcTabIdx !== -1 && calcTabIdx < infoIdx && infoIdx < regTabIdx);
+check('#calculatorCard lives inside #tab-registro',
+  calcCardIdx !== -1 && regTabIdx !== -1 && regTabIdx < calcCardIdx);
+check('#riskInstrument is inside #tab-registro',
+  riskIdx !== -1 && regTabIdx !== -1 && regTabIdx < riskIdx);
+check('#riskPreview is inside #tab-registro',
+  previewIdx !== -1 && regTabIdx !== -1 && regTabIdx < previewIdx);
+check('#instrumentInfo is inside #tab-registro',
+  infoIdx !== -1 && regTabIdx !== -1 && regTabIdx < infoIdx);
 
 /* Registro keeps its content: the form and trades list stay after Registro. */
 check('#tradeForm remains in Registro (after #tab-registro)',
@@ -162,7 +170,7 @@ check('the daily goal card remains in Registro',
 /* [4] #riskInstrument still precedes #tradeForm                       */
 /* ------------------------------------------------------------------ */
 
-console.log('\n[4] Cross-tab sync structural invariant');
+console.log('\n[4] Cross-view sync structural invariant');
 
 check('#riskInstrument precedes #tradeForm in DOM',
   riskIdx !== -1 && formIdx !== -1 && riskIdx < formIdx);
