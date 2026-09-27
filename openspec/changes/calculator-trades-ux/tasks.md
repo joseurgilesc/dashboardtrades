@@ -26,8 +26,8 @@ Chain strategy: pending
 
 ## Phase 1: Pure logic (`js/store.js`)
 
-- [ ] 1.1 Add pure `tradePlanTicks(trade)` near `tradePreviewGeometry` (~line 1869): returns `{ valid, entry, stopTicks, targetTicks, tick, direction }` with `stopTicks = |entry−stop|/tick`, `targetTicks = |exit−entry|/tick` (numOr-safe, NaN on missing stop/exit/tick or tick ≤ 0, `valid=false` when entry unusable) — trade-plan-chart "Price-to-Ticks Adapter"; design Decision 1.
-- [ ] 1.2 Export `tradePlanTicks` in the Store return tail (~line 3777).
+- [x] 1.1 Add pure `tradePlanTicks(trade)` near `tradePreviewGeometry` (~line 1869): returns `{ valid, entry, stopTicks, targetTicks, tick, direction }` with `stopTicks = |entry−stop|/tick`, `targetTicks = |exit−entry|/tick` (numOr-safe, NaN on missing stop/exit/tick or tick ≤ 0, `valid=false` when entry unusable) — trade-plan-chart "Price-to-Ticks Adapter"; design Decision 1.
+- [x] 1.2 Export `tradePlanTicks` in the Store return tail (~line 3777).
 
 ## Phase 2: DOM wiring — detail row + Calculadora tab (`js/app.js`, `index.html`)
 
@@ -50,6 +50,6 @@ Chain strategy: pending
 
 ## Phase 5: Tests (`test/*.test.js`) + regression
 
-- [ ] 5.1 Create `test/trade-plan-chart.test.js`: `tradePlanTicks` Largo/Corto absolute, FDAX tick scale, missing tick/entry/stop/exit; `tradePlanSvg` degraded paths (entry-only, stop-no-exit, no-entry).
+- [ ] 5.1 Create `test/trade-plan-chart.test.js`: `tradePlanTicks` Largo/Corto absolute, FDAX tick scale, missing tick/entry/stop/exit; `tradePlanSvg` degraded paths (entry-only, stop-no-exit, no-entry). _(PR 1 shipped the `tradePlanTicks` coverage in this harness; the `tradePlanSvg` degraded-path coverage lands in PR 2 with task 2.4.)_
 - [ ] 5.2 Create `test/calculator-tab.test.js`: structural `#tab-calculadora` + button, `switchTab` has `calculadora`, calculator/`#riskPreview` in Calculadora + form/trades in Registro, sync reads `#instrument/#stop/#entryPrice/#contracts`, readouts rendered + hidden on invalid tick.
 - [ ] 5.3 Regression green: `node test/instrument-sync.test.js`, `instrument-info-panel.test.js`, `contracts-ops-coupling.test.js`, `contracts-override.test.js`, `risk-calculator.test.js`, `trade-preview.test.js`, `draft-autofill-ui.test.js`.

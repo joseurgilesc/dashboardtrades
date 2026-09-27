@@ -1834,6 +1834,52 @@ const Store = (function () {
   ];
 
   /**
+   * Pure price-to-ticks adapter for a SAVED trade (no DOM, no SVG).
+   *
+   * Saved trades store prices, not tick distances, so this derives the stop
+   * and target distances from the prices and the instrument's tick SIZE:
+   *
+   *   stopTicks    = |entry - stop| / tick
+   *   targetTicks  = |exit - entry| / tick
+   *
+   * Both distances are ABSOLUTE (always positive); the direction sign is
+   * applied later by `tradePreviewGeometry`, never here. `valid` is false when
+   * `entryPrice` is missing/NaN/<= 0. A distance is NaN when its own inputs
+   * (stop / exit / tick) are missing or tick <= 0 — this never throws and never
+   * fabricates a distance, so the caller can degrade gracefully.
+   *
+   * Returns `{ valid, entry, stopTicks, targetTicks, tick, direction }`.
+   */
+  function tradePlanTicks(trade) {
+    const t = trade || {};
+    const entry = numOr(t.entryPrice, NaN);
+    const stop = numOr(t.stop, NaN);
+    const exit = numOr(t.exitPrice, NaN);
+    const direction = strOr(t.direction, '');
+    const spec = instrumentSpec(t.instrument);
+    const tick = spec ? numOr(spec.tick, NaN) : NaN;
+
+    const valid = Number.isFinite(entry) && entry > 0;
+    const tickUsable = Number.isFinite(tick) && tick > 0;
+
+    const stopTicks = (Number.isFinite(stop) && tickUsable)
+      ? Math.abs(entry - stop) / tick
+      : NaN;
+    const targetTicks = (Number.isFinite(exit) && tickUsable)
+      ? Math.abs(exit - entry) / tick
+      : NaN;
+
+    return {
+      valid: valid,
+      entry: entry,
+      stopTicks: stopTicks,
+      targetTicks: targetTicks,
+      tick: tick,
+      direction: direction
+    };
+  }
+
+  /**
    * Pure geometry for the compact trade-preview chart (no DOM, no SVG).
    *
    * Prices are derived from the calculator's tick distances and the
@@ -3775,6 +3821,7 @@ const Store = (function () {
     getRatioOptions: getRatioOptions,
     draftAutofill: draftAutofill,
     tradePreviewGeometry: tradePreviewGeometry,
+    tradePlanTicks: tradePlanTicks,
     microEquivalent: microEquivalent,
     normalizeInstrument: normalizeInstrument,
     ticksToPoints: ticksToPoints,
