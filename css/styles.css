@@ -1619,6 +1619,14 @@ input.is-draft {
 
 .preview-group .preview-value {
   text-align: right;
+  /* Descriptive readouts (e.g. "caben 12 operaciones") may outgrow the value
+   * column at narrow widths. The global `.preview-value` rule sets
+   * `white-space: nowrap` (tabular numbers never jump); re-allow wrapping here
+   * so text values reflow instead of overflowing the card. Numeric values are
+   * short enough that this never changes their single-line rendering. */
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .preview-group .preview-input {
