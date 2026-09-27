@@ -408,6 +408,32 @@
     });
   }
 
+  /** Emoji-prefixed display label for an emotion (data from EMOTION_EMOJI). */
+  function emotionLabel(emotion) {
+    const emoji = (typeof EMOTION_EMOJI !== 'undefined' && EMOTION_EMOJI && EMOTION_EMOJI[emotion])
+      ? EMOTION_EMOJI[emotion] : '';
+    return emoji ? (emoji + ' ' + emotion) : emotion;
+  }
+
+  /** Fills an emotion select with emoji-prefixed labels while keeping the
+   *  option value as the bare emotion name (so save/filter still match). */
+  function fillEmotionSelect(select, placeholder) {
+    if (!select) return;
+    select.innerHTML = '';
+    if (placeholder !== undefined && placeholder !== null) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = placeholder;
+      select.appendChild(opt);
+    }
+    (typeof EMOTIONS !== 'undefined' ? EMOTIONS : []).forEach(function (emotion) {
+      const opt = document.createElement('option');
+      opt.value = emotion;
+      opt.textContent = emotionLabel(emotion);
+      select.appendChild(opt);
+    });
+  }
+
   function strategyGroupLabel(group) {
     switch (group) {
       case 'scalping': return 'Scalping';
@@ -510,7 +536,7 @@
     fillStrategySelect($('strategy'));
     fillSelect($('direction'), DIRECTIONS);
     fillSelect($('exitType'), EXIT_TYPES);
-    fillSelect($('emotion'), EMOTIONS);
+    fillEmotionSelect($('emotion'));
     fillSelect($('tradeMode'), ['Scalping', 'Intradía', 'Swing']);
     const maxContractsEl = $('maxContracts');
     if (maxContractsEl) {
@@ -527,7 +553,7 @@
     fillSelect($('filterAccount'), ACCOUNTS, 'Todas las cuentas');
     fillSelect($('filterInstrument'), Object.keys(INSTRUMENTS), 'Todos los instrumentos');
     fillStrategySelect($('filterStrategy'), 'Todas las estrategias');
-    fillSelect($('filterEmotion'), EMOTIONS, 'Todas las emociones');
+    fillEmotionSelect($('filterEmotion'), 'Todas las emociones');
 
     fillSelect($('instrumentConfigAccount'), ACCOUNTS);
     fillSelect($('ninjaImportAccount'), ACCOUNTS);
@@ -1032,7 +1058,10 @@
       '<td class="num">' + escapeHtml(t.entryPrice) + '</td>' +
       '<td class="num">' + escapeHtml(t.exitPrice) + '</td>' +
       '<td>' + escapeHtml(t.exitType) + '</td>' +
-      '<td><span class="emotion-cell">' + emotionDotHtml(t.emotion) + escapeHtml(t.emotion) + '</span></td>' +
+        '<td><span class="emotion-cell">' +
+          emotionDotHtml(t.emotion) +
+          escapeHtml((typeof emotionLabel === 'function') ? emotionLabel(t.emotion) : t.emotion) +
+          '</span></td>' +
       '<td class="num ' + signClass(t.points) + '">' + signedNumber(t.points) + '</td>' +
       '<td class="num ' + signClass(t.net) + '">' + signedMoney(t.net) + '</td>' +
       '<td class="num ' + signClass(t.cumulative) + '">' + signedMoney(t.cumulative) + '</td>' +

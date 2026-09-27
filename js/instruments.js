@@ -254,6 +254,22 @@ const EMOTION_COLORS = {
   Venganza: 'var(--neg)'
 };
 
+/* Per-emotion emoji prefix, so the emotion reads at a glance in the select
+ * and the trades table. Data, not scattered UI strings: kept next to the
+ * color map so the two stay in sync. Unknown emotions fall back to no emoji. */
+const EMOTION_EMOJI = {
+  Ansiedad: '😰',
+  Codicia: '🤑',
+  Confianza: '😌',
+  Control: '🧘',
+  Duda: '🤔',
+  FOMO: '😱',
+  'Frustración': '😤',
+  Impaciencia: '⏳',
+  Miedo: '😨',
+  Venganza: '🔥'
+};
+
 const DEFAULT_BALANCES = { Sim: 5000, Real: 5000, Fondeo: 50000 };
 
 /* Default per-account risk settings (used when nothing was persisted). */
