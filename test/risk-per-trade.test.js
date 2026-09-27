@@ -220,9 +220,13 @@ const streak = risk({ tradesPerDay: 1, losingStreak: 3 });
 eq('3-loss streak still blocks', streak.blocked, true);
 eq('3-loss streak -> 0 contracts', streak.contracts, 0);
 
-const small = risk({ balance: 5000, capital: 5000, tradesPerDay: 1 });
-eq('small account (<= 5000) still forced to 1 contract', small.contracts, 1);
+const small = risk({ balance: 1000, capital: 1000, tradesPerDay: 1 });
+eq('small account (<= 1000) still forced to 1 contract', small.contracts, 1);
 eq('small account flag set', small.smallAccount, true);
+
+const normal5k = risk({ balance: 5000, capital: 5000, tradesPerDay: 1 });
+eq('capital 5000 is not small -> 10 contracts', normal5k.contracts, 10);
+eq('small account flag false at 5000', normal5k.smallAccount, false);
 
 const invalid = Store.computeRisk({
   balance: 10000, capital: 10000, riskPct: 2, instrument: 'MES', stopTicks: 0, tradesPerDay: 1

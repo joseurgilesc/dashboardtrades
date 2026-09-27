@@ -286,8 +286,10 @@ const DAILY_DD_WARN_PCT = 5;
 const STREAK_WARN = 3;
 
 /* Small-account circuit breaker: at or below this capital the calculator is
- * forced to a single contract so a tiny account can never over-size. */
-const SMALL_ACCOUNT_MAX = 5000;
+ * forced to a single contract so a tiny account can never over-size. A 5000
+ * account is NOT small (it can legitimately size 2-3 micro contracts), so the
+ * threshold sits low enough to only guard genuinely micro accounts. */
+const SMALL_ACCOUNT_MAX = 1000;
 
 /* Per-instrument stop/target defaults, expressed in TICKS (the authoritative
  * unit) and configurable per account in Ajustes. A tick maps to a different

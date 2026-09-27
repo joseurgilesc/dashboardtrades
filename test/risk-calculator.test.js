@@ -119,7 +119,7 @@ eq('FDAX tick size = 0.50', INSTRUMENTS.FDAX.tick, 0.5);
 eq('FDXM tick size = 0.50', INSTRUMENTS.FDXM.tick, 0.5);
 eq('FDAX is EUR-denominated', INSTRUMENTS.FDAX.currency, 'EUR');
 eq('FDXM is EUR-denominated', INSTRUMENTS.FDXM.currency, 'EUR');
-eq('small-account threshold is 5000', SMALL_ACCOUNT_MAX, 5000);
+eq('small-account threshold is 1000', SMALL_ACCOUNT_MAX, 1000);
 
 /* ------------------------------------------------------------------ */
 /* [2] P_m = distancia_stop_ticks x valor_tick                         */
@@ -161,13 +161,14 @@ eq('ES: effective budget is capped by available', es250.effectiveBudget, 250);
 const mes250 = Store.computeRisk({ balance: 100000, capital: 100000, riskPct: 2, instrument: 'MES', stopTicks: 8, available: 250 });
 eq('MES: floor(250 / 10) = 25 contracts', mes250.contracts, 25);
 
-/* Small account: capital <= 5000 forces exactly 1 contract. */
-const small = Store.computeRisk({ balance: 5000, capital: 5000, riskPct: 2, instrument: 'MES', stopTicks: 8 });
-eq('small account (5000) -> forced 1 contract', small.contracts, 1);
+/* Small account: capital <= 1000 forces exactly 1 contract. */
+const small = Store.computeRisk({ balance: 1000, capital: 1000, riskPct: 2, instrument: 'MES', stopTicks: 8 });
+eq('small account (1000) -> forced 1 contract', small.contracts, 1);
 eq('small account flag set', small.smallAccount, true);
-const justAbove = Store.computeRisk({ balance: 5001, capital: 5001, riskPct: 2, instrument: 'MES', stopTicks: 8 });
-eq('capital 5001 is not small', justAbove.smallAccount, false);
-eq('capital 5001 -> floor(33.34 / 10) = 3 contracts', justAbove.contracts, 3);
+/* A 5000 account is NOT small: it sizes by its risk budget. */
+const normal5k = Store.computeRisk({ balance: 5000, capital: 5000, riskPct: 2, instrument: 'MES', stopTicks: 8 });
+eq('capital 5000 is not small', normal5k.smallAccount, false);
+eq('capital 5000 -> floor(33.34 / 10) = 3 contracts', normal5k.contracts, 3);
 
 /* Reconciliation: the day's realized losses consume the budget. */
 const losers = [
@@ -298,7 +299,7 @@ eq('boosted available + 3-loss streak -> 0 contracts', boostedStreak.contracts, 
 
 /* A small account stays at 1 contract regardless of a boosted available. */
 const boostedSmall = Store.computeRisk({
-  balance: 5000, capital: 5000, riskPct: 2, instrument: 'MES', stopTicks: 8,
+  balance: 1000, capital: 1000, riskPct: 2, instrument: 'MES', stopTicks: 8,
   available: 10000
 });
 eq('boosted available + small account -> still 1 contract', boostedSmall.contracts, 1);
