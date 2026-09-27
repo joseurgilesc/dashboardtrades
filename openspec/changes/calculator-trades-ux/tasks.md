@@ -40,13 +40,13 @@ Chain strategy: pending
 
 ## Phase 3: Readouts (`js/app.js`, `index.html`)
 
-- [ ] 3.1 `index.html`: add `#instrumentTicksPoints` inside `#instrumentInfo` (line 233) and a `#riskStopReference` row in the "Objetivo y R/B" `preview-group--result` (line 360) — risk-calculator spec.
-- [ ] 3.2 `js/app.js`: `renderInstrumentInfo` (~1449) renders "1 tick = X puntos" / "1 punto = Y ticks" from `ticksToPoints(1,instrument)`/`pointsToTicks(1,instrument)`; hide on missing/invalid tick — risk-calculator "Ticks↔Points".
-- [ ] 3.3 `js/app.js`: `renderRiskPanel` (~2040, near setRiskItem ~2308) renders `#riskStopReference` from `risk.ticksSL` + `ticksToPoints(ticksSL,instrument)`; hide points on invalid tick — risk-calculator "Stop Reference".
+- [x] 3.1 `index.html`: add `#instrumentTicksPoints` inside `#instrumentInfo` (line 233) and a `#riskStopReference` row in the "Objetivo y R/B" `preview-group--result` (line 360) — risk-calculator spec.
+- [x] 3.2 `js/app.js`: `renderInstrumentInfo` (~1449) renders "1 tick = X puntos" / "1 punto = Y ticks" from `ticksToPoints(1,instrument)`/`pointsToTicks(1,instrument)`; hide on missing/invalid tick — risk-calculator "Ticks↔Points".
+- [x] 3.3 `js/app.js`: `renderRiskPanel` (~2040, near setRiskItem ~2308) renders `#riskStopReference` from `risk.ticksSL` + `ticksToPoints(ticksSL,instrument)`; hide points on invalid tick — risk-calculator "Stop Reference".
 
 ## Phase 4: Styles (`css/styles.css`)
 
-- [ ] 4.1 Add `.trade-detail-row`, `.trade-detail-cell`, `.trade-plan`, and tab accent styles matching existing tokens.
+- [x] 4.1 Add `.trade-detail-row`, `.trade-detail-cell`, `.trade-plan`, and tab accent styles matching existing tokens.
 
 ## Phase 5: Tests (`test/*.test.js`) + regression
 

@@ -789,6 +789,7 @@ textarea {
 .tab-button[data-accent='accent'] { --tab-accent: var(--accent); }
 .tab-button[data-accent='cyan'] { --tab-accent: var(--cyan); }
 .tab-button[data-accent='purple'] { --tab-accent: var(--purple); }
+.tab-button[data-accent='amber'] { --tab-accent: var(--amber); }
 
 .tab-button:hover {
   color: var(--text);
@@ -909,6 +910,7 @@ section[role='tabpanel'] {
 section[role='tabpanel'][data-accent='accent'] { --section-accent: var(--accent); }
 section[role='tabpanel'][data-accent='cyan'] { --section-accent: var(--cyan); }
 section[role='tabpanel'][data-accent='purple'] { --section-accent: var(--purple); }
+section[role='tabpanel'][data-accent='amber'] { --section-accent: var(--amber); }
 
 .card {
   background: var(--panel);
@@ -2082,6 +2084,46 @@ input.is-draft {
 .table-empty {
   text-align: center;
   padding: 28px 12px;
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* Per-trade expandable plan detail row                                */
+/* ------------------------------------------------------------------ */
+
+/* The expanded row is a full-width <tr> (hidden by default via the shared
+ * `[hidden]` rule) holding one `.trade-detail-cell` that spans the table. */
+.trade-detail-row {
+  background: var(--panel);
+}
+
+.trade-detail-cell {
+  padding: var(--space-3) var(--space-3);
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.trade-plan {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 380px;
+  margin: 0 auto;
+  padding: var(--space-3);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.trade-plan .risk-preview-svg {
+  width: 100%;
+  height: auto;
+}
+
+.trade-plan-note {
+  margin: 0;
+  font-size: var(--text-xs);
   color: var(--text-muted);
 }
 

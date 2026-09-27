@@ -221,6 +221,47 @@ eq('no-entry emits no SVG', noEntry.svg, '');
 eq('no-entry emits no note', noEntry.note, '');
 
 /* ------------------------------------------------------------------ */
+/* [7] Readouts: ticks↔points line + stop reference                    */
+/* ------------------------------------------------------------------ */
+
+console.log('\n[7] Readouts (#instrumentTicksPoints + #riskStopReference)');
+
+/* The math the two readouts display, from the REAL Store helpers. */
+eq('ticksToPoints(1, ES) = 0.25 puntos', Store.ticksToPoints(1, 'ES'), 0.25);
+eq('pointsToTicks(1, ES) = 4 ticks', Store.pointsToTicks(1, 'ES'), 4);
+eq('ticksToPoints(1, YM) = 1 punto', Store.ticksToPoints(1, 'YM'), 1);
+eq('pointsToTicks(1, YM) = 1 tick', Store.pointsToTicks(1, 'YM'), 1);
+eq('stop reference: ticksToPoints(8, ES) = 2 puntos', Store.ticksToPoints(8, 'ES'), 2);
+check('ticksToPoints(1, unknown) is NaN (never fabricates points)',
+  Number.isNaN(Store.ticksToPoints(1, 'NOPE')));
+
+/* #riskStopReference: a static row wired into renderRiskPanel + reset list. */
+check('#riskStopReference exists in the markup',
+  htmlSrc.indexOf('id="riskStopReference"') !== -1);
+const stopRefIdx = htmlSrc.indexOf('id="riskStopReference"');
+const rbGroupIdx = htmlSrc.indexOf('Objetivo y R/B');
+check('#riskStopReference sits in the "Objetivo y R/B" result group',
+  stopRefIdx !== -1 && rbGroupIdx !== -1 && stopRefIdx > rbGroupIdx);
+const renderRiskSrc = extractFunction(appSrc, 'function renderRiskPanel()');
+check('renderRiskPanel renders #riskStopReference from ticksSL + points',
+  renderRiskSrc.indexOf("setRiskItem('riskStopReference'") !== -1 &&
+  renderRiskSrc.indexOf('ticksToPoints(risk.ticksSL') !== -1);
+check('#riskStopReference is in the result reset list (resets with the others)',
+  renderRiskSrc.indexOf("'riskStopReference'") !== -1 &&
+  renderRiskSrc.indexOf('resultIds') !== -1);
+
+/* #instrumentTicksPoints: emitted by renderInstrumentInfo, hidden when invalid. */
+const renderInfoSrc = extractFunction(appSrc, 'function renderInstrumentInfo()');
+check('renderInstrumentInfo emits #instrumentTicksPoints',
+  renderInfoSrc.indexOf('id="instrumentTicksPoints"') !== -1);
+check('renderInstrumentInfo derives it from ticksToPoints/pointsToTicks(1, instrument)',
+  renderInfoSrc.indexOf('ticksToPoints(1, id)') !== -1 &&
+  renderInfoSrc.indexOf('pointsToTicks(1, id)') !== -1);
+check('renderInstrumentInfo hides the line on an invalid tick (NaN guard)',
+  renderInfoSrc.indexOf('Number.isFinite(pointsPerTick)') !== -1 &&
+  renderInfoSrc.indexOf('Number.isFinite(ticksPerPoint)') !== -1);
+
+/* ------------------------------------------------------------------ */
 /* Result                                                              */
 /* ------------------------------------------------------------------ */
 

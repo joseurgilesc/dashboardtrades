@@ -1507,12 +1507,26 @@
     const note = spec.note
       ? '<p class="instrument-info-note">' + escapeHtml(spec.note) + '</p>'
       : '';
+    /* Ticks↔points relationship readout: reuses the same tick bridge as the
+     * risk math. It is a dedicated row (with its own id so the structural
+     * tests can find it) emitted ONLY when the instrument's tick is usable;
+     * otherwise nothing is shown. */
+    const pointsPerTick = Store.ticksToPoints(1, id);
+    const ticksPerPoint = Store.pointsToTicks(1, id);
+    const relationRow = (Number.isFinite(pointsPerTick) && Number.isFinite(ticksPerPoint))
+      ? '<div class="instrument-info-item" id="instrumentTicksPoints">' +
+          '<span class="instrument-info-label">Ticks ↔ Puntos</span>' +
+          '<span class="instrument-info-value">1 tick = ' +
+            escapeHtml(String(Math.round(pointsPerTick * 10000) / 10000)) + ' puntos · 1 punto = ' +
+            escapeHtml(String(Math.round(ticksPerPoint * 10000) / 10000)) + ' ticks</span>' +
+        '</div>'
+      : '';
     panel.innerHTML =
       '<div class="instrument-info-head">' +
         '<span class="instrument-info-title">' + escapeHtml(id + ' · ' + spec.name) + '</span>' +
         '<span class="badge badge-' + (spec.size === 'micro' ? 'micro' : 'full') + '">' + sizeLabel(spec.size) + '</span>' +
       '</div>' +
-      '<div class="instrument-info-grid">' + rows + '</div>' + note;
+      '<div class="instrument-info-grid">' + rows + relationRow + '</div>' + note;
   }
 
   /** Small always-visible hint under the instrument selector: the full product
@@ -2310,7 +2324,7 @@
      * must never blank a recorded loss. */
     const resultIds = ['riskPerContract', 'riskPerTradeBudget',
       'riskEffectiveBudget',
-      'riskTotal', 'riskTotalReward', 'riskTicksSL', 'riskTicksTP2', 'riskRRRange', 'riskRecovery',
+      'riskTotal', 'riskTotalReward', 'riskTicksSL', 'riskStopReference', 'riskTicksTP2', 'riskRRRange', 'riskRecovery',
       'riskRR', 'riskCommission', 'riskRealRisk', 'riskRealRiskPct'];
 
     /* Block 4 is always rendered, even when a required input is missing. */
@@ -2419,6 +2433,18 @@
     setRiskItem('riskTotal', formatMoney(risk.totalRisk));
     setRiskItem('riskTotalReward', formatMoney(risk.totalReward), 'gain');
     setRiskItem('riskTicksSL', formatTicks(risk.ticksSL));
+    /* Stop reference: the same resolved stop distance in ticks plus its
+     * points equivalent. Read-only; the points part is dropped when the
+     * instrument's tick is unusable (spec: no fabricated points value). */
+    const stopRefPoints = Store.ticksToPoints(risk.ticksSL, instrument);
+    let stopRefText = '—';
+    if (Number.isFinite(risk.ticksSL)) {
+      stopRefText = formatTicks(risk.ticksSL);
+      if (Number.isFinite(stopRefPoints)) {
+        stopRefText += ' · ' + formatNumber(stopRefPoints, 2) + ' puntos';
+      }
+    }
+    setRiskItem('riskStopReference', stopRefText);
     /* The take-profit distance and the R/B row both follow the SELECTED ratio. */
     setRiskItem('riskTicksTP2', formatTicks(risk.ticksTP2));
     setRiskItem('riskRRRange',
