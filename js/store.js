@@ -335,7 +335,11 @@ const Store = (function () {
       commission: numOr(raw.commission, 0),
       exitType: strOr(raw.exitType, ''),
       emotion: strOr(raw.emotion, ''),
-      notes: strOr(raw.notes, '')
+      notes: strOr(raw.notes, ''),
+      respectedEntry: !!raw.respectedEntry,
+      respectedStop: !!raw.respectedStop,
+      respectedSize: !!raw.respectedSize,
+      planDeviation: strOr(raw.planDeviation, '')
     };
   }
 

@@ -1303,7 +1303,11 @@
       commission: parseFloat($('commission').value),
       exitType: $('exitType').value,
       emotion: $('emotion').value,
-      notes: $('notes').value.trim()
+      notes: $('notes').value.trim(),
+      respectedEntry: $('respectedEntry') ? $('respectedEntry').checked : false,
+      respectedStop: $('respectedStop') ? $('respectedStop').checked : false,
+      respectedSize: $('respectedSize') ? $('respectedSize').checked : false,
+      planDeviation: $('planDeviation') ? $('planDeviation').value.trim() : ''
     };
   }
 
@@ -2745,6 +2749,10 @@
     $('stop').value = '';
     $('plannedRisk').value = '';
     $('commission').value = '';
+    if ($('respectedEntry')) $('respectedEntry').checked = false;
+    if ($('respectedStop')) $('respectedStop').checked = false;
+    if ($('respectedSize')) $('respectedSize').checked = false;
+    if ($('planDeviation')) $('planDeviation').value = '';
     editingTarget = 0;
     /* New trade: the stop and exit fields are draftable again, and any stale
      * draft mark from the previous trade is cleared. */
@@ -2797,6 +2805,10 @@
       exitType: $('exitType').value,
       emotion: $('emotion').value,
       notes: $('notes').value,
+      respectedEntry: $('respectedEntry') ? $('respectedEntry').checked : false,
+      respectedStop: $('respectedStop') ? $('respectedStop').checked : false,
+      respectedSize: $('respectedSize') ? $('respectedSize').checked : false,
+      planDeviation: $('planDeviation') ? $('planDeviation').value : '',
       ratio: $('riskRatio') ? $('riskRatio').value : ''
     };
   }
@@ -2822,6 +2834,10 @@
     $('exitType').value = d.exitType;
     $('emotion').value = d.emotion;
     $('notes').value = d.notes;
+    if (d.respectedEntry !== undefined && $('respectedEntry')) $('respectedEntry').checked = !!d.respectedEntry;
+    if (d.respectedStop !== undefined && $('respectedStop')) $('respectedStop').checked = !!d.respectedStop;
+    if (d.respectedSize !== undefined && $('respectedSize')) $('respectedSize').checked = !!d.respectedSize;
+    if (d.planDeviation !== undefined && $('planDeviation')) $('planDeviation').value = d.planDeviation;
     if (d.ratio !== undefined && $('riskRatio')) $('riskRatio').value = d.ratio;
     /* Restored values are user-owned: the calculator must not re-seed them. */
     contractsTouched = true;
@@ -2954,6 +2970,10 @@
     $('exitType').value = trade.exitType;
     $('emotion').value = trade.emotion;
     $('notes').value = trade.notes;
+    if ($('respectedEntry')) $('respectedEntry').checked = !!trade.respectedEntry;
+    if ($('respectedStop')) $('respectedStop').checked = !!trade.respectedStop;
+    if ($('respectedSize')) $('respectedSize').checked = !!trade.respectedSize;
+    if ($('planDeviation')) $('planDeviation').value = trade.planDeviation || '';
     $('formTitle').textContent = 'Editar trade #' + trade.tradeNumber;
     $('btnSave').textContent = 'Guardar cambios';
     $('btnCancel').hidden = false;
@@ -2967,7 +2987,8 @@
     setDraftField($('exitPrice'), $('exitPriceDraftBadge'), null, false);
     /* Reveal the optional fields when the trade actually uses them. */
     const advanced = $('advancedOptions');
-    if (advanced) advanced.open = trade.target > 0 || trade.plannedRisk > 0 || !!trade.notes;
+    if (advanced) advanced.open = trade.target > 0 || trade.plannedRisk > 0 || !!trade.notes ||
+      !!trade.respectedEntry || !!trade.respectedStop || !!trade.respectedSize || !!trade.planDeviation;
     showFormErrors([]);
     updatePreview();
     /* Re-render so the edited row is highlighted in the table. */
