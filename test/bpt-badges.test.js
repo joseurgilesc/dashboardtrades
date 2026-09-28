@@ -132,10 +132,10 @@ const baseOpts = { limit: 3, riskPct: 2, minRR: 2, initialBalance: 10000 };
 
 console.log('\n[1] Catalog shape');
 
-eq('nine badge families', Store.BADGES.length, 9);
+eq('eight badge families', Store.BADGES.length, 8);
 eq('fixed XP per process rung', Store.XP_BADGE, 25);
 const allRungs = Store.evaluateBadges([], 'Sim', baseOpts);
-eq('27 process rungs + 3 outcome rungs', allRungs.length, 30);
+eq('23 process rungs + 3 outcome rungs', allRungs.length, 26);
 eq('outcome rungs are three',
   allRungs.filter(function (b) { return b.category === 'outcome'; }).length, 3);
 
@@ -183,41 +183,6 @@ const overRisk = nTrades(4, guarded)
   .concat(nTrades(4, guarded));
 eq('a broken run does not reach 5 consecutive',
   badgeMap(overRisk, guardOpts)['bpt-capital-guardian-t1'].earned, false);
-
-/* 2c. Mosquito repellent: clean 3%-5% days (1/3/5/10). */
-function cleanDaySeries(n, initialBalance) {
-  const out = [];
-  let balance = initialBalance;
-  for (let i = 0; i < n; i += 1) {
-    const day = '2026-03-' + String(i + 1).padStart(2, '0');
-    const loss = balance * 0.035; /* 3.5% of the start-of-day balance */
-    out.push(tradeWithNet(-loss, { entryDate: day, exitDate: day }));
-    balance -= loss;
-  }
-  return out;
-}
-function mosquito(n) { return badgeMap(cleanDaySeries(n, 10000), baseOpts); }
-eq('0 clean days -> rung 1 locked', mosquito(0)['bpt-mosquito-repellent-t1'].earned, false);
-eq('1 clean day -> rung 1 earned', mosquito(1)['bpt-mosquito-repellent-t1'].earned, true);
-eq('2 clean days -> rung 2 locked', mosquito(2)['bpt-mosquito-repellent-t2'].earned, false);
-eq('3 clean days -> rung 2 earned', mosquito(3)['bpt-mosquito-repellent-t2'].earned, true);
-eq('5 clean days -> rung 3 earned', mosquito(5)['bpt-mosquito-repellent-t3'].earned, true);
-eq('10 clean days -> rung 4 earned', mosquito(10)['bpt-mosquito-repellent-t4'].earned, true);
-/* A trade after the 3% stop invalidates the day. */
-const notStopped = [
-  tradeWithNet(-350, { entryDate: '2026-04-01', exitDate: '2026-04-01' }),
-  tradeWithNet(-50, { entryDate: '2026-04-01', exitDate: '2026-04-01' })
-];
-eq('3% reached before the last trade -> not clean',
-  badgeMap(notStopped, baseOpts)['bpt-mosquito-repellent-t1'].earned, false);
-/* A single loss above 5% is not the 3%-5% band. */
-eq('day loss above 5% -> not clean',
-  badgeMap([tradeWithNet(-550, { entryDate: '2026-04-02' })], baseOpts)
-    ['bpt-mosquito-repellent-t1'].earned, false);
-/* A single loss below 3% never triggered the stop. */
-eq('day loss below 3% -> not clean',
-  badgeMap([tradeWithNet(-250, { entryDate: '2026-04-03' })], baseOpts)
-    ['bpt-mosquito-repellent-t1'].earned, false);
 
 /* 2d. Emergency stop: days ending on 3+ consecutive losses (1/3/5/10). */
 function emergencySeries(n) {
@@ -444,7 +409,7 @@ check('total XP includes badge XP',
   'xp=' + summary.xp + ' computed=' + summary.computedXp.total + ' badge=' + summary.badgeXp);
 check('summary exposes process and outcome badges',
   Array.isArray(summary.processBadges) && Array.isArray(summary.outcomeBadges) &&
-  summary.processBadges.length === 27 && summary.outcomeBadges.length === 3,
+  summary.processBadges.length === 23 && summary.outcomeBadges.length === 3,
   'process=' + summary.processBadges.length + ' outcome=' + summary.outcomeBadges.length);
 check('outcome badges in the summary carry zero XP',
   summary.outcomeBadges.every(function (b) { return b.xp === 0 && b.earned === false; }), '');

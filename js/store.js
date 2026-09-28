@@ -2758,33 +2758,6 @@ const Store = (function () {
     return best;
   }
 
-  /**
-   * Days the session stopped inside the 3%-5% daily-loss band. Per day, in
-   * entry order: the FIRST trade whose running loss reaches 3% of the
-   * start-of-day balance must be the day's last trade, and the day's total
-   * loss must not exceed 5%.
-   */
-  function mosquitoRepellentDays(trades, account, opts) {
-    const ctx = gamifyOpts(account, opts);
-    const byDay = tradesByDay(trades, account);
-    let balance = ctx.initialBalance;
-    let clean = 0;
-    Object.keys(byDay).sort().forEach(function (day) {
-      const dayTrades = byDay[day];
-      let dayLoss = 0;
-      let stopIndex = -1;
-      for (let i = 0; i < dayTrades.length; i += 1) {
-        const net = computeTrade(dayTrades[i]).net;
-        if (net < 0) dayLoss += Math.abs(net);
-        if (balance > 0 && (dayLoss / balance) * 100 >= 3) { stopIndex = i; break; }
-      }
-      const lossPct = balance > 0 ? (dayLoss / balance) * 100 : 0;
-      if (stopIndex === dayTrades.length - 1 && lossPct >= 3 && lossPct <= 5) clean += 1;
-      dayTrades.forEach(function (t) { balance += computeTrade(t).net; });
-    });
-    return clean;
-  }
-
   /** Days that ended on a run of 3+ consecutive losing trades (net <= 0). */
   function emergencyStopDays(trades, account) {
     const byDay = tradesByDay(trades, account);
@@ -2923,17 +2896,11 @@ const Store = (function () {
       ladder: [5, 10, 20, 30],
       rungLabel: function (n) { return n + ' trades seguidos con riesgo 0,5 %-2 %'; },
       metric: capitalGuardianStreak },
-    { id: 'bpt-mosquito-repellent', category: BADGE_PROCESS, color: 'amber',
-      label: 'Repelente de mosquitos',
-      description: 'Días que cerraron con una pérdida diaria entre el 3 % y el 5 %.',
+    { id: 'bpt-emergency-stop', category: BADGE_PROCESS, color: 'pos',
+      label: 'Supiste parar',
+      description: 'Días en que paraste tras 3 pérdidas consecutivas (disciplina de cierre).',
       ladder: [1, 3, 5, 10],
-      rungLabel: function (n) { return n + (n === 1 ? ' día' : ' días') + ' con pérdida diaria 3 %-5 %'; },
-      metric: mosquitoRepellentDays },
-    { id: 'bpt-emergency-stop', category: BADGE_PROCESS, color: 'neg',
-      label: 'Parada de emergencia',
-      description: 'Días que terminaron tras 3 pérdidas consecutivas.',
-      ladder: [1, 3, 5, 10],
-      rungLabel: function (n) { return n + (n === 1 ? ' día' : ' días') + ' con racha de 3 pérdidas'; },
+      rungLabel: function (n) { return n + (n === 1 ? ' día' : ' días') + ' parando tras 3 pérdidas'; },
       metric: emergencyStopDays },
     { id: 'bpt-crocodile', category: BADGE_PROCESS, color: 'purple',
       label: 'Cocodrilo',

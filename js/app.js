@@ -78,7 +78,7 @@
   const LEVEL_REQUIREMENTS = [
     ['first-stop', 'disciplined-day'],
     ['bpt-700-trades-t1', 'bpt-capital-guardian-t1'],
-    ['bpt-700-trades-t2', 'bpt-mosquito-repellent-t1'],
+    ['bpt-700-trades-t2', 'bpt-emergency-stop-t1'],
     ['bpt-700-trades-t3', 'bpt-crocodile-t1'],
     ['bpt-700-trades-t4', 'risk-10'],
     ['bpt-700-trades-t5', 'rr-10'],
@@ -2750,8 +2750,7 @@
     const labels = {
       'bpt-700-trades': 'Trades completados',
       'bpt-capital-guardian': 'Guardia de capital',
-      'bpt-mosquito-repellent': 'Repelente de mosquitos',
-      'bpt-emergency-stop': 'Parada de emergencia',
+      'bpt-emergency-stop': 'Supiste parar',
       'bpt-crocodile': 'Cocodrilo',
       'bpt-earned-step': 'Escalón ganado',
       'bpt-green-range': 'Rango verde',
