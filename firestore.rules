@@ -16,10 +16,10 @@ service cloud.firestore {
     }
     match /users/{userId} {
       allow read: if (allowlisted() && request.auth.uid == userId) || isAdmin();
-      allow write: if allowlisted() && request.auth.uid == userId;
+      allow write: if (allowlisted() && request.auth.uid == userId) || (isAdmin() && request.auth.uid == userId);
       match /{document=**} {
         allow read: if (allowlisted() && request.auth.uid == userId) || isAdmin();
-        allow write: if allowlisted() && request.auth.uid == userId;
+        allow write: if (allowlisted() && request.auth.uid == userId) || (isAdmin() && request.auth.uid == userId);
       }
     }
   }
