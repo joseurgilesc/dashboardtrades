@@ -71,12 +71,17 @@
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18h18"/><path d="M5 18l-2-9 5 3 4-6 4 6 5-3-2 9z"/></svg>'
   ];
   /* Each level unlocks when ALL of its badges are earned (process only). */
+  /* Ordered by ascending difficulty so a trader unlocks risk-control and
+   * discipline (few trades/days) before consistency and volume (10+ trades,
+   * 50+ trades). This keeps the ladder from "reaching Experto before
+   * Aprendiz": the hard consistency badges (risk-10/rr-10) now sit AFTER the
+   * easy risk-control/discipline badges. */
   const LEVEL_REQUIREMENTS = [
     ['first-stop', 'disciplined-day'],
-    ['risk-10', 'rr-10'],
-    ['streak-5', 'bpt-700-trades-t1'],
     ['bpt-capital-guardian-t1', 'bpt-mosquito-repellent-t1'],
     ['bpt-emergency-stop-t1', 'bpt-crocodile-t1'],
+    ['risk-10', 'rr-10'],
+    ['streak-5', 'bpt-700-trades-t1'],
     ['streak-10', 'bpt-700-trades-t2'],
     ['bpt-capital-guardian-t2', 'bpt-700-trades-t3'],
     ['bpt-capital-guardian-t4', 'bpt-700-trades-t5']
