@@ -180,32 +180,58 @@
       .replace(/'/g, '&#39;');
   }
 
-  function todayISO() {
-    const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return d.getFullYear() + '-' + mm + '-' + dd;
+  /* Ecuador is UTC-5 with no DST. All "now" dates/times are computed in
+   * America/Guayaquil so the default day never drifts to a neighboring date
+   * because of the browser's timezone. */
+
+  const GUAYAQUIL_TZ = 'America/Guayaquil';
+
+  /** Date parts (year/month/day/weekday) in Guayaquil, via Intl. */
+  function guayaquilDateParts(d) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: GUAYAQUIL_TZ,
+      year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short'
+    }).formatToParts(d || new Date());
+    const out = {};
+    parts.forEach(function (p) {
+      if (p.type !== 'literal') out[p.type] = p.value;
+    });
+    return out;
   }
 
-  /** Monday of the current week (local ISO date). */
+  const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+  function todayISO() {
+    const g = guayaquilDateParts();
+    return g.year + '-' + g.month + '-' + g.day;
+  }
+
+  /** Monday of the current week (Guayaquil ISO date). */
   function weekStartISO() {
-    const d = new Date();
-    const day = (d.getDay() + 6) % 7;
-    d.setDate(d.getDate() - day);
+    const g = guayaquilDateParts();
+    const idx = (WEEKDAY_INDEX[g.weekday] !== undefined) ? WEEKDAY_INDEX[g.weekday] : 0;
+    const d = new Date(parseInt(g.year, 10), parseInt(g.month, 10) - 1, parseInt(g.day, 10));
+    d.setDate(d.getDate() - ((idx + 6) % 7));
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
       '-' + String(d.getDate()).padStart(2, '0');
   }
 
-  /** First day of the current month (local ISO date). */
+  /** First day of the current month (Guayaquil ISO date). */
   function monthStartISO() {
-    const d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-01';
+    const g = guayaquilDateParts();
+    return g.year + '-' + g.month + '-01';
   }
 
   function nowTime() {
-    const d = new Date();
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: GUAYAQUIL_TZ, hour: '2-digit', minute: '2-digit', hour12: false
+    }).formatToParts(new Date());
+    let hh = '00';
+    let mm = '00';
+    parts.forEach(function (p) {
+      if (p.type === 'hour') hh = String(parseInt(p.value, 10) % 24).padStart(2, '0');
+      if (p.type === 'minute') mm = p.value;
+    });
     return hh + ':' + mm;
   }
 
