@@ -1343,6 +1343,21 @@ input.is-draft {
   height: 8px;
 }
 
+/* Trade screenshot thumbnail in the trades table. */
+.trade-thumb-link {
+  display: inline-flex;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.trade-thumb {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
 /* ------------------------------------------------------------------ */
 /* Buttons                                                             */
 /* ------------------------------------------------------------------ */

@@ -1045,6 +1045,14 @@
     return escapeHtml(direction);
   }
 
+  /** Small clickable thumbnail for a trade's screenshot, or '' when none. */
+  function tradeImageThumb(t) {
+    if (!t || !t.imageUrl) return '';
+    return '<a class="trade-thumb-link" href="' + escapeHtml(t.imageUrl) +
+      '" target="_blank" rel="noopener" title="Ver captura del trade">' +
+      '<img class="trade-thumb" src="' + escapeHtml(t.imageUrl) + '" alt="Captura" loading="lazy"></a>';
+  }
+
   function tradeRowHtml(t) {
     const editing = state.editingId && t.id === state.editingId;
     const rowClass = editing ? 'editing' : (Number(t.net) > 0 ? 'row-pos' : 'row-neg');
@@ -1052,7 +1060,9 @@
       '<td><span class="cell-main">' + escapeHtml(t.entryTime) + '</span> <span class="muted">' + escapeHtml(t.entryDate) + '</span></td>' +
       '<td>' + escapeHtml(t.tradeNumber) + '</td>' +
       '<td>' + escapeHtml(t.account) + '</td>' +
-      '<td>' + escapeHtml(t.instrument) + missingStopBadge(t) + '</td>' +
+      '<td>' + escapeHtml(t.instrument) +
+        (typeof tradeImageThumb === 'function' ? tradeImageThumb(t) : '') +
+        missingStopBadge(t) + '</td>' +
       '<td>' + directionCellHtml(t.direction) + '</td>' +
       '<td class="num">' + escapeHtml(t.contracts) + '</td>' +
       '<td class="num">' + escapeHtml(t.entryPrice) + '</td>' +
