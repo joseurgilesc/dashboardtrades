@@ -1358,6 +1358,17 @@ input.is-draft {
   border-radius: 4px;
 }
 
+/* Dedicated screenshot column in the trades table. */
+.trades-table .col-image {
+  width: 40px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.trades-table .col-image .trade-thumb-link {
+  margin-left: 0;
+}
+
 /* ------------------------------------------------------------------ */
 /* Buttons                                                             */
 /* ------------------------------------------------------------------ */

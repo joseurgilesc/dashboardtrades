@@ -943,6 +943,7 @@
       return '<th scope="col" data-sort="' + col.key + '" aria-sort="' + aria + '"' +
         (active ? ' class="sorted"' : '') + '>' + escapeHtml(col.label) + arrow + '</th>';
     });
+    cells.push('<th scope="col" class="col-image">Imagen</th>');
     cells.push('<th scope="col" class="col-actions">Acciones</th>');
     head.innerHTML = '<tr>' + cells.join('') + '</tr>';
   }
@@ -1007,7 +1008,7 @@
             cta: { action: 'clear-filters', label: 'Limpiar filtros' }
           });
       body.innerHTML = '<tr><td class="table-empty" colspan="' +
-        (TABLE_COLUMNS.length + 1) + '">' + empty + '</td></tr>';
+        (TABLE_COLUMNS.length + 2) + '">' + empty + '</td></tr>';
     } else {
       body.innerHTML = buildTradeRows(rows);
     }
@@ -1052,7 +1053,7 @@
     rows.forEach(function (t) {
       if (groupByDay && t.entryDate !== lastDay) {
         const count = dayCounts[t.entryDate] || 0;
-        html.push('<tr class="day-separator"><td colspan="' + (TABLE_COLUMNS.length + 1) + '">' +
+        html.push('<tr class="day-separator"><td colspan="' + (TABLE_COLUMNS.length + 2) + '">' +
           '<span class="day-label">' + escapeHtml(formatDayLabel(t.entryDate)) + '</span>' +
           '<span class="day-count">' + count + (count === 1 ? ' trade' : ' trades') + '</span>' +
           '</td></tr>');
@@ -1090,9 +1091,7 @@
       '<td><span class="cell-main">' + escapeHtml(t.entryTime) + '</span> <span class="muted">' + escapeHtml(t.entryDate) + '</span></td>' +
       '<td>' + escapeHtml(t.tradeNumber) + '</td>' +
       '<td>' + escapeHtml(t.account) + '</td>' +
-      '<td>' + escapeHtml(t.instrument) +
-        (typeof tradeImageThumb === 'function' ? tradeImageThumb(t) : '') +
-        missingStopBadge(t) + '</td>' +
+      '<td>' + escapeHtml(t.instrument) + missingStopBadge(t) + '</td>' +
       '<td>' + directionCellHtml(t.direction) + '</td>' +
       '<td class="num">' + escapeHtml(t.contracts) + '</td>' +
       '<td class="num">' + escapeHtml(t.entryPrice) + '</td>' +
@@ -1109,6 +1108,7 @@
       '<td class="num">' + escapeHtml(t.execution) + '</td>' +
       '<td class="num">' + (Number.isFinite(t.rReal) ? formatNumber(t.rReal, 2) : '—') + '</td>' +
       '<td>' + (t.risk ? '✓' : '—') + '</td>' +
+      '<td class="col-image">' + (typeof tradeImageThumb === 'function' ? tradeImageThumb(t) : '') + '</td>' +
       '<td class="col-actions">' +
         '<button type="button" class="btn-icon" data-action="toggle-plan" data-id="' + escapeHtml(t.id) + '" aria-expanded="false" aria-controls="trade-detail-' + escapeHtml(t.id) + '">Plan</button>' +
         '<button type="button" class="btn-icon" data-action="edit" data-id="' + escapeHtml(t.id) + '">Editar</button>' +
@@ -1130,7 +1130,7 @@
       ? '<p class="trade-plan-note">' + escapeHtml(plan.note) + '</p>'
       : '';
     return '<tr class="trade-detail-row" id="trade-detail-' + escapeHtml(t.id) + '" hidden>' +
-      '<td class="trade-detail-cell" colspan="' + (TABLE_COLUMNS.length + 1) + '">' +
+      '<td class="trade-detail-cell" colspan="' + (TABLE_COLUMNS.length + 2) + '">' +
       '<div class="trade-plan" id="trade-plan-' + escapeHtml(t.id) + '">' +
       plan.svg + note +
       '</div>' +
