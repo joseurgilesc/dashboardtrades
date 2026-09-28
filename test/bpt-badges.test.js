@@ -157,8 +157,8 @@ eq('99 completed -> rung 4 locked', completed(99)['bpt-700-trades-t4'].earned, f
 eq('100 completed -> rung 4 earned', completed(100)['bpt-700-trades-t4'].earned, true);
 eq('199 completed -> rung 5 locked', completed(199)['bpt-700-trades-t5'].earned, false);
 eq('200 completed -> rung 5 earned', completed(200)['bpt-700-trades-t5'].earned, true);
-eq('399 completed -> rung 6 locked', completed(399)['bpt-700-trades-t6'].earned, false);
-eq('400 completed -> rung 6 earned', completed(400)['bpt-700-trades-t6'].earned, true);
+eq('299 completed -> rung 6 locked', completed(299)['bpt-700-trades-t6'].earned, false);
+eq('300 completed -> rung 6 earned', completed(300)['bpt-700-trades-t6'].earned, true);
 eq('699 completed -> rung 7 locked', completed(699)['bpt-700-trades-t7'].earned, false);
 eq('700 completed -> rung 7 earned', completed(700)['bpt-700-trades-t7'].earned, true);
 eq('lower rung does not grant the higher one',

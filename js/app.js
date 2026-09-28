@@ -57,7 +57,7 @@
   let persistTimer = null;
 
   /* Named XP levels so the gamification reads as a real progression. */
-  const LEVEL_NAMES = ['Novato', 'Aprendiz', 'Intermedio', 'Avanzado', 'Experto', 'Trader', 'Profesional', 'Maestro'];
+  const LEVEL_NAMES = ['Principiante', 'Novato', 'Aprendiz', 'Practicante', 'Consistente', 'Experimentado', 'Intermedio', 'Maestro'];
   const LEVEL_COLORS = ['#2DD4BF', '#22D3EE', '#22C55E', '#A78BFA', '#FBBF24', '#22D3EE', '#A78BFA', '#FBBF24'];
   /* Original stroke icons (theme-colored) for each level. */
   const LEVEL_ICONS = [
