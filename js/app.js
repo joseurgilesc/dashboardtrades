@@ -927,7 +927,6 @@
     { key: 'points', label: 'Puntos' },
     { key: 'net', label: 'Neto' },
     { key: 'cumulative', label: 'Acumulado' },
-    { key: 'plan', label: 'Plan' },
     { key: 'execution', label: 'Ejecución' },
     { key: 'rReal', label: 'R real' },
     { key: 'risk', label: 'Riesgo' }
@@ -1104,7 +1103,6 @@
       '<td class="num ' + signClass(t.points) + '">' + signedNumber(t.points) + '</td>' +
       '<td class="num ' + signClass(t.net) + '">' + signedMoney(t.net) + '</td>' +
       '<td class="num ' + signClass(t.cumulative) + '">' + signedMoney(t.cumulative) + '</td>' +
-      '<td>' + (t.plan ? '✓' : '—') + '</td>' +
       '<td class="num">' + escapeHtml(t.execution) + '</td>' +
       '<td class="num">' + (Number.isFinite(t.rReal) ? formatNumber(t.rReal, 2) : '—') + '</td>' +
       '<td>' + (t.risk ? '✓' : '—') + '</td>' +

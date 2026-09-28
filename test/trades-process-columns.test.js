@@ -56,7 +56,7 @@ function hasColumn(key, label) {
     columnsSrc.indexOf("label: '" + label + "'") !== -1;
 }
 
-check('Plan column (key + label)', hasColumn('plan', 'Plan'));
+check('Plan column removed', !hasColumn('plan', 'Plan'));
 check('Ejecución column (key + label)', hasColumn('execution', 'Ejecución'));
 check('R real column (key + label)', hasColumn('rReal', 'R real'));
 check('Riesgo column (key + label)', hasColumn('risk', 'Riesgo'));
@@ -229,12 +229,12 @@ function baseRow(over) {
 }
 
 const rowTrue = rowCtx.tradeRowHtml(baseRow({ plan: true, execution: 3, rReal: 1.79, risk: true }));
-check('true row renders two checkmarks (Plan + Riesgo)', (rowTrue.match(/✓/g) || []).length === 2);
+check('true row renders one checkmark (Riesgo)', (rowTrue.match(/✓/g) || []).length === 1);
 check('true row renders execution score', rowTrue.indexOf('>3</td>') !== -1);
 check('true row renders R real value', rowTrue.indexOf('1.79') !== -1);
 
 const rowFalse = rowCtx.tradeRowHtml(baseRow({ plan: false, execution: -1, rReal: NaN, risk: false }));
-check('false row renders three dashes (Plan + R real + Riesgo)', (rowFalse.match(/—/g) || []).length === 3);
+check('false row renders two dashes (R real + Riesgo)', (rowFalse.match(/—/g) || []).length === 2);
 check('false row renders negative execution score', rowFalse.indexOf('>-1</td>') !== -1);
 
 /* ------------------------------------------------------------------ */
