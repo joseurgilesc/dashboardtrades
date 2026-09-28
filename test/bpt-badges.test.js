@@ -135,7 +135,7 @@ console.log('\n[1] Catalog shape');
 eq('nine badge families', Store.BADGES.length, 9);
 eq('fixed XP per process rung', Store.XP_BADGE, 25);
 const allRungs = Store.evaluateBadges([], 'Sim', baseOpts);
-eq('25 process rungs + 3 outcome rungs', allRungs.length, 28);
+eq('27 process rungs + 3 outcome rungs', allRungs.length, 30);
 eq('outcome rungs are three',
   allRungs.filter(function (b) { return b.category === 'outcome'; }).length, 3);
 
@@ -145,20 +145,24 @@ eq('outcome rungs are three',
 
 console.log('\n[2] Ladder thresholds');
 
-/* 2a. Completed trades: 50 -> 150 -> 300 -> 500 -> 700 */
+/* 2a. Completed trades: 10 -> 25 -> 50 -> 100 -> 200 -> 400 -> 700 */
 function completed(n) { return badgeMap(nTrades(n), baseOpts); }
-eq('49 completed -> rung 1 locked', completed(49)['bpt-700-trades-t1'].earned, false);
-eq('50 completed -> rung 1 earned', completed(50)['bpt-700-trades-t1'].earned, true);
-eq('50 completed -> rung 2 locked', completed(50)['bpt-700-trades-t2'].earned, false);
-eq('149 completed -> rung 2 locked', completed(149)['bpt-700-trades-t2'].earned, false);
-eq('150 completed -> rung 2 earned', completed(150)['bpt-700-trades-t2'].earned, true);
-eq('300 completed -> rung 3 earned', completed(300)['bpt-700-trades-t3'].earned, true);
-eq('499 completed -> rung 4 locked', completed(499)['bpt-700-trades-t4'].earned, false);
-eq('500 completed -> rung 4 earned', completed(500)['bpt-700-trades-t4'].earned, true);
-eq('699 completed -> rung 5 locked', completed(699)['bpt-700-trades-t5'].earned, false);
-eq('700 completed -> rung 5 earned', completed(700)['bpt-700-trades-t5'].earned, true);
+eq('9 completed -> rung 1 locked', completed(9)['bpt-700-trades-t1'].earned, false);
+eq('10 completed -> rung 1 earned', completed(10)['bpt-700-trades-t1'].earned, true);
+eq('10 completed -> rung 2 locked', completed(10)['bpt-700-trades-t2'].earned, false);
+eq('24 completed -> rung 2 locked', completed(24)['bpt-700-trades-t2'].earned, false);
+eq('25 completed -> rung 2 earned', completed(25)['bpt-700-trades-t2'].earned, true);
+eq('50 completed -> rung 3 earned', completed(50)['bpt-700-trades-t3'].earned, true);
+eq('99 completed -> rung 4 locked', completed(99)['bpt-700-trades-t4'].earned, false);
+eq('100 completed -> rung 4 earned', completed(100)['bpt-700-trades-t4'].earned, true);
+eq('199 completed -> rung 5 locked', completed(199)['bpt-700-trades-t5'].earned, false);
+eq('200 completed -> rung 5 earned', completed(200)['bpt-700-trades-t5'].earned, true);
+eq('399 completed -> rung 6 locked', completed(399)['bpt-700-trades-t6'].earned, false);
+eq('400 completed -> rung 6 earned', completed(400)['bpt-700-trades-t6'].earned, true);
+eq('699 completed -> rung 7 locked', completed(699)['bpt-700-trades-t7'].earned, false);
+eq('700 completed -> rung 7 earned', completed(700)['bpt-700-trades-t7'].earned, true);
 eq('lower rung does not grant the higher one',
-  completed(150)['bpt-700-trades-t1'].earned && !completed(150)['bpt-700-trades-t5'].earned, true);
+  completed(25)['bpt-700-trades-t1'].earned && !completed(25)['bpt-700-trades-t7'].earned, true);
 
 /* 2b. Capital guardian: consecutive trades risking 0.5%-2% (5/10/20/30).
  * stop 95 -> 5 pts * 1 * 20 USD = 100 USD = 1% of 10000. */
@@ -357,9 +361,9 @@ const flatSet = nTrades(700, { exitPrice: 100 });
 const winSet = nTrades(700, { exitPrice: 200 });
 const lossSet = nTrades(700, { exitPrice: 0 });
 eq('completed ladder ignores P&L (wins)',
-  badgeMap(winSet, baseOpts)['bpt-700-trades-t5'].earned, true);
+  badgeMap(winSet, baseOpts)['bpt-700-trades-t7'].earned, true);
 eq('completed ladder ignores P&L (losses)',
-  badgeMap(lossSet, baseOpts)['bpt-700-trades-t5'].earned, true);
+  badgeMap(lossSet, baseOpts)['bpt-700-trades-t7'].earned, true);
 
 /* Earned process XP is always an integer multiple of the fixed award. */
 const flatXp = processXp(flatSet, baseOpts);
@@ -440,17 +444,17 @@ check('total XP includes badge XP',
   'xp=' + summary.xp + ' computed=' + summary.computedXp.total + ' badge=' + summary.badgeXp);
 check('summary exposes process and outcome badges',
   Array.isArray(summary.processBadges) && Array.isArray(summary.outcomeBadges) &&
-  summary.processBadges.length === 25 && summary.outcomeBadges.length === 3,
+  summary.processBadges.length === 27 && summary.outcomeBadges.length === 3,
   'process=' + summary.processBadges.length + ' outcome=' + summary.outcomeBadges.length);
 check('outcome badges in the summary carry zero XP',
   summary.outcomeBadges.every(function (b) { return b.xp === 0 && b.earned === false; }), '');
 
 /* Integration: real store state earns a process rung and its XP. */
 Store.addTrade(tradeWithNet(100, { entryDate: '2026-10-01', stop: 50, entryPrice: 100 }));
-for (let i = 0; i < 49; i += 1) Store.addTrade(trade({ entryDate: '2026-10-02', stop: 50, entryPrice: 100 }));
+for (let i = 0; i < 9; i += 1) Store.addTrade(trade({ entryDate: '2026-10-02', stop: 50, entryPrice: 100 }));
 const summary2 = Store.getDisciplineSummary('Sim');
 const rung1 = summary2.processBadges.filter(function (b) { return b.id === 'bpt-700-trades-t1'; })[0];
-check('50 completed trades earn the first process rung', rung1.earned, 'earned=' + rung1.earned);
+check('10 completed trades earn the first process rung', rung1.earned, 'earned=' + rung1.earned);
 check('the earned rung contributes its fixed XP', summary2.badgeXp >= Store.XP_BADGE,
   'badgeXp=' + summary2.badgeXp);
 eq('sync persists the earned badge id',

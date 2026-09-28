@@ -2914,7 +2914,7 @@ const Store = (function () {
     { id: 'bpt-700-trades', category: BADGE_PROCESS, color: 'accent',
       label: 'Trades completados',
       description: 'Trades de la cuenta con entrada y salida registradas.',
-      ladder: [50, 150, 300, 500, 700],
+      ladder: [10, 25, 50, 100, 200, 400, 700],
       rungLabel: function (n) { return n + ' trades completados'; },
       metric: completedTradeCount },
     { id: 'bpt-capital-guardian', category: BADGE_PROCESS, color: 'cyan',
