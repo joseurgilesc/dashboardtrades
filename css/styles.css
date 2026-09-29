@@ -1824,8 +1824,6 @@ input.is-draft {
 }
 
 .risk-preview {
-  position: sticky;
-  top: 76px;
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
