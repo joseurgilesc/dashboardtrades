@@ -4794,6 +4794,16 @@
       });
     }
 
+    /* The sizing card's "Ver calculadora" shortcut jumps to the Calculadora
+     * sub-tab for the detailed readouts, reusing switchRegistroSub so the
+     * segment active state and card visibility stay consistent. */
+    const openCalculatorBtn = $('btnOpenCalculator');
+    if (openCalculatorBtn) {
+      openCalculatorBtn.addEventListener('click', function () {
+        switchRegistroSub('calculadora');
+      });
+    }
+
     $('btnSaveBalances').addEventListener('click', handleSaveBalances);
     const saveRiskButton = $('btnSaveRiskSettings');
     if (saveRiskButton) saveRiskButton.addEventListener('click', handleSaveRiskSettings);

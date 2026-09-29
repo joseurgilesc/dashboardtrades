@@ -1880,6 +1880,76 @@ input.is-draft {
   color: var(--text-muted);
 }
 
+/* Right panel of the trade card: the plan preview stacks on top of the
+ * compact sizing card. A flex column keeps the 300px grid column cohesive
+ * while the preview stays sticky above the controls. */
+.trade-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Compact sizing card: the trade card's own sizing controls (risk %, op/día,
+ * contracts + presets, "Ajustar al riesgo" and the real-risk readouts), so the
+ * user can size while filling the form without opening the Calculadora. */
+.sizing-card {
+  padding: var(--space-3);
+}
+
+.sizing-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sizing-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sizing-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.sizing-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sizing-field .stepper,
+.sizing-field .sizing-controls {
+  min-width: 0;
+}
+
+.sizing-label {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.sizing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* The two real-risk readouts stack in a single column (narrow right panel). */
+.sizing-readouts {
+  margin-top: 10px;
+  grid-template-columns: 1fr;
+}
+
 /* SVG text roles (colors come from the shared tokens). */
 .rp-dir {
   fill: var(--text-faint);

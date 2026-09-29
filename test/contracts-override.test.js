@@ -451,9 +451,10 @@ check('#btnAdjustRisk exists as a btn-mini button',
   htmlSrc.indexOf('class="btn btn-mini" id="btnAdjustRisk"') !== -1);
 check('#riskTotalToggle exists as a checkbox',
   htmlSrc.indexOf('type="checkbox" id="riskTotalToggle"') !== -1);
-check('#riskTotalToggle sits inside the "Tamaño" group',
-  htmlSrc.indexOf('id="riskTotalToggle"') !== -1 &&
-  htmlSrc.indexOf('id="riskTotalToggle"') < htmlSrc.indexOf('id="riskBudget"'));
+check('#riskTotalToggle sits inside the sizing card (#sizingCard)',
+  htmlSrc.indexOf('id="sizingCard"') !== -1 &&
+  htmlSrc.indexOf('id="sizingCard"') < htmlSrc.indexOf('id="riskTotalToggle"') &&
+  htmlSrc.indexOf('id="riskTotalToggle"') < htmlSrc.indexOf('id="riskRealRisk"'));
 check('app.js defines adjustRiskToBudget', appSrc.indexOf('function adjustRiskToBudget()') !== -1);
 check('app.js wires #btnAdjustRisk to adjustRiskToBudget',
   appSrc.indexOf("$('btnAdjustRisk')") !== -1 &&
