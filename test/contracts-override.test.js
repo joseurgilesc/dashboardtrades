@@ -446,6 +446,19 @@ check('the result reset list includes the new real-risk rows',
   extractFunction(appSrc, 'function renderRiskPanel()').indexOf('riskRealRisk') !== -1 &&
   extractFunction(appSrc, 'function renderRiskPanel()').indexOf("'riskRealRiskPct'") !== -1);
 
+/* Part B: "Ajustar al riesgo" button + "Total" toggle (additive, structural). */
+check('#btnAdjustRisk exists as a btn-mini button',
+  htmlSrc.indexOf('class="btn btn-mini" id="btnAdjustRisk"') !== -1);
+check('#riskTotalToggle exists as a checkbox',
+  htmlSrc.indexOf('type="checkbox" id="riskTotalToggle"') !== -1);
+check('#riskTotalToggle sits inside the "Tamaño" group',
+  htmlSrc.indexOf('id="riskTotalToggle"') !== -1 &&
+  htmlSrc.indexOf('id="riskTotalToggle"') < htmlSrc.indexOf('id="riskBudget"'));
+check('app.js defines adjustRiskToBudget', appSrc.indexOf('function adjustRiskToBudget()') !== -1);
+check('app.js wires #btnAdjustRisk to adjustRiskToBudget',
+  appSrc.indexOf("$('btnAdjustRisk')") !== -1 &&
+  appSrc.indexOf('addEventListener(\'click\', adjustRiskToBudget)') !== -1);
+
 /* ------------------------------------------------------------------ */
 /* [7] computeRisk.usedToday reads the TRUE loser sum (gain fix)       */
 /* ------------------------------------------------------------------ */

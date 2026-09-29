@@ -90,6 +90,12 @@
    * calculator stops prefilling it for the current trade. Reset on reset. */
   let contractsTouched = false;
 
+  /* Transient: true only RIGHT AFTER a real user edit of the contracts field
+   * (typed or stepper), so the "contracts -> Op/día" coupling fires exactly
+   * once and never on restore/render. Cleared immediately after the derived
+   * Op/día is written. */
+  let contractsJustEdited = false;
+
   /* Last account the risk panel seeded its % risk input for. Used so switching
    * account refreshes the default while hand-edits persist for that account. */
   let lastRiskAccount = null;
@@ -831,11 +837,16 @@
     /* Last-touched-wins: while contracts is the driver, push the derived
      * operations into the Op/día field so the live math (cupo, effective
      * budget, …) follows. Programmatic `.value =` fires no input/change, so
-     * nothing persists and no re-render loop is triggered; the guard on
-     * `contractsTouched` keeps the Op/día -> contracts direction untouched. */
-    if (contractsTouched) {
+     * nothing persists and no re-render loop is triggered. This write fires
+     * ONLY on a REAL user edit of the contracts field (the transient
+     * `contractsJustEdited` flag set by the input handlers), never on a
+     * restore/render — switching trade tabs must not auto-change Op/día. The
+     * flag clears right after the write so it does not repeat on later
+     * renders. */
+    if (contractsJustEdited) {
       const tradesEl = $('riskTradesPerDayInput');
       if (tradesEl) tradesEl.value = String(Math.max(1, maxOps));
+      contractsJustEdited = false;
     }
   }
 
@@ -2571,6 +2582,92 @@
   }
 
   /**
+   * "Ajustar al riesgo": KEEPS the current contracts and adjusts the stop PRICE
+   * so the trade risks its fair share of the remaining daily budget. In the
+   * default "repartido" mode the remaining budget is divided across the
+   * operativas still pending today; with "Total" on, the whole remaining
+   * budget is targeted. Writes #stop, marks it user-owned, and recomputes.
+   *
+   *   operativasRestantes = max(1, tradesPerDay - tradesHoy)
+   *   riesgoObjetivo      = total ? available : (available / operativasRestantes)
+   *   tickValue           = tick x pointValue
+   *   stopTicks           = riesgoObjetivo / (contratos x tickValue)
+   *   stopPoints          = stopTicks x tick
+   *   stopPrice           = (Corto) ? entry + stopPoints : entry - stopPoints
+   */
+  function adjustRiskToBudget() {
+    const account = activeAccount();
+    const instrument = $('instrument') ? $('instrument').value : '';
+    const spec = instrumentMeta(instrument);
+    const tick = spec ? Number(spec.tick) : NaN;
+    const tickValue = spec ? (Number(spec.tick) * Number(spec.pointValue)) : NaN;
+
+    const capital = Store.startOfDayBalance(account, null, state.globalDate);
+    const settings = Store.getRiskSettings()[account] || {};
+    const defaultPct = Number.isFinite(settings.riskPct) ? settings.riskPct : DEFAULT_RISK_PCT;
+
+    const pctInput = $('riskDailyPctInput');
+    let riskPct = pctInput ? parseFloat(pctInput.value) : NaN;
+    if (!Number.isFinite(riskPct)) riskPct = clampDailyRiskPct(defaultPct);
+    riskPct = clampDailyRiskPct(riskPct);
+
+    const tradesInput = $('riskTradesPerDayInput');
+    const defaultTrades = Number.isFinite(settings.dailyTradeLimit)
+      ? settings.dailyTradeLimit
+      : DEFAULT_DAILY_TRADE_LIMIT;
+    const tradesFallback = Math.max(1, defaultTrades);
+    let tradesPerDay = tradesInput ? parseInt(tradesInput.value, 10) : NaN;
+    if (!Number.isFinite(tradesPerDay) || tradesPerDay < 1) tradesPerDay = tradesFallback;
+
+    const usage = Store.dailyRiskUsage({
+      account: account,
+      riskPct: riskPct,
+      balance: capital,
+      today: state.globalDate,
+      gainFactor: settings.gainFactor
+    });
+
+    const entryPriceEl = $('entryPrice');
+    const entryPrice = entryPriceEl ? parseFloat(entryPriceEl.value) : NaN;
+    const direction = $('direction') ? $('direction').value : '';
+
+    const contractsEl = $('contracts');
+    const contratos = contractsEl ? parseFloat(contractsEl.value) : NaN;
+
+    const totalToggle = $('riskTotalToggle');
+    const total = !!(totalToggle && totalToggle.checked);
+
+    if (!(contratos > 0) || !(tickValue > 0) || !(usage.available > 0) ||
+        !Number.isFinite(entryPrice)) {
+      showToast('No se puede ajustar al riesgo: revisa contratos, precio de entrada y presupuesto disponible.', 'warn');
+      return;
+    }
+
+    const tradesHoy = Store.getTrades().filter(function (t) {
+      return t && t.account === account && t.entryDate === state.globalDate;
+    }).length;
+    const operativasRestantes = Math.max(1, tradesPerDay - tradesHoy);
+    const riesgoObjetivo = total ? usage.available : (usage.available / operativasRestantes);
+
+    const stopTicks = riesgoObjetivo / (contratos * tickValue);
+    const stopPoints = stopTicks * tick;
+    const stopPrice = (direction === 'Corto')
+      ? (entryPrice + stopPoints)
+      : (entryPrice - stopPoints);
+
+    const stopEl = $('stop');
+    if (stopEl) stopEl.value = String(stopPrice);
+    touchedFields.stop = true;
+
+    const pct = capital > 0 ? (riesgoObjetivo / capital) * 100 : 0;
+
+    updatePreview();
+
+    showToast('Stop ajustado a ' + Math.round(stopTicks) + ' ticks (' +
+      formatNumber(pct, 2) + '%)', 'ok');
+  }
+
+  /**
    * Warn-only discipline banners for the entry form's selected account: the
    * daily trade limit and the intraday drawdown / losing-streak thresholds.
    * These are guidance only: submit is never disabled or blocked.
@@ -3229,6 +3326,8 @@
       tradeNumber: $('tradeNumber').value,
       instrument: $('instrument').value,
       contracts: $('contracts').value,
+      riskContracts: $('riskContracts') ? $('riskContracts').value : '',
+      riskTradesPerDay: $('riskTradesPerDayInput') ? $('riskTradesPerDayInput').value : '',
       strategy: $('strategy').value,
       direction: $('direction').value,
       entryDate: $('entryDate').value,
@@ -3259,6 +3358,8 @@
     $('tradeNumber').value = d.tradeNumber;
     syncInstrument(d.instrument);
     $('contracts').value = d.contracts;
+    if (d.riskContracts !== undefined && $('riskContracts')) $('riskContracts').value = d.riskContracts;
+    if (d.riskTradesPerDay !== undefined && $('riskTradesPerDayInput')) $('riskTradesPerDayInput').value = d.riskTradesPerDay;
     $('strategy').value = d.strategy;
     $('direction').value = d.direction;
     $('entryDate').value = d.entryDate;
@@ -3281,8 +3382,10 @@
     imageUrl = d.imageUrl || '';
     renderTradeImagePreview();
     if (d.ratio !== undefined && $('riskRatio')) $('riskRatio').value = d.ratio;
-    /* Restored values are user-owned: the calculator must not re-seed them. */
+    /* Restored values are user-owned: the calculator must not re-seed the
+     * contracts, the Op/día divisor, or the mirrored calculator fields. */
     contractsTouched = true;
+    tradesPerDayTouched = true;
     applyTradeMode();
     renderEmotionDot();
   }
@@ -4392,6 +4495,14 @@
       });
     }
 
+    /* "Ajustar al riesgo": keeps the current contracts and adjusts the stop so
+     * the trade risks its fair share of the remaining daily budget (repartido
+     * by default; "Total" targets the whole remaining budget). */
+    const adjustRiskBtn = $('btnAdjustRisk');
+    if (adjustRiskBtn) {
+      adjustRiskBtn.addEventListener('click', adjustRiskToBudget);
+    }
+
     /* Leaderboard refresh (admin). */
     const refreshLeaderboardBtn = $('btnRefreshLeaderboard');
     if (refreshLeaderboardBtn) {
@@ -4490,6 +4601,7 @@
     if (contractsField) {
       const markContractsTouched = function () {
         contractsTouched = true;
+        contractsJustEdited = true;
         syncContracts(contractsField.value);
       };
       contractsField.addEventListener('input', markContractsTouched);
@@ -4502,6 +4614,7 @@
     if (riskContractsField) {
       const onRiskContracts = function () {
         contractsTouched = true;
+        contractsJustEdited = true;
         syncContracts(riskContractsField.value);
         updatePreview();
       };
