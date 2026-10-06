@@ -132,6 +132,9 @@
   /* Current trade screenshot URL for the form (a fresh upload or the existing
    * image while editing). Persisted on save as `trade.imageUrl`. */
   let imageUrl = '';
+  /* In-flight screenshot upload, awaited on save so a trade is never saved
+   * before its image finishes uploading. */
+  let imageUploadPromise = null;
 
   /* Top-level regions hidden until authentication resolves. */
   const APP_REGIONS = ['.tabs', '#globalSearchBar', '#filtersToggle', '#filtersBar', '.app-main', '.app-footer'];
@@ -3479,41 +3482,51 @@
 
   function handleSubmit(event) {
     event.preventDefault();
-    const errors = validateForm();
-    if (errors.length) {
-      showErrorModal(errors);
-      return;
-    }
-    showFormErrors([]);
+    const run = function () {
+      const errors = validateForm();
+      if (errors.length) {
+        showErrorModal(errors);
+        return;
+      }
+      showFormErrors([]);
 
-    const trade = readForm();
-    delete trade.id;
+      const trade = readForm();
+      delete trade.id;
 
-    if (state.editingId) {
-      if (!Number.isFinite(trade.tradeNumber) || trade.tradeNumber <= 0) delete trade.tradeNumber;
-      Store.updateTrade(state.editingId, trade);
-      showToast('Trade actualizado', 'ok');
+      if (state.editingId) {
+        if (!Number.isFinite(trade.tradeNumber) || trade.tradeNumber <= 0) delete trade.tradeNumber;
+        Store.updateTrade(state.editingId, trade);
+        showToast('Trade actualizado', 'ok');
+      } else {
+        nudgeBeforeNewTrade();
+        trade.tradeNumber = Number.isFinite(trade.tradeNumber) && trade.tradeNumber > 0
+          ? trade.tradeNumber
+          : Store.nextTradeNumber();
+        Store.addTrade(trade);
+        showToast('Trade guardado', 'ok');
+      }
+
+      /* Remember the setup the user just used so the next new trade starts
+       * from it. Invalid catalog values are ignored by the store. */
+      Store.saveLastEntry({
+        account: trade.account,
+        instrument: trade.instrument,
+        strategy: trade.strategy,
+        direction: trade.direction,
+        emotion: trade.emotion
+      });
+
+      resetForm();
+      renderAll();
+    };
+
+    /* If a screenshot is still uploading, wait for it so the saved trade
+     * carries its imageUrl (never save before the image finishes). */
+    if (typeof imageUploadPromise !== 'undefined' && imageUploadPromise) {
+      imageUploadPromise.then(run, run);
     } else {
-      nudgeBeforeNewTrade();
-      trade.tradeNumber = Number.isFinite(trade.tradeNumber) && trade.tradeNumber > 0
-        ? trade.tradeNumber
-        : Store.nextTradeNumber();
-      Store.addTrade(trade);
-      showToast('Trade guardado', 'ok');
+      run();
     }
-
-    /* Remember the setup the user just used so the next new trade starts
-     * from it. Invalid catalog values are ignored by the store. */
-    Store.saveLastEntry({
-      account: trade.account,
-      instrument: trade.instrument,
-      strategy: trade.strategy,
-      direction: trade.direction,
-      emotion: trade.emotion
-    });
-
-    resetForm();
-    renderAll();
   }
 
   function handleEdit(id) {
@@ -4415,15 +4428,16 @@
           return;
         }
         if (hint) hint.textContent = 'Subiendo…';
-        FirebaseService.uploadTradeImage(user.uid, state.editingId || 'draft', file)
-          .then(function (url) {
-            imageUrl = url;
-            renderTradeImagePreview();
-            if (hint) hint.textContent = 'Imagen lista.';
-          })
-          .catch(function () {
-            if (hint) hint.textContent = 'No se pudo subir la imagen.';
-          });
+        imageUploadPromise = FirebaseService.uploadTradeImage(user.uid, state.editingId || 'draft', file);
+        imageUploadPromise.then(function (url) {
+          imageUrl = url;
+          imageUploadPromise = null;
+          renderTradeImagePreview();
+          if (hint) hint.textContent = 'Imagen lista.';
+        }).catch(function () {
+          imageUploadPromise = null;
+          if (hint) hint.textContent = 'No se pudo subir la imagen.';
+        });
       });
     }
 
