@@ -530,8 +530,8 @@
             </div>
           </div>
 
-          <details class="advanced-options" id="advancedOptions">
-            <summary>Más opciones</summary>
+          <fieldset class="advanced-options" id="advancedOptions">
+            <legend>Más opciones</legend>
             <div class="form-grid">
               <div class="field">
                 <label for="plannedRisk">Riesgo planeado (USD, opcional)</label>
@@ -542,18 +542,20 @@
                 <input type="number" id="commission" min="0" step="any" inputmode="decimal" placeholder="Auto">
               </div>
               <div class="field field-wide">
-                <label for="notes">Notas</label>
-                <textarea id="notes" rows="2" placeholder="Observaciones de la operación (opcional)"></textarea>
-              </div>
-              <div class="field field-wide">
                 <span class="field-label">Plan vs ejecución</span>
-                <label class="check-row"><input type="checkbox" id="respectedEntry"> Respeté la entrada</label>
-                <label class="check-row"><input type="checkbox" id="respectedStop"> Respeté el stop</label>
-                <label class="check-row"><input type="checkbox" id="respectedSize"> Respeté el tamaño</label>
+                <div class="check-row-group">
+                  <label class="check-row"><input type="checkbox" id="respectedEntry"> Respeté la entrada</label>
+                  <label class="check-row"><input type="checkbox" id="respectedStop"> Respeté el stop</label>
+                  <label class="check-row"><input type="checkbox" id="respectedSize"> Respeté el tamaño</label>
+                </div>
               </div>
-              <div class="field field-wide">
+              <div class="field">
                 <label for="planDeviation">Motivo del cambio (si hubo)</label>
                 <input type="text" id="planDeviation" placeholder="Opcional.">
+              </div>
+              <div class="field">
+                <label for="notes">Notas</label>
+                <textarea id="notes" rows="2" placeholder="Observaciones (opcional)"></textarea>
               </div>
               <div class="field field-wide">
                 <label for="tradeImage">Captura del trade (imagen, opcional)</label>
@@ -564,7 +566,7 @@
                 <img id="tradeImageImg" alt="Captura del trade" style="max-width:100%; border-radius:6px;">
               </div>
             </div>
-          </details>
+          </fieldset>
 
           <div class="preview" aria-live="polite">
             <div class="preview-item">

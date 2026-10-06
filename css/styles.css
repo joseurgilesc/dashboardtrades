@@ -1178,41 +1178,30 @@ input[type="number"],
 /* Advanced options disclosure (Registro form) — collapsed by default. */
 .advanced-options {
   margin-top: 12px;
+  padding: 10px 12px 12px;
   background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
 
-.advanced-options > summary {
-  padding: 8px 12px;
+.advanced-options > legend {
+  padding: 0 6px;
+  margin: 0;
   color: var(--text-muted);
   font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  list-style: none;
-}
-
-.advanced-options > summary::-webkit-details-marker {
-  display: none;
-}
-
-.advanced-options > summary::before {
-  content: '▸';
-  display: inline-block;
-  margin-right: 6px;
-  transition: transform 0.12s ease;
-}
-
-.advanced-options[open] > summary::before {
-  transform: rotate(90deg);
-}
-
-.advanced-options > summary:hover {
-  color: var(--text);
+  font-weight: 600;
 }
 
 .advanced-options > .form-grid {
-  padding: 0 12px 12px;
+  margin-top: 4px;
+}
+
+/* The three plan-vs-execution checkboxes sit side by side so the section
+ * stays compact while always visible. */
+.check-row-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
 }
 
 /* Advisory suggested price next to the stop/target inputs. Text only: it
