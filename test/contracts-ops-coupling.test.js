@@ -265,19 +265,12 @@ $('contracts').value = '7';
 $('riskTradesPerDayInput').value = '1'; /* would suggest 200 */
 uiContext.renderRiskPanel();
 eq('touched: Op/día change never overwrites contracts', $('contracts').value, '7');
-/* A restore/render (contractsTouched=true but NO real edit) must NOT
- * auto-change Op/día: the coupling fires only on a real user edit, so
- * switching trade tabs can never clobber the saved Op/día. */
-eq('restore/render never auto-updates Op/día', $('riskTradesPerDayInput').value, '1');
-
-/* A real user edit (the input handler sets contractsJustEdited) drives the
- * derived Op/día (floor(2000 / (7 x 10)) = 28) exactly once. */
-uiContext.contractsJustEdited = true;
-uiContext.renderRiskPanel();
-eq('editing contracts auto-updates Op/día', $('riskTradesPerDayInput').value, '28');
-/* The transient flag clears after the write, so a later render never repeats. */
-uiContext.renderRiskPanel();
-eq('the coupling fires only once (flag cleared)', $('riskTradesPerDayInput').value, '28');
+  /* Contracts and Op/día are now INDEPENDENT inputs: editing contracts must
+   * NOT auto-change Op/día, and editing Op/día must NOT clear the contracts
+   * override. The "Ajustar al riesgo" button handles the sizing adjustment. */
+  eq('restore/render never auto-updates Op/día', $('riskTradesPerDayInput').value, '1');
+  uiContext.renderRiskPanel();
+  eq('editing contracts does not auto-change Op/día', $('riskTradesPerDayInput').value, '1');
 
 uiContext.contractsTouched = false;
 $('contracts').value = '999';

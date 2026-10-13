@@ -90,12 +90,6 @@
    * calculator stops prefilling it for the current trade. Reset on reset. */
   let contractsTouched = false;
 
-  /* Transient: true only RIGHT AFTER a real user edit of the contracts field
-   * (typed or stepper), so the "contracts -> Op/día" coupling fires exactly
-   * once and never on restore/render. Cleared immediately after the derived
-   * Op/día is written. */
-  let contractsJustEdited = false;
-
   /* Last account the risk panel seeded its % risk input for. Used so switching
    * account refreshes the default while hand-edits persist for that account. */
   let lastRiskAccount = null;
@@ -837,20 +831,6 @@
       ? Math.floor(lastRisk.dailyBudget / (n * lastRisk.stopTicks * lastRisk.tickValue))
       : 0;
     el.textContent = maxOps > 0 ? ('caben ' + maxOps + ' operaciones') : '0 operaciones';
-    /* Last-touched-wins: while contracts is the driver, push the derived
-     * operations into the Op/día field so the live math (cupo, effective
-     * budget, …) follows. Programmatic `.value =` fires no input/change, so
-     * nothing persists and no re-render loop is triggered. This write fires
-     * ONLY on a REAL user edit of the contracts field (the transient
-     * `contractsJustEdited` flag set by the input handlers), never on a
-     * restore/render — switching trade tabs must not auto-change Op/día. The
-     * flag clears right after the write so it does not repeat on later
-     * renders. */
-    if (contractsJustEdited) {
-      const tradesEl = $('riskTradesPerDayInput');
-      if (tradesEl) tradesEl.value = String(Math.max(1, maxOps));
-      contractsJustEdited = false;
-    }
   }
 
   /** Positions the shared info tooltip near `el`, clamped to the viewport. */
@@ -2211,9 +2191,6 @@
    */
   function onTradesPerDayChanged() {
     tradesPerDayTouched = true;
-    /* Editing Op/día makes it the driver again (last-touched-wins): release the
-     * contracts override so the suggestion prefill follows on the next render. */
-    contractsTouched = false;
     const el = $('riskTradesPerDayInput');
     if (el) persistTradesPerDay(el.value);
   }
@@ -4615,7 +4592,6 @@
     if (contractsField) {
       const markContractsTouched = function () {
         contractsTouched = true;
-        contractsJustEdited = true;
         syncContracts(contractsField.value);
       };
       contractsField.addEventListener('input', markContractsTouched);
@@ -4628,7 +4604,6 @@
     if (riskContractsField) {
       const onRiskContracts = function () {
         contractsTouched = true;
-        contractsJustEdited = true;
         syncContracts(riskContractsField.value);
         updatePreview();
       };
