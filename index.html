@@ -144,6 +144,7 @@
         <button type="button" class="segmented-btn active" data-sub="formulario" aria-pressed="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Formulario</button>
         <button type="button" class="segmented-btn" data-sub="calculadora" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="16" y1="18" x2="16" y2="18.01"/><line x1="12" y1="18" x2="12" y2="18.01"/><line x1="8" y1="18" x2="8" y2="18.01"/></svg>Calculadora</button>
       </div>
+      <p class="trading-purpose-banner" id="tradingPurposeBanner" hidden></p>
       <div class="card" id="calculatorCard" hidden>
         <div class="card-header card-header-row">
           <h2>Calculadora de riesgo</h2>
@@ -424,20 +425,24 @@
                Identity/metadata first, then the plan, the three price levels
                (entry/exit/stop) and finally how the trade closed. -->
           <div class="form-grid">
-            <!-- Identity / metadata: instrument first, then trade number. -->
+            <!-- Identity: instrument first, direction right beside it. -->
             <div class="form-row">
               <div class="field">
                 <label for="instrument">Instrumento</label>
                 <select id="instrument"></select>
               </div>
               <div class="field">
-                <label for="tradeNumber">N.º de trade</label>
-                <input type="number" id="tradeNumber" min="1" step="1" inputmode="numeric">
+                <label for="direction">Dirección</label>
+                <select id="direction"></select>
               </div>
             </div>
 
-            <!-- Trade plan: size, strategy and direction. -->
+            <!-- Trade plan: number (informational), size, strategy and mode. -->
             <div class="form-row">
+              <div class="field field-minor">
+                <label for="tradeNumber">N.º</label>
+                <input type="number" id="tradeNumber" min="1" step="1" inputmode="numeric">
+              </div>
               <div class="field">
                 <label for="contracts">Contratos</label>
                 <div class="stepper">
@@ -449,10 +454,6 @@
               <div class="field">
                 <label for="strategy">Estrategia</label>
                 <select id="strategy"></select>
-              </div>
-              <div class="field">
-                <label for="direction">Dirección</label>
-                <select id="direction"></select>
               </div>
               <div class="field">
                 <label for="tradeMode">Modo</label>
@@ -472,10 +473,7 @@
               </div>
               <div class="field field-entry">
                 <label for="entryTime">Hora de entrada</label>
-                <div class="field-inline">
-                  <input type="text" id="entryTime" class="time-input" placeholder="--:--" autocomplete="off">
-                  <button type="button" class="btn btn-ghost btn-mini" data-now-target="entryTime" title="Poner la hora actual" aria-label="Poner la hora actual"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
-                </div>
+                <input type="text" id="entryTime" class="time-input" placeholder="--:--" autocomplete="off">
               </div>
             </div>
 
@@ -495,10 +493,7 @@
               </div>
               <div class="field field-exit">
                 <label for="exitTime">Hora de salida</label>
-                <div class="field-inline">
-                  <input type="text" id="exitTime" class="time-input" placeholder="--:--" autocomplete="off">
-                  <button type="button" class="btn btn-ghost btn-mini" data-now-target="exitTime" title="Poner la hora actual" aria-label="Poner la hora actual"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
-                </div>
+                <input type="text" id="exitTime" class="time-input" placeholder="--:--" autocomplete="off">
               </div>
             </div>
 
@@ -533,14 +528,6 @@
           <fieldset class="advanced-options" id="advancedOptions">
             <legend>Más opciones</legend>
             <div class="form-grid">
-              <div class="field">
-                <label for="plannedRisk">Riesgo planeado (USD, opcional)</label>
-                <input type="number" id="plannedRisk" min="0" step="any" inputmode="decimal">
-              </div>
-              <div class="field">
-                <label for="commission">Comisión (por contrato) <i class="info-tip" data-tip="Comisión de ida y vuelta por contrato. Déjalo vacío para usar la comisión por defecto del instrumento.">i</i></label>
-                <input type="number" id="commission" min="0" step="any" inputmode="decimal" placeholder="Auto">
-              </div>
               <div class="field field-wide">
                 <span class="field-label">Plan vs ejecución</span>
                 <div class="check-row-group">
@@ -608,6 +595,7 @@
             <div class="risk-preview-chart" id="riskPreviewChart" aria-live="polite" hidden></div>
             <p class="risk-preview-empty" id="riskPreviewEmpty">Introduce el precio de entrada para ver el plan.</p>
             <p class="risk-preview-rb" id="riskPreviewRB">R/B —</p>
+            <p class="risk-preview-note">La vela o velas de stop no deben superar tantos ticks o puntos.</p>
           </aside>
 
           <div class="card sizing-card" id="sizingCard">
@@ -617,16 +605,6 @@
             </div>
 
             <div class="sizing-grid">
-              <label class="sizing-field" for="riskDailyPctInput">
-                <span class="sizing-label">Riesgo diario</span>
-                <div class="stepper">
-                  <button type="button" class="stepper-btn" data-step-down="riskDailyPctInput" data-step="0.1" aria-label="Menos riesgo">−</button>
-                  <input type="number" id="riskDailyPctInput" min="1" max="3" step="0.1" inputmode="decimal" value="2">
-                  <button type="button" class="stepper-btn" data-step-up="riskDailyPctInput" data-step="0.1" aria-label="Más riesgo">+</button>
-                  <span class="unit">%</span>
-                </div>
-              </label>
-
               <label class="sizing-field" for="riskContracts">
                 <span class="sizing-label">Contratos</span>
                 <div class="field-inline sizing-controls">
@@ -908,6 +886,21 @@
 
       <div class="card">
         <div class="card-header">
+          <h2>Propósito de trading</h2>
+        </div>
+        <p class="hint">Tu porqué. Aparece con letra pequeña en la página de Registro como recordatorio.</p>
+        <div class="form-grid">
+          <div class="field field-wide">
+            <textarea id="tradingPurpose" rows="3" placeholder="¿Por qué operas?"></textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="btnSavePurpose">Guardar propósito</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
           <h2>Riesgo y límites</h2>
         </div>
         <p class="hint">Riesgo máximo por operación y límite diario de operaciones, por cuenta. Banda recomendada: 0,5 %–2 %; el 3 % es el máximo.</p>
@@ -1000,6 +993,7 @@
                 <th scope="col">Objetivo R</th>
                 <th scope="col">Alternativo R</th>
                 <th scope="col">Salidas (ticks · pts)</th>
+                <th scope="col">Comisión</th>
               </tr>
             </thead>
             <tbody id="instrumentConfigBody"></tbody>
@@ -1120,6 +1114,23 @@
       </div>
       <div class="modal-foot">
         <button type="button" class="btn btn-primary" id="btnRiskWarningOk">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Daily-risk stop advisory: a strong danger popup that tells the user to
+       stop when they hit 90% of the daily risk or exhaust it. -->
+  <div class="modal-overlay" id="riskStopModal" hidden>
+    <div class="modal modal-stop" role="dialog" aria-modal="true" aria-labelledby="riskStopModalTitle">
+      <div class="modal-head">
+        <h3 id="riskStopModalTitle">¡Debes parar!</h3>
+        <button type="button" class="btn-icon" id="btnCloseRiskStopModal" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-hint" id="riskStopModalText"></p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-primary" id="btnRiskStopOk">Entendido</button>
       </div>
     </div>
   </div>

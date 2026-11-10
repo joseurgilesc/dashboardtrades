@@ -81,7 +81,8 @@ const extracted = [
   extractFunction(appSrc, 'function riskPreviewSvg(geometry, ctx)'),
   extractFunction(appSrc, 'function decimalsForTick(tick)'),
   extractFunction(appSrc, 'function escapeHtml(value)'),
-  extractFunction(appSrc, 'function formatTicks(value)')
+  extractFunction(appSrc, 'function formatTicks(value)'),
+  extractFunction(appSrc, 'function ticksPointsLabel(ticks, instrument)')
 ].join('\n');
 
 /* ------------------------------------------------------------------ */

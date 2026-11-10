@@ -179,26 +179,18 @@ const ACCOUNTS = ['Sim', 'Real', 'Fondeo'];
 
 const DIRECTIONS = ['Largo', 'Corto'];
 
-/* Strategy groups, in display order: scalping first, legacy last. */
-const STRATEGY_GROUPS = ['scalping', 'swing', 'legacy'];
+/* Strategy groups, in display order: scalping first, then swing. */
+const STRATEGY_GROUPS = ['scalping', 'swing'];
 
 /* Strategy catalog. `id` is the stable slug persisted on each trade;
- * `name` is the display label; `group` is one of STRATEGY_GROUPS.
- * Legacy ids E1..E5 are kept verbatim and never remapped. */
+ * `name` is the display label; `group` is one of STRATEGY_GROUPS. */
 const STRATEGIES = [
   { id: 'vela-a-vela', name: 'Vela a Vela', group: 'scalping' },
   { id: 'box-breakout', name: 'Box Breakout (Ruptura de laterales)', group: 'scalping' },
-  { id: 'doble-00', name: 'El Doble 00', group: 'scalping' },
   { id: 'cruces-medias', name: 'Cruces de Medias Móviles', group: 'scalping' },
   { id: 'tres-impulsos', name: 'Tres Impulsos (Ruptura con tres impulsos)', group: 'swing' },
   { id: 'gaps', name: 'Operativa de Gaps', group: 'swing' },
-  { id: 'figuras-chartistas', name: 'Figuras Chartistas (HCH y dobles/triples)', group: 'swing' },
-  { id: 'weinstein', name: 'Método Stan Weinstein', group: 'swing' },
-  { id: 'E1', name: 'E1', group: 'legacy' },
-  { id: 'E2', name: 'E2', group: 'legacy' },
-  { id: 'E3', name: 'E3', group: 'legacy' },
-  { id: 'E4', name: 'E4', group: 'legacy' },
-  { id: 'E5', name: 'E5', group: 'legacy' }
+  { id: 'figuras-chartistas', name: 'Figuras Chartistas (HCH y dobles/triples)', group: 'swing' }
 ];
 
 /* Derived, ordered list of catalog ids. */

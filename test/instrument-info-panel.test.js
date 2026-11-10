@@ -165,6 +165,7 @@ const stubs = [
   'function signClass() { return ""; }',
   'function renderEntryWarnings() {}',
   'function renderEmotionDot() {}',
+  'function renderDirectionColor() {}',
   /* Mirrors the real renderRiskPanel contract: it syncs the calculator's
    * selector to the canonical #instrument value on every render. */
   'function renderRiskPanel() { syncInstrument($("instrument").value); }',

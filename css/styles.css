@@ -719,6 +719,20 @@ textarea {
   width: auto;
 }
 
+/* Daily-risk stop advisory: strong danger styling for "¡Debes parar!". */
+.modal-stop {
+  border-color: rgba(239, 68, 68, 0.55);
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.14);
+}
+
+.modal-stop .modal-head h3 {
+  color: var(--neg);
+}
+
+.modal-stop .modal-hint {
+  color: var(--text);
+}
+
 .chip {
   display: flex;
   flex-direction: column;
@@ -1867,6 +1881,18 @@ input.is-draft {
   color: var(--text-muted);
 }
 
+/* Recordatorio del plan ATM: la(s) vela(s) de stop no deben superar el
+ * presupuesto de ticks/puntos del plan. El separador punteado lo distingue
+ * de la línea R/B. */
+.risk-preview-note {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
 /* Right panel of the trade card: the plan preview stacks on top of the
  * compact sizing card. A flex column keeps the 300px grid column cohesive
  * while the preview stays sticky above the controls. */
@@ -2203,6 +2229,36 @@ input.is-draft {
   color: var(--neg);
   border-color: rgba(239, 68, 68, 0.35);
   background: rgba(239, 68, 68, 0.08);
+}
+
+/* Direction select (trade form): tinted green/red by value, not decorative. */
+select.dir-long {
+  color: var(--pos);
+  border-color: rgba(34, 197, 94, 0.5);
+  background-color: rgba(34, 197, 94, 0.12);
+}
+
+select.dir-short {
+  color: var(--neg);
+  border-color: rgba(239, 68, 68, 0.5);
+  background-color: rgba(239, 68, 68, 0.12);
+}
+
+/* Trade number field: compact and informational. */
+.field-minor input {
+  max-width: 72px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Trading-purpose reminder shown at the top of Registro. */
+.trading-purpose-banner {
+  margin: 0 0 var(--space-3);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
 }
 
 .table-empty {

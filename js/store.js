@@ -29,8 +29,7 @@ const Store = (function () {
     : [];
   const STRATEGY_GROUP_ORDER = (typeof STRATEGY_GROUPS !== 'undefined' && Array.isArray(STRATEGY_GROUPS))
     ? STRATEGY_GROUPS
-    : ['scalping', 'swing', 'legacy'];
-  const LEGACY_LABEL_SUFFIX = ' (sin clasificar)';
+    : ['bpt', 'scalping', 'swing'];
 
   /* Risk-settings defaults (from instruments.js). */
   const RISK_PCT_DEFAULT = (typeof DEFAULT_RISK_PCT !== 'undefined') ? DEFAULT_RISK_PCT : 2;
@@ -408,15 +407,14 @@ const Store = (function () {
 
   /**
    * Resolves any stored strategy value to a display label.
-   * Named strategies -> catalog name; legacy E1..E5 -> "<id> (sin clasificar)";
-   * anything unknown -> the raw id, so no value ever renders blank.
+   * Catalog strategies -> catalog name; anything unknown -> the raw id, so no
+   * value ever renders blank.
    */
   function strategyLabel(id) {
     const key = strOr(id, '');
     if (!key) return '';
     const found = findStrategy(key);
     if (!found) return key;
-    if (found.group === 'legacy') return found.id + LEGACY_LABEL_SUFFIX;
     return found.name;
   }
 
@@ -425,7 +423,7 @@ const Store = (function () {
     return found ? found.group : '';
   }
 
-  /** Returns a copy of the catalog in display order (scalping, swing, legacy). */
+  /** Returns a copy of the catalog in display order (bpt, scalping, swing). */
   function getStrategies() {
     return STRATEGY_LIST.map(function (strategy) {
       return { id: strategy.id, name: strategy.name, group: strategy.group };
@@ -712,13 +710,17 @@ const Store = (function () {
 
     const pointValue = spec.pointValue;
     const gross = points * contracts * pointValue;
-    /* Per-contract commission: a trade-recorded value (NinjaTrader imports
-     * carry the broker's real fees) wins over the catalog default. Trades
-     * without one keep the catalog commission, so existing behavior is
-     * unchanged. */
+    /* Per-contract commission resolution order:
+     *   1. a trade-recorded value (NinjaTrader imports carry the broker's real
+     *      fees) — kept so historical imports stay exact;
+     *   2. the per-account/per-instrument override configured in Ajustes;
+     *   3. the instrument's catalog default. */
+    const configCommission = configuredCommissionFor(trade.account, trade.instrument);
     const perContract = numOr(trade.commission, 0) > 0
       ? numOr(trade.commission, 0)
-      : spec.commission;
+      : (Number.isFinite(configCommission) && configCommission > 0
+          ? configCommission
+          : spec.commission);
     const commission = perContract * contracts;
     const net = gross - commission;
 
@@ -1051,12 +1053,16 @@ const Store = (function () {
     const stop = numOr(src.stopTicks, NaN);
     const targetR = numOr(src.targetR, NaN);
     const targetRAlt = numOr(src.targetRAlt, NaN);
+    const commission = numOr(src.commission, NaN);
     const hasFixedStop = Number.isFinite(stop) && stop > 0;
     return {
       stopTicks: hasFixedStop ? stop : null,
       stopTicksAuto: !hasFixedStop,
       targetR: (Number.isFinite(targetR) && targetR > 0) ? targetR : TARGET_R_DEFAULT,
-      targetRAlt: (Number.isFinite(targetRAlt) && targetRAlt > 0) ? targetRAlt : TARGET_R_ALT_DEFAULT
+      targetRAlt: (Number.isFinite(targetRAlt) && targetRAlt > 0) ? targetRAlt : TARGET_R_ALT_DEFAULT,
+      /* Per-contract commission override (user-configurable in Ajustes). NaN
+       * means "use the catalog default" so an empty field is never a number. */
+      commission: Number.isFinite(commission) && commission > 0 ? commission : NaN
     };
   }
 
@@ -1084,6 +1090,18 @@ const Store = (function () {
     const settings = (state.settings && typeof state.settings === 'object') ? state.settings : {};
     const map = settings.instrumentConfig;
     return (map && typeof map === 'object') ? map : {};
+  }
+
+  /**
+   * Reads the per-account/per-instrument commission override (Ajustes), or NaN
+   * when none is configured. Used by `computeTrade` so the resolved net honors
+   * the user's setting without needing the per-trade commission field.
+   */
+  function configuredCommissionFor(account, instrument) {
+    const byAccount = instrumentConfigMap()[strOr(account, '')];
+    const raw = (byAccount && typeof byAccount === 'object') ? byAccount[strOr(instrument, '')] : null;
+    const normalized = normalizeInstrumentConfig(raw);
+    return normalized.commission;
   }
 
   /**
@@ -1116,6 +1134,7 @@ const Store = (function () {
       fixedStopTicks: null,
       targetR: TARGET_R_DEFAULT,
       targetRAlt: TARGET_R_ALT_DEFAULT,
+      commission: NaN,
       stopPoints: NaN,
       targetPoints: NaN,
       targetAltPoints: NaN,
@@ -1145,6 +1164,7 @@ const Store = (function () {
     result.fixedStopTicks = normalized.stopTicks;
     result.targetR = normalized.targetR;
     result.targetRAlt = normalized.targetRAlt;
+    result.commission = normalized.commission;
     result.stopPoints = ticksToPoints(stopTicks, instrumentKey);
     result.targetPoints = ticksToPoints(stopTicks * normalized.targetR, instrumentKey);
     result.targetAltPoints = ticksToPoints(stopTicks * normalized.targetRAlt, instrumentKey);
@@ -1190,7 +1210,8 @@ const Store = (function () {
     const next = normalizeInstrumentConfig({
       stopTicks: (incoming.stopTicks !== undefined) ? incoming.stopTicks : current.stopTicks,
       targetR: (incoming.targetR !== undefined) ? incoming.targetR : current.targetR,
-      targetRAlt: (incoming.targetRAlt !== undefined) ? incoming.targetRAlt : current.targetRAlt
+      targetRAlt: (incoming.targetRAlt !== undefined) ? incoming.targetRAlt : current.targetRAlt,
+      commission: (incoming.commission !== undefined) ? incoming.commission : current.commission
     });
     map[accountKey][instrumentKey] = next;
     setSettings({ instrumentConfig: map });

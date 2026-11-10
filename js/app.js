@@ -102,6 +102,11 @@
    * popup fires only on the false -> true transition and never spams. */
   let lastExceedsCupo = false;
 
+  /* Last daily-risk threshold level (0 = ok, 1 = ≥90% used, 2 = budget
+   * exhausted), so the "¡Debes parar!" popup fires only on a rising transition
+   * and never spams. */
+  let lastDailyRiskLevel = 0;
+
   /* True once the user edits the calculator's trades-per-day input by hand.
    * A user-typed value is FINAL: the account default never re-seeds over it
    * again, not even when the account changes. While the field is transiently
@@ -469,9 +474,9 @@
 
   function strategyGroupLabel(group) {
     switch (group) {
+      case 'bpt': return 'BPT';
       case 'scalping': return 'Scalping';
       case 'swing': return 'Swing';
-      case 'legacy': return 'Legacy (sin clasificar)';
       default: return group;
     }
   }
@@ -484,8 +489,8 @@
 
   /**
    * Populates a strategy `<select>` with grouped `<optgroup>`s in catalog
-   * order (scalping, swing, legacy). `option.value` is the stable id; the
-   * visible text is the resolved label, so legacy/unknown ids still render.
+   * order (bpt, scalping, swing). `option.value` is the stable id; the
+   * visible text is the resolved label, so unknown ids still render.
    */
   function fillStrategySelect(select, placeholder) {
     if (!select) return;
@@ -499,7 +504,7 @@
     const strategies = (typeof Store !== 'undefined' && Store.getStrategies)
       ? Store.getStrategies()
       : [];
-    const groups = (typeof STRATEGY_GROUPS !== 'undefined') ? STRATEGY_GROUPS : ['scalping', 'swing', 'legacy'];
+    const groups = (typeof STRATEGY_GROUPS !== 'undefined') ? STRATEGY_GROUPS : ['bpt', 'scalping', 'swing'];
     groups.forEach(function (group) {
       const members = strategies.filter(function (strategy) { return strategy.group === group; });
       if (!members.length) return;
@@ -515,7 +520,8 @@
     });
   }
 
-  /** Keeps an unknown stored id selectable when editing a legacy trade. */
+  /** Keeps an unknown stored id selectable when editing an older trade whose
+   *  strategy id is no longer in the catalog. */
   function ensureStrategyOption(select, id) {
     if (!select || !id) return;
     const exists = Array.prototype.some.call(select.options, function (opt) { return opt.value === id; });
@@ -566,7 +572,7 @@
      * the trade form's, so the instrument list is never hardcoded twice. */
     fillSelect($('riskInstrument'), Object.keys(INSTRUMENTS));
     fillRatioSelect($('riskRatio'));
-    fillStrategySelect($('strategy'));
+    fillStrategySelect($('strategy'), 'Selecciona la estrategia…');
     fillSelect($('direction'), DIRECTIONS);
     fillSelect($('exitType'), EXIT_TYPES);
     fillEmotionSelect($('emotion'));
@@ -1351,6 +1357,7 @@
     renderRiskPanel();
     renderEntryWarnings();
     renderInstrumentNote();
+    renderTradingPurpose();
     updateDuplicateButton();
     renderDailyGoal();
     renderSessionReview();
@@ -1482,8 +1489,6 @@
       /* The USD target input is gone; a saved trade's numeric `target` is
        * preserved on edit via `editingTarget`, never used for planning. */
       target: editingTarget,
-      plannedRisk: parseFloat($('plannedRisk').value),
-      commission: parseFloat($('commission').value),
       exitType: $('exitType').value,
       emotion: $('emotion').value,
       notes: $('notes').value.trim(),
@@ -1530,6 +1535,14 @@
     const select = $('emotion');
     if (!dot || !select) return;
     dot.style.background = emotionColor(select.value);
+  }
+
+  /** Tints the direction select green (Largo) or red (Corto). */
+  function renderDirectionColor() {
+    const el = $('direction');
+    if (!el) return;
+    el.classList.toggle('dir-long', el.value === 'Largo');
+    el.classList.toggle('dir-short', el.value === 'Corto');
   }
 
   /**
@@ -1622,6 +1635,7 @@
     renderRiskPanel();
     renderEntryWarnings();
     renderEmotionDot();
+    renderDirectionColor();
     const spec = INSTRUMENTS[$('instrument').value];
     const pointValueEl = $('previewPointValue');
     if (pointValueEl) pointValueEl.textContent = spec ? formatNumber(spec.pointValue, 2) : '—';
@@ -1698,6 +1712,18 @@
     const n = Number(value);
     if (!Number.isFinite(n)) return '—';
     return (Math.round(n * 100) / 100) + ' ticks';
+  }
+
+  /** Ticks + points equivalent (e.g. "40 ticks · 10 pts") for the ATM preview. */
+  function ticksPointsLabel(ticks, instrument) {
+    const n = Number(ticks);
+    if (!Number.isFinite(n)) return '—';
+    const tickText = (Math.round(n * 100) / 100) + ' ticks';
+    const points = (typeof Store !== 'undefined' && Store.ticksToPoints)
+      ? Store.ticksToPoints(n, instrument)
+      : NaN;
+    if (!Number.isFinite(points)) return tickText;
+    return tickText + ' · ' + (Math.round(points * 100) / 100) + ' pts';
   }
 
   /** Spanish red-alert copy for the tripped circuit breakers (Block 4). */
@@ -2007,13 +2033,13 @@
       es: 'Stop', nt: 'Stop Loss (Stop Market)', price: geometry.stop
     }));
 
-    parts.push(tickLabel(stopY, entryY, formatTicks(geometry.stopTicks), 'rp-ticks-neg'));
+    parts.push(tickLabel(stopY, entryY, ticksPointsLabel(geometry.stopTicks, ctx.instrument), 'rp-ticks-neg'));
     if (targetYs.length > 0) {
-      parts.push(tickLabel(entryY, targetYs[0], formatTicks(geometry.ticksTP[0]), 'rp-ticks-pos'));
+      parts.push(tickLabel(entryY, targetYs[0], ticksPointsLabel(geometry.ticksTP[0], ctx.instrument), 'rp-ticks-pos'));
     }
     if (targetYs.length > 1) {
       parts.push(tickLabel(targetYs[0], targetYs[1],
-        formatTicks(geometry.ticksTP[1] - geometry.ticksTP[0]), 'rp-ticks-pos'));
+        ticksPointsLabel(geometry.ticksTP[1] - geometry.ticksTP[0], ctx.instrument), 'rp-ticks-pos'));
     }
 
     parts.push('</svg>');
@@ -2251,16 +2277,9 @@
     const settings = Store.getRiskSettings()[account] || {};
     const defaultPct = Number.isFinite(settings.riskPct) ? settings.riskPct : DEFAULT_RISK_PCT;
 
-    /* Block 1 input: seed from the account's setting on account switch, then
-     * honour (and clamp to 1–3 %) whatever the user typed. */
-    const pctInput = $('riskDailyPctInput');
-    if (pctInput && accountChanged) {
-      pctInput.value = String(clampDailyRiskPct(defaultPct));
-    }
-    let riskPct = pctInput ? parseFloat(pctInput.value) : NaN;
-    if (!Number.isFinite(riskPct)) riskPct = clampDailyRiskPct(defaultPct);
-    riskPct = clampDailyRiskPct(riskPct);
-    if (pctInput && pctInput.value !== String(riskPct)) pctInput.value = String(riskPct);
+    /* Risk % is single-sourced in Ajustes: the calculator only READS it, never
+     * edits it. The header card and the whole sizing chain use this value. */
+    const riskPct = defaultPct;
 
     /* Block 1 input: trades per day drives the per-trade budget (and therefore
      * the budget-derived stop). Seeded from the account's daily limit on an
@@ -2430,6 +2449,32 @@
     setRiskItem('riskAvailable', usage.valid ? formatMoney(usage.available) : '—',
       usage.valid && usage.exhausted ? 'warn' : '');
 
+    /* "¡Debes parar!" stop advisory: fire a strong popup once each time the
+     * realized daily usage crosses a threshold upward (≥90% used, then budget
+     * exhausted). Advisory only — it never blocks recording. The level is read
+     * via `typeof` so the panel stays callable from an isolated harness that
+     * extracts this function alone (see the Store guard below). */
+    const stopLevel = (function () {
+      if (!usage.valid || !(usage.dailyBudget > 0)) return 0;
+      if (usage.exhausted) return 2;
+      if (usage.used / usage.dailyBudget >= 0.9) return 1;
+      return 0;
+    })();
+    const prevStopLevel = (typeof lastDailyRiskLevel === 'number') ? lastDailyRiskLevel : 0;
+    if (stopLevel > prevStopLevel) {
+      if (typeof showRiskStop === 'function') {
+        if (stopLevel === 2) {
+          showRiskStop('¡Debes parar! Ya superaste tu riesgo diario de ' +
+            formatMoney(usage.dailyBudget) + '.');
+        } else {
+          showRiskStop('¡Debes parar! Ya usaste el ' +
+            Math.round((usage.used / usage.dailyBudget) * 100) +
+            ' % de tu riesgo diario (' + formatMoney(usage.dailyBudget) + ').');
+        }
+      }
+    }
+    lastDailyRiskLevel = stopLevel;
+
     if (!risk.valid) {
       resultIds.forEach(function (id) { setRiskItem(id, '—'); });
       if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
@@ -2586,10 +2631,8 @@
     const settings = Store.getRiskSettings()[account] || {};
     const defaultPct = Number.isFinite(settings.riskPct) ? settings.riskPct : DEFAULT_RISK_PCT;
 
-    const pctInput = $('riskDailyPctInput');
-    let riskPct = pctInput ? parseFloat(pctInput.value) : NaN;
-    if (!Number.isFinite(riskPct)) riskPct = clampDailyRiskPct(defaultPct);
-    riskPct = clampDailyRiskPct(riskPct);
+    /* Risk % comes from Ajustes only (single source of truth). */
+    const riskPct = defaultPct;
 
     const tradesInput = $('riskTradesPerDayInput');
     const defaultTrades = Number.isFinite(settings.dailyTradeLimit)
@@ -3210,6 +3253,19 @@
     if (modal) modal.hidden = true;
   }
 
+  /** Shows the daily-risk stop advisory as a strong (danger) modal popup. */
+  function showRiskStop(message) {
+    const text = $('riskStopModalText');
+    if (text) text.textContent = message;
+    const modal = $('riskStopModal');
+    if (modal) modal.hidden = false;
+  }
+
+  function hideRiskStop() {
+    const modal = $('riskStopModal');
+    if (modal) modal.hidden = true;
+  }
+
   /**
    * Prefills the primary entry selects from the last-used selections persisted
    * in settings. Called on reset so a new trade starts from the user's usual
@@ -3221,7 +3277,9 @@
       : null;
     if (!last) return;
     if ($('instrument')) $('instrument').value = last.instrument;
-    if ($('strategy')) $('strategy').value = last.strategy;
+    /* La estrategia NO se precarga a propósito: el usuario debe elegirla
+     * explícitamente en cada trade (validateForm la exige y bloquea el
+     * guardado si queda vacía). */
     if ($('direction')) $('direction').value = last.direction;
     if ($('emotion')) $('emotion').value = last.emotion;
   }
@@ -3257,11 +3315,9 @@
     const now = nowTime();
     writeTimeSelect('entryTime', now);
     writeTimeSelect('exitTime', now);
-    /* Stop and planned risk are optional and start empty. The legacy USD
-     * target no longer has a field; a new trade starts without one. */
+    /* Stop is optional and starts empty. The legacy USD target no longer has a
+     * field; a new trade starts without one. */
     $('stop').value = '';
-    $('plannedRisk').value = '';
-    $('commission').value = '';
     if ($('respectedEntry')) $('respectedEntry').checked = false;
     if ($('respectedStop')) $('respectedStop').checked = false;
     if ($('respectedSize')) $('respectedSize').checked = false;
@@ -3318,8 +3374,6 @@
       mode: $('tradeMode') ? $('tradeMode').value : 'Scalping',
       exitDate: $('exitDate') ? $('exitDate').value : '',
       stop: $('stop').value,
-      plannedRisk: $('plannedRisk').value,
-      commission: $('commission').value,
       exitType: $('exitType').value,
       emotion: $('emotion').value,
       notes: $('notes').value,
@@ -3350,8 +3404,6 @@
     if (d.mode !== undefined && $('tradeMode')) $('tradeMode').value = d.mode;
     if (d.exitDate !== undefined && $('exitDate')) $('exitDate').value = d.exitDate;
     $('stop').value = d.stop;
-    $('plannedRisk').value = d.plannedRisk;
-    $('commission').value = (d.commission !== undefined) ? d.commission : '';
     $('exitType').value = d.exitType;
     $('emotion').value = d.emotion;
     $('notes').value = d.notes;
@@ -3528,8 +3580,6 @@
     $('stop').value = trade.stop > 0 ? trade.stop : '';
     /* No USD target field anymore: preserve the saved value for the round-trip. */
     editingTarget = trade.target > 0 ? trade.target : 0;
-    $('plannedRisk').value = trade.plannedRisk > 0 ? trade.plannedRisk : '';
-    $('commission').value = trade.commission > 0 ? trade.commission : '';
     $('exitType').value = trade.exitType;
     $('emotion').value = trade.emotion;
     $('notes').value = trade.notes;
@@ -3590,8 +3640,6 @@
     $('stop').value = last.stop > 0 ? last.stop : '';
     /* A duplicated trade is new: it does not inherit the legacy USD target. */
     editingTarget = 0;
-    $('plannedRisk').value = '';
-    $('commission').value = '';
     $('notes').value = '';
     /* No exit data is copied: entry/exit default to the current moment. */
     $('entryPrice').value = '';
@@ -3785,6 +3833,35 @@
     renderAll();
   }
 
+  /** Loads the trading purpose into the Ajustes field and the Registro banner. */
+  function renderTradingPurpose() {
+    const settings = Store.getSettings();
+    const purpose = (settings && typeof settings.tradingPurpose === 'string')
+      ? settings.tradingPurpose : '';
+    const textarea = $('tradingPurpose');
+    if (textarea) textarea.value = purpose;
+    const banner = $('tradingPurposeBanner');
+    if (banner) {
+      const text = purpose.trim();
+      if (text) {
+        banner.textContent = 'Propósito: ' + text;
+        banner.hidden = false;
+      } else {
+        banner.hidden = true;
+        banner.textContent = '';
+      }
+    }
+  }
+
+  /** Persists the trading purpose from the Ajustes textarea. */
+  function handleSavePurpose() {
+    const textarea = $('tradingPurpose');
+    const text = textarea ? textarea.value : '';
+    Store.setSettings({ tradingPurpose: text });
+    renderTradingPurpose();
+    setStatus('Propósito guardado.', 'ok');
+  }
+
   /** Loads the persisted per-account risk settings into the Ajustes form. */
   function loadRiskSettingsIntoForm() {
     const settings = Store.getRiskSettings();
@@ -3808,6 +3885,7 @@
     }
     const warnEl = $('riskSettingsWarning');
     if (warnEl) { warnEl.hidden = true; warnEl.textContent = ''; }
+    renderTradingPurpose();
   }
 
   /**
@@ -3913,6 +3991,8 @@
         tradesMirrorEl.value = String(Math.max(1, savedLimit));
       }
     }
+    /* Risk % is single-sourced in Ajustes: the calculator always reads the
+     * saved value, so a re-render is all that is needed after a save. */
     renderRiskPanel();
     renderGamification();
 
@@ -3971,6 +4051,9 @@
       const stopValue = auto ? '' : String(cfg.fixedStopTicks);
       const exitPts = formatPoints(Number(cfg.targetPoints), tick);
       const exitAltPts = formatPoints(Number(cfg.targetAltPoints), tick);
+      /* Commission override: empty = catalog default (shown as placeholder). */
+      const commissionValue = (Number.isFinite(cfg.commission) && cfg.commission > 0)
+        ? String(cfg.commission) : '';
       return '<tr data-instrument="' + escapeHtml(id) + '" data-auto-ticks="' +
           escapeHtml(String(cfg.stopTicks)) + '">' +
         '<td><span class="cell-main">' + escapeHtml(id) + '</span> ' +
@@ -3985,6 +4068,10 @@
           'id="cfgTargetRAlt_' + account + '_' + id + '" value="' + escapeHtml(String(cfg.targetRAlt)) + '"></td>' +
         '<td class="instrument-config-exits">' +
           escapeHtml(exitPts) + ' · ' + escapeHtml(exitAltPts) + '</td>' +
+        '<td><input type="number" min="0" step="any" inputmode="decimal" ' +
+          'id="cfgCommission_' + account + '_' + id + '" value="' + escapeHtml(commissionValue) + '" ' +
+          'placeholder="' + escapeHtml(String(INSTRUMENTS[id].commission)) + '" ' +
+          'aria-label="Comisión por contrato (' + escapeHtml(id) + ')"></td>' +
       '</tr>';
     }).join('');
   }
@@ -4050,24 +4137,31 @@
       const stopInput = tr.querySelector('input[id^="cfgStop_"]');
       const targetRInput = tr.querySelector('input[id^="cfgTargetR_"]');
       const targetRAltInput = tr.querySelector('input[id^="cfgTargetRAlt_"]');
+      const commissionInput = tr.querySelector('input[id^="cfgCommission_"]');
       /* An empty stop input means AUTO (budget-derived), not an error. */
       const stopRaw = stopInput ? String(stopInput.value).trim() : '';
       const stopAuto = stopRaw === '';
       const stopTicks = stopAuto ? null : parseFloat(stopRaw);
       const targetR = targetRInput ? parseFloat(targetRInput.value) : NaN;
       const targetRAlt = targetRAltInput ? parseFloat(targetRAltInput.value) : NaN;
+      /* An empty commission means "use the catalog default" (NaN in store). */
+      const commissionRaw = commissionInput ? String(commissionInput.value).trim() : '';
+      const commission = commissionRaw === '' ? NaN : parseFloat(commissionRaw);
       const targetsValid = [targetR, targetRAlt].every(function (n) {
         return Number.isFinite(n) && n > 0;
       });
       const stopValid = stopAuto || (Number.isFinite(stopTicks) && stopTicks > 0);
-      if (!targetsValid || !stopValid) {
-        errors.push('Los rangos de ' + id + ' deben ser números mayores que 0 (deja el stop vacío para Auto).');
+      const commissionValid = commissionRaw === '' ||
+        (Number.isFinite(commission) && commission > 0);
+      if (!targetsValid || !stopValid || !commissionValid) {
+        errors.push('Los rangos de ' + id + ' deben ser números mayores que 0 (deja el stop y la comisión vacíos para Auto).');
         return;
       }
       Store.setInstrumentConfig(account, id, {
         stopTicks: stopTicks,
         targetR: targetR,
-        targetRAlt: targetRAlt
+        targetRAlt: targetRAlt,
+        commission: commission
       });
     });
 
@@ -4533,6 +4627,18 @@
       });
     }
 
+    /* Daily-risk stop advisory modal: close on Entendido, X, or backdrop. */
+    ['btnCloseRiskStopModal', 'btnRiskStopOk'].forEach(function (id) {
+      const el = $(id);
+      if (el) el.addEventListener('click', hideRiskStop);
+    });
+    const riskStopModal = $('riskStopModal');
+    if (riskStopModal) {
+      riskStopModal.addEventListener('click', function (event) {
+        if (event.target === riskStopModal) hideRiskStop();
+      });
+    }
+
     /* Trade mode: show/hide the exit-date field and refresh the preview. */
     const tradeModeEl = $('tradeMode');
     if (tradeModeEl) {
@@ -4660,9 +4766,8 @@
     }
 
     ['instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
-      'stop', 'plannedRisk', 'commission',
-      'entryDate',
-      'riskRatio', 'riskDailyPctInput', 'riskTradesPerDayInput'].forEach(function (id) {
+      'stop', 'entryDate',
+      'riskRatio', 'riskTradesPerDayInput'].forEach(function (id) {
       const el = $(id);
       if (el) el.addEventListener('input', updatePreview);
       if (el) el.addEventListener('change', updatePreview);
@@ -4794,6 +4899,8 @@
     }
 
     $('btnSaveBalances').addEventListener('click', handleSaveBalances);
+    const savePurposeButton = $('btnSavePurpose');
+    if (savePurposeButton) savePurposeButton.addEventListener('click', handleSavePurpose);
     const saveRiskButton = $('btnSaveRiskSettings');
     if (saveRiskButton) saveRiskButton.addEventListener('click', handleSaveRiskSettings);
 
@@ -5145,6 +5252,13 @@
       state.activeTrade = 0;
       resetForm();
       if (drafts[0]) restoreDraft(drafts[0]);
+      /* Cada arranque el trade empieza en la fecha y hora actuales, aun cuando
+       * un borrador persistido restaure el resto del formulario. Un borrador
+       * nunca debe arrastrar una fecha u hora vieja a la sesión nueva. */
+      $('entryDate').value = state.globalDate || todayISO();
+      const startupNow = nowTime();
+      writeTimeSelect('entryTime', startupNow);
+      writeTimeSelect('exitTime', startupNow);
       updateTradeTabUI();
       const gate = $('authGate');
       if (gate) gate.hidden = true;
