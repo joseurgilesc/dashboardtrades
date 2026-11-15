@@ -1222,6 +1222,16 @@
       moneyTip: 'Suma del resultado neto (ganancias − pérdidas − comisiones).',
       pointsTip: 'Suma de los puntos de todas las operaciones.'
     },
+    kpiGrossProfit: {
+      money: 'Total ganado', points: 'Puntos ganados',
+      moneyTip: 'Suma de las ganancias de las operaciones ganadoras.',
+      pointsTip: 'Suma de los puntos de las operaciones ganadoras.'
+    },
+    kpiGrossLoss: {
+      money: 'Total perdido', points: 'Puntos perdidos',
+      moneyTip: 'Suma de las pérdidas de las operaciones perdedoras.',
+      pointsTip: 'Suma de los puntos de las operaciones perdedoras.'
+    },
     kpiProfitFactor: {
       money: 'Factor de beneficio', points: 'Factor de beneficio (puntos)',
       moneyTip: 'Beneficio bruto ÷ pérdida bruta. Mayor que 1 = rentable.',
@@ -1439,6 +1449,8 @@
     setKpi('kpiWinRate', formatNumber(k.winRate, 1) + ' %');
     if (money) {
       setKpi('kpiNetTotal', formatMoney(k.netTotal), signClass(k.netTotal));
+      setKpi('kpiGrossProfit', formatMoney(k.grossProfit), 'pos');
+      setKpi('kpiGrossLoss', formatMoney(k.grossLoss), 'neg');
       setKpi('kpiProfitFactor', Number.isFinite(k.profitFactor) ? formatNumber(k.profitFactor, 2) : '∞');
       setKpi('kpiExpectancy', formatMoney(k.expectancy), signClass(k.expectancy));
       setKpi('kpiAvgWin', formatMoney(k.avgWin), 'pos');
@@ -1448,6 +1460,8 @@
       setKpi('kpiWorstTrade', formatMoney(k.worstTrade), 'neg');
     } else {
       setKpi('kpiNetTotal', formatNumber(k.pointsTotal), signClass(k.pointsTotal));
+      setKpi('kpiGrossProfit', formatNumber(k.pointsGrossProfit), 'pos');
+      setKpi('kpiGrossLoss', formatNumber(k.pointsGrossLoss), 'neg');
       setKpi('kpiProfitFactor', Number.isFinite(k.pointsProfitFactor) ? formatNumber(k.pointsProfitFactor, 2) : '∞');
       setKpi('kpiExpectancy', formatNumber(k.pointsExpectancy), signClass(k.pointsExpectancy));
       setKpi('kpiAvgWin', formatNumber(k.pointsAvgWin), 'pos');
