@@ -1487,7 +1487,7 @@
       state.chartsDirty = true;
       return;
     }
-    DashboardCharts.render(trades);
+    DashboardCharts.render(trades, { pointsFirst: !moneyVisible() });
     state.chartsDirty = false;
   }
 

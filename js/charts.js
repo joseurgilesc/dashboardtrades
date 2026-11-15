@@ -36,6 +36,10 @@ const DashboardCharts = (function () {
     return '$' + Number(value || 0).toFixed(2);
   }
 
+  function points(value) {
+    return Number(value || 0).toFixed(2) + ' pts';
+  }
+
   function groupNet(list, keyFn) {
     const map = new Map();
     list.forEach(function (trade) {
@@ -185,21 +189,49 @@ const DashboardCharts = (function () {
     };
   }
 
+  function pointsTooltip() {
+    return {
+      callbacks: {
+        label: function (ctx) {
+          return (ctx.dataset.label ? ctx.dataset.label + ': ' : '') + points(contextValue(ctx));
+        }
+      }
+    };
+  }
+
+  function pointsScale() {
+    return {
+      ticks: {
+        color: TEXT_COLOR,
+        callback: function (value) { return points(value); }
+      },
+      grid: { color: GRID_COLOR }
+    };
+  }
+
   /* ------------------------------------------------------------------ */
   /* Chart renderers                                                     */
   /* ------------------------------------------------------------------ */
 
-  function renderEquity(list) {
+  /** Running sum of points, in the same chronological order as `computeAll`. */
+  function cumulativePoints(list) {
+    let running = 0;
+    return list.map(function (t) { running += t.points; return running; });
+  }
+
+  function renderEquity(list, pointsFirst) {
     const id = 'chartEquity';
     if (emptyGuard(id, list.length === 0)) return;
     const labels = list.map(function (t) { return t.entryDate; });
-    const data = list.map(function (t) { return t.cumulative; });
+    const data = pointsFirst
+      ? cumulativePoints(list)
+      : list.map(function (t) { return t.cumulative; });
     create(id, {
       type: 'line',
       data: {
         labels: labels,
         datasets: [{
-          label: 'Equity acumulada',
+          label: pointsFirst ? 'Puntos acumulados' : 'Equity acumulada',
           data: data,
           borderColor: ACCENT,
           backgroundColor: 'rgba(59, 130, 246, 0.14)',
@@ -216,11 +248,11 @@ const DashboardCharts = (function () {
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
-          tooltip: moneyTooltip()
+          tooltip: pointsFirst ? pointsTooltip() : moneyTooltip()
         },
         scales: {
           x: { grid: { color: GRID_COLOR }, ticks: { color: TEXT_COLOR, maxRotation: 45, autoSkip: true } },
-          y: moneyScale()
+          y: pointsFirst ? pointsScale() : moneyScale()
         }
       }
     });
@@ -343,7 +375,9 @@ const DashboardCharts = (function () {
   /* Public API                                                          */
   /* ------------------------------------------------------------------ */
 
-  function render(trades) {
+  function render(trades, options) {
+    options = options || {};
+    const pointsFirst = !!options.pointsFirst;
     if (!hasChartJs()) return;
     applyChartDefaults();
 
@@ -351,7 +385,7 @@ const DashboardCharts = (function () {
       ? Store.computeAll(trades || [])
       : (trades || []);
 
-    renderEquity(list);
+    renderEquity(list, pointsFirst);
 
     renderBarByGroup(
       'chartInstrument', list,
