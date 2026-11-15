@@ -32,13 +32,21 @@
         <span class="chip-label">Cuenta</span>
         <select id="accountSelector"></select>
       </label>
-      <div class="chip">
+      <div class="chip" id="chipBalanceBox">
         <span class="chip-label">Balance</span>
         <span class="chip-value" id="chipBalance">$0.00</span>
         <span class="chip-sub" id="chipSubBalance"></span>
       </div>
     </div>
     <div class="header-controls">
+      <button type="button" class="btn btn-ghost eye-toggle is-off" id="btnToggleMoney" aria-pressed="false" title="Mostrar dinero" aria-label="Mostrar dinero">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+          <line class="eye-slash" x1="2" y1="22" x2="22" y2="2"></line>
+        </svg>
+        <span class="eye-toggle-label">Dinero</span>
+      </button>
       <label class="header-ctl" title="Filtrar por día (vacío = todos)">
         <span class="chip-label">Día</span>
         <input type="date" id="globalDate">
@@ -556,7 +564,7 @@
           </fieldset>
 
           <div class="preview" aria-live="polite">
-            <div class="preview-item">
+            <div class="preview-item" id="previewPointValueItem">
               <span class="preview-label">Valor del punto</span>
               <span class="preview-value" id="previewPointValue">—</span>
             </div>
@@ -564,15 +572,15 @@
               <span class="preview-label">Puntos</span>
               <span class="preview-value" id="previewPoints">—</span>
             </div>
-            <div class="preview-item">
+            <div class="preview-item" id="previewGrossItem">
               <span class="preview-label">Bruto</span>
               <span class="preview-value" id="previewGross">—</span>
             </div>
-            <div class="preview-item">
+            <div class="preview-item" id="previewCommissionItem">
               <span class="preview-label">Comisión</span>
               <span class="preview-value" id="previewCommission">—</span>
             </div>
-            <div class="preview-item">
+            <div class="preview-item" id="previewNetItem">
               <span class="preview-label">Neto</span>
               <span class="preview-value" id="previewNet">—</span>
             </div>
@@ -721,14 +729,14 @@
       <div class="kpi-grid" data-view="resultados">
         <div class="kpi-card"><span class="kpi-label">Total trades <i class="info-tip" data-tip="Número total de operaciones registradas.">i</i></span><span class="kpi-value" id="kpiTotalTrades">0</span></div>
         <div class="kpi-card"><span class="kpi-label">Tasa de acierto <i class="info-tip" data-tip="Porcentaje de operaciones ganadoras sobre el total.">i</i></span><span class="kpi-value" id="kpiWinRate">0 %</span></div>
-        <div class="kpi-card"><span class="kpi-label">Neto total <i class="info-tip" data-tip="Suma del resultado neto (ganancias − pérdidas − comisiones).">i</i></span><span class="kpi-value" id="kpiNetTotal">$0.00</span></div>
-        <div class="kpi-card"><span class="kpi-label">Factor de beneficio <i class="info-tip" data-tip="Beneficio bruto ÷ pérdida bruta. Mayor que 1 = rentable.">i</i></span><span class="kpi-value" id="kpiProfitFactor">0.00</span></div>
-        <div class="kpi-card"><span class="kpi-label">Expectativa <i class="info-tip" data-tip="Promedio que ganas o pierdes por operación (neto total ÷ nº de trades).">i</i></span><span class="kpi-value" id="kpiExpectancy">$0.00</span></div>
-        <div class="kpi-card"><span class="kpi-label">Ganancia media <i class="info-tip" data-tip="Media de las operaciones ganadoras.">i</i></span><span class="kpi-value" id="kpiAvgWin">$0.00</span></div>
-        <div class="kpi-card"><span class="kpi-label">Pérdida media <i class="info-tip" data-tip="Media de las operaciones perdedoras.">i</i></span><span class="kpi-value" id="kpiAvgLoss">$0.00</span></div>
-        <div class="kpi-card"><span class="kpi-label">Máx. drawdown <i class="info-tip" data-tip="Máxima caída del capital desde su pico.">i</i></span><span class="kpi-value" id="kpiMaxDrawdown">$0.00</span></div>
-        <div class="kpi-card"><span class="kpi-label">Mejor trade <i class="info-tip" data-tip="La operación con mayor ganancia.">i</i></span><span class="kpi-value" id="kpiBestTrade">$0.00</span></div>
-        <div class="kpi-card"><span class="kpi-label">Peor trade <i class="info-tip" data-tip="La operación con mayor pérdida.">i</i></span><span class="kpi-value" id="kpiWorstTrade">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label"><span class="kpi-label-text">Neto total</span> <i class="info-tip" data-tip="Suma del resultado neto (ganancias − pérdidas − comisiones).">i</i></span><span class="kpi-value" id="kpiNetTotal">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label"><span class="kpi-label-text">Factor de beneficio</span> <i class="info-tip" data-tip="Beneficio bruto ÷ pérdida bruta. Mayor que 1 = rentable.">i</i></span><span class="kpi-value" id="kpiProfitFactor">0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label"><span class="kpi-label-text">Expectativa</span> <i class="info-tip" data-tip="Promedio que ganas o pierdes por operación (neto total ÷ nº de trades).">i</i></span><span class="kpi-value" id="kpiExpectancy">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label"><span class="kpi-label-text">Ganancia media</span> <i class="info-tip" data-tip="Media de las operaciones ganadoras.">i</i></span><span class="kpi-value" id="kpiAvgWin">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label"><span class="kpi-label-text">Pérdida media</span> <i class="info-tip" data-tip="Media de las operaciones perdedoras.">i</i></span><span class="kpi-value" id="kpiAvgLoss">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label"><span class="kpi-label-text">Máx. drawdown</span> <i class="info-tip" data-tip="Máxima caída del capital desde su pico.">i</i></span><span class="kpi-value" id="kpiMaxDrawdown">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label"><span class="kpi-label-text">Mejor trade</span> <i class="info-tip" data-tip="La operación con mayor ganancia.">i</i></span><span class="kpi-value" id="kpiBestTrade">$0.00</span></div>
+        <div class="kpi-card"><span class="kpi-label"><span class="kpi-label-text">Peor trade</span> <i class="info-tip" data-tip="La operación con mayor pérdida.">i</i></span><span class="kpi-value" id="kpiWorstTrade">$0.00</span></div>
       </div>
 
       <div class="card" id="disciplineCard">

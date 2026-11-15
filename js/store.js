@@ -794,9 +794,20 @@ const Store = (function () {
     let bestTrade = 0;
     let worstTrade = 0;
 
+    /* Points-first equivalents, computed on `points` instead of `net` so the
+     * dashboard can hide money and still report the same shape of metrics. */
+    let pointsTotal = 0;
+    let pointsWins = 0;
+    let pointsLosses = 0;
+    let pointsGrossProfit = 0; // sum of positive points
+    let pointsGrossLoss = 0;   // sum of negative points (negative value)
+    let bestTradePoints = 0;
+    let worstTradePoints = 0;
+
     list.forEach(function (t) {
       netTotal += t.net;
       totalCommission += t.commission;
+      pointsTotal += t.points;
       if (t.durationMinutes !== null && t.durationMinutes !== undefined) {
         durationSum += t.durationMinutes;
         durationCount += 1;
@@ -808,9 +819,18 @@ const Store = (function () {
         losses += 1;
         grossLoss += t.net;
       }
+      if (t.points > 0) {
+        pointsWins += 1;
+        pointsGrossProfit += t.points;
+      } else {
+        pointsLosses += 1;
+        pointsGrossLoss += t.points;
+      }
       if (totalTrades > 0) {
         if (t.net > bestTrade) bestTrade = t.net;
         if (t.net < worstTrade) worstTrade = t.net;
+        if (t.points > bestTradePoints) bestTradePoints = t.points;
+        if (t.points < worstTradePoints) worstTradePoints = t.points;
       }
     });
 
@@ -822,6 +842,13 @@ const Store = (function () {
     const avgWin = wins > 0 ? grossProfit / wins : 0;
     const avgLoss = losses > 0 ? grossLoss / losses : 0;
     const avgDurationMinutes = durationCount > 0 ? durationSum / durationCount : 0;
+
+    const pointsProfitFactor = pointsGrossLoss === 0
+      ? (pointsGrossProfit > 0 ? Infinity : 0)
+      : pointsGrossProfit / Math.abs(pointsGrossLoss);
+    const pointsExpectancy = totalTrades > 0 ? pointsTotal / totalTrades : 0;
+    const pointsAvgWin = pointsWins > 0 ? pointsGrossProfit / pointsWins : 0;
+    const pointsAvgLoss = pointsLosses > 0 ? pointsGrossLoss / pointsLosses : 0;
 
     return {
       totalTrades: totalTrades,
@@ -839,7 +866,17 @@ const Store = (function () {
       bestTrade: bestTrade,
       worstTrade: worstTrade,
       avgDurationMinutes: avgDurationMinutes,
-      totalCommission: totalCommission
+      totalCommission: totalCommission,
+      pointsTotal: pointsTotal,
+      pointsWins: pointsWins,
+      pointsLosses: pointsLosses,
+      pointsProfitFactor: pointsProfitFactor,
+      pointsExpectancy: pointsExpectancy,
+      pointsAvgWin: pointsAvgWin,
+      pointsAvgLoss: pointsAvgLoss,
+      pointsMaxDrawdown: computePointsMaxDrawdown(list),
+      pointsBestTrade: bestTradePoints,
+      pointsWorstTrade: worstTradePoints
     };
   }
 
@@ -850,6 +887,20 @@ const Store = (function () {
     let maxDrawdown = 0;
     list.forEach(function (t) {
       cumulative += t.net;
+      if (cumulative > peak) peak = cumulative;
+      const drawdown = peak - cumulative;
+      if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+    });
+    return maxDrawdown;
+  }
+
+  /** Peak-to-trough drawdown in points over the cumulative points series. */
+  function computePointsMaxDrawdown(list) {
+    let cumulative = 0;
+    let peak = 0;
+    let maxDrawdown = 0;
+    list.forEach(function (t) {
+      cumulative += t.points;
       if (cumulative > peak) peak = cumulative;
       const drawdown = peak - cumulative;
       if (drawdown > maxDrawdown) maxDrawdown = drawdown;

@@ -708,6 +708,28 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Money visibility (points-first toggle)                              */
+  /* ------------------------------------------------------------------ */
+
+  /** Reads the persisted preference; money is hidden by default. */
+  function moneyVisible() {
+    const settings = Store.getSettings();
+    return !!(settings && settings.showMoney);
+  }
+
+  /** Syncs the eye button's state with the persisted preference. */
+  function renderMoneyToggle() {
+    const btn = $('btnToggleMoney');
+    if (!btn) return;
+    const money = moneyVisible();
+    btn.setAttribute('aria-pressed', money ? 'true' : 'false');
+    btn.setAttribute('aria-label', money ? 'Ocultar dinero' : 'Mostrar dinero');
+    btn.title = money ? 'Ocultar dinero' : 'Mostrar dinero';
+    if (money) btn.classList.remove('is-off');
+    else btn.classList.add('is-off');
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Balances header                                                     */
   /* ------------------------------------------------------------------ */
 
@@ -723,6 +745,8 @@
     }
     const subEl = $('chipSubBalance');
     if (subEl) subEl.textContent = 'Inicial ' + formatMoney(initial[account] || 0);
+    const box = $('chipBalanceBox');
+    if (box) box.hidden = !moneyVisible();
   }
 
   /** Renders the Capital card (deposits/withdrawals + monthly suggestion). */
@@ -932,10 +956,24 @@
     { key: 'risk', label: 'Riesgo' }
   ];
 
+  /** Columns actually shown: the money columns (Neto/Acumulado) are hidden in
+   * points-first mode so the table leads with Puntos. */
+  function visibleTableColumns() {
+    if (moneyVisible()) return TABLE_COLUMNS;
+    return TABLE_COLUMNS.filter(function (col) {
+      return col.key !== 'net' && col.key !== 'cumulative';
+    });
+  }
+
+  /** Total `<td>` span per row: visible columns + Imagen + Acciones. */
+  function visibleColumnCount() {
+    return visibleTableColumns().length + 2;
+  }
+
   function renderTableHeaders() {
     const head = $('tradesHead');
     if (!head) return;
-    const cells = TABLE_COLUMNS.map(function (col) {
+    const cells = visibleTableColumns().map(function (col) {
       const active = state.sortKey === col.key;
       const arrow = active ? (state.sortDir === 'asc' ? ' ▲' : ' ▼') : '';
       const aria = active ? (state.sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
@@ -1007,7 +1045,7 @@
             cta: { action: 'clear-filters', label: 'Limpiar filtros' }
           });
       body.innerHTML = '<tr><td class="table-empty" colspan="' +
-        (TABLE_COLUMNS.length + 2) + '">' + empty + '</td></tr>';
+        visibleColumnCount() + '">' + empty + '</td></tr>';
     } else {
       body.innerHTML = buildTradeRows(rows);
     }
@@ -1052,7 +1090,7 @@
     rows.forEach(function (t) {
       if (groupByDay && t.entryDate !== lastDay) {
         const count = dayCounts[t.entryDate] || 0;
-        html.push('<tr class="day-separator"><td colspan="' + (TABLE_COLUMNS.length + 2) + '">' +
+        html.push('<tr class="day-separator"><td colspan="' + visibleColumnCount() + '">' +
           '<span class="day-label">' + escapeHtml(formatDayLabel(t.entryDate)) + '</span>' +
           '<span class="day-count">' + count + (count === 1 ? ' trade' : ' trades') + '</span>' +
           '</td></tr>');
@@ -1101,8 +1139,10 @@
           escapeHtml((typeof emotionLabel === 'function') ? emotionLabel(t.emotion) : t.emotion) +
           '</span></td>' +
       '<td class="num ' + signClass(t.points) + '">' + signedNumber(t.points) + '</td>' +
-      '<td class="num ' + signClass(t.net) + '">' + signedMoney(t.net) + '</td>' +
-      '<td class="num ' + signClass(t.cumulative) + '">' + signedMoney(t.cumulative) + '</td>' +
+      (moneyVisible()
+        ? '<td class="num ' + signClass(t.net) + '">' + signedMoney(t.net) + '</td>' +
+          '<td class="num ' + signClass(t.cumulative) + '">' + signedMoney(t.cumulative) + '</td>'
+        : '') +
       '<td class="num">' + escapeHtml(t.execution) + '</td>' +
       '<td class="num">' + (Number.isFinite(t.rReal) ? formatNumber(t.rReal, 2) : '—') + '</td>' +
       '<td>' + (t.risk ? '✓' : '—') + '</td>' +
@@ -1128,7 +1168,7 @@
       ? '<p class="trade-plan-note">' + escapeHtml(plan.note) + '</p>'
       : '';
     return '<tr class="trade-detail-row" id="trade-detail-' + escapeHtml(t.id) + '" hidden>' +
-      '<td class="trade-detail-cell" colspan="' + (TABLE_COLUMNS.length + 2) + '">' +
+      '<td class="trade-detail-cell" colspan="' + visibleColumnCount() + '">' +
       '<div class="trade-plan" id="trade-plan-' + escapeHtml(t.id) + '">' +
       plan.svg + note +
       '</div>' +
@@ -1172,6 +1212,67 @@
     if (!el) return;
     el.textContent = text;
     el.className = 'kpi-value' + (cls ? ' ' + cls : '');
+  }
+
+  /* Money/points label pairs for the result KPIs. The label text lives in a
+   * `.kpi-label-text` span so it can be swapped without touching the "i" tip. */
+  const KPI_LABELS = {
+    kpiNetTotal: {
+      money: 'Neto total', points: 'Puntos totales',
+      moneyTip: 'Suma del resultado neto (ganancias − pérdidas − comisiones).',
+      pointsTip: 'Suma de los puntos de todas las operaciones.'
+    },
+    kpiProfitFactor: {
+      money: 'Factor de beneficio', points: 'Factor de beneficio (puntos)',
+      moneyTip: 'Beneficio bruto ÷ pérdida bruta. Mayor que 1 = rentable.',
+      pointsTip: 'Puntos ganados ÷ puntos perdidos. Mayor que 1 = rentable en puntos.'
+    },
+    kpiExpectancy: {
+      money: 'Expectativa', points: 'Puntos promedio',
+      moneyTip: 'Promedio que ganas o pierdes por operación (neto total ÷ nº de trades).',
+      pointsTip: 'Puntos promedio por operación (puntos totales ÷ nº de trades).'
+    },
+    kpiAvgWin: {
+      money: 'Ganancia media', points: 'Puntos de ganancia media',
+      moneyTip: 'Media de las operaciones ganadoras.',
+      pointsTip: 'Puntos promedio de las operaciones ganadoras.'
+    },
+    kpiAvgLoss: {
+      money: 'Pérdida media', points: 'Puntos de pérdida media',
+      moneyTip: 'Media de las operaciones perdedoras.',
+      pointsTip: 'Puntos promedio de las operaciones perdedoras.'
+    },
+    kpiMaxDrawdown: {
+      money: 'Máx. drawdown', points: 'Máx. drawdown (puntos)',
+      moneyTip: 'Máxima caída del capital desde su pico.',
+      pointsTip: 'Máxima caída de los puntos acumulados desde su pico.'
+    },
+    kpiBestTrade: {
+      money: 'Mejor trade', points: 'Mejor trade (puntos)',
+      moneyTip: 'La operación con mayor ganancia.',
+      pointsTip: 'La operación con más puntos.'
+    },
+    kpiWorstTrade: {
+      money: 'Peor trade', points: 'Peor trade (puntos)',
+      moneyTip: 'La operación con mayor pérdida.',
+      pointsTip: 'La operación con menos puntos.'
+    }
+  };
+
+  /** Swaps each result KPI's label + tooltip between money and points wording. */
+  function applyKpiLabels() {
+    const money = moneyVisible();
+    Object.keys(KPI_LABELS).forEach(function (id) {
+      const valueEl = document.getElementById(id);
+      if (!valueEl) return;
+      const card = valueEl.closest('.kpi-card');
+      if (!card) return;
+      const labelText = card.querySelector('.kpi-label-text');
+      const tip = card.querySelector('.info-tip');
+      const cfg = KPI_LABELS[id];
+      if (labelText) labelText.textContent = money ? cfg.money : cfg.points;
+      if (tip) tip.setAttribute('data-tip', money ? cfg.moneyTip : cfg.pointsTip);
+    });
   }
 
   /* KPIs that get a "vs. previous half" delta, and how to format it. */
@@ -1263,11 +1364,33 @@
     const spec = KPI_SPARKS[id];
     if (!spec || list.length < 2) return '';
     if (spec.series === 'equity') {
-      const values = list.map(function (t) { return t.cumulative; });
-      const color = recent && recent.netTotal < 0 ? 'neg' : (recent && recent.netTotal > 0 ? 'pos' : '');
+      if (moneyVisible()) {
+        const values = list.map(function (t) { return t.cumulative; });
+        const color = recent && recent.netTotal < 0 ? 'neg' : (recent && recent.netTotal > 0 ? 'pos' : '');
+        return sparklineSvg(values, color);
+      }
+      /* Points-first: spark the cumulative points series, not the equity. */
+      let running = 0;
+      const values = list.map(function (t) { running += t.points; return running; });
+      const color = recent && recent.pointsTotal < 0 ? 'neg' : (recent && recent.pointsTotal > 0 ? 'pos' : '');
       return sparklineSvg(values, color);
     }
     return sparklineSvg(rollingWinRate(list), 'accent');
+  }
+
+  /**
+   * Resolves the delta spec for a KPI, mode-aware: money KPIs report points
+   * deltas when money is hidden, so the "vs. anterior" hint never leaks `$`.
+   */
+  function kpiDeltaSpec(id) {
+    if (moneyVisible()) return KPI_DELTAS[id];
+    const POINTS_DELTAS = {
+      kpiWinRate: { key: 'winRate', kind: 'pp' },
+      kpiNetTotal: { key: 'pointsTotal', kind: 'num' },
+      kpiProfitFactor: { key: 'pointsProfitFactor', kind: 'num' },
+      kpiExpectancy: { key: 'pointsExpectancy', kind: 'num' }
+    };
+    return POINTS_DELTAS[id] || KPI_DELTAS[id];
   }
 
   /**
@@ -1283,7 +1406,7 @@
     Object.keys(KPI_DELTAS).forEach(function (id) {
       const el = ensureKpiContext(id);
       if (!el) return;
-      const spec = KPI_DELTAS[id];
+      const spec = kpiDeltaSpec(id);
       let delta = null;
       if (previous && recent) {
         const a = previous[spec.key];
@@ -1311,16 +1434,29 @@
      * series (and the sparkline is derived from real cumulative equity). */
     const list = Store.computeAll(trades || []);
     const k = Store.getKpis(list);
+    const money = moneyVisible();
     setKpi('kpiTotalTrades', String(k.totalTrades));
     setKpi('kpiWinRate', formatNumber(k.winRate, 1) + ' %');
-    setKpi('kpiNetTotal', formatMoney(k.netTotal), signClass(k.netTotal));
-    setKpi('kpiProfitFactor', Number.isFinite(k.profitFactor) ? formatNumber(k.profitFactor, 2) : '∞');
-    setKpi('kpiExpectancy', formatMoney(k.expectancy), signClass(k.expectancy));
-    setKpi('kpiAvgWin', formatMoney(k.avgWin), 'pos');
-    setKpi('kpiAvgLoss', formatMoney(k.avgLoss), 'neg');
-    setKpi('kpiMaxDrawdown', formatMoney(k.maxDrawdown), k.maxDrawdown > 0 ? 'neg' : '');
-    setKpi('kpiBestTrade', formatMoney(k.bestTrade), 'pos');
-    setKpi('kpiWorstTrade', formatMoney(k.worstTrade), 'neg');
+    if (money) {
+      setKpi('kpiNetTotal', formatMoney(k.netTotal), signClass(k.netTotal));
+      setKpi('kpiProfitFactor', Number.isFinite(k.profitFactor) ? formatNumber(k.profitFactor, 2) : '∞');
+      setKpi('kpiExpectancy', formatMoney(k.expectancy), signClass(k.expectancy));
+      setKpi('kpiAvgWin', formatMoney(k.avgWin), 'pos');
+      setKpi('kpiAvgLoss', formatMoney(k.avgLoss), 'neg');
+      setKpi('kpiMaxDrawdown', formatMoney(k.maxDrawdown), k.maxDrawdown > 0 ? 'neg' : '');
+      setKpi('kpiBestTrade', formatMoney(k.bestTrade), 'pos');
+      setKpi('kpiWorstTrade', formatMoney(k.worstTrade), 'neg');
+    } else {
+      setKpi('kpiNetTotal', formatNumber(k.pointsTotal), signClass(k.pointsTotal));
+      setKpi('kpiProfitFactor', Number.isFinite(k.pointsProfitFactor) ? formatNumber(k.pointsProfitFactor, 2) : '∞');
+      setKpi('kpiExpectancy', formatNumber(k.pointsExpectancy), signClass(k.pointsExpectancy));
+      setKpi('kpiAvgWin', formatNumber(k.pointsAvgWin), 'pos');
+      setKpi('kpiAvgLoss', formatNumber(k.pointsAvgLoss), 'neg');
+      setKpi('kpiMaxDrawdown', formatNumber(k.pointsMaxDrawdown), k.pointsMaxDrawdown > 0 ? 'neg' : '');
+      setKpi('kpiBestTrade', formatNumber(k.pointsBestTrade), 'pos');
+      setKpi('kpiWorstTrade', formatNumber(k.pointsWorstTrade), 'neg');
+    }
+    applyKpiLabels();
     renderKpiContext(list);
   }
 
@@ -1352,6 +1488,7 @@
   }
 
   function renderAll() {
+    renderMoneyToggle();
     renderBalances();
     renderCapital();
     renderRiskPanel();
@@ -1636,6 +1773,19 @@
     renderEntryWarnings();
     renderEmotionDot();
     renderDirectionColor();
+
+    /* Points-first: hide the currency items (valor del punto, bruto, comisión,
+     * neto) unless money visibility is toggled on. */
+    const showMoney = moneyVisible();
+    const pvItem = $('previewPointValueItem');
+    const grossItem = $('previewGrossItem');
+    const commissionItem = $('previewCommissionItem');
+    const netItem = $('previewNetItem');
+    if (pvItem) pvItem.hidden = !showMoney;
+    if (grossItem) grossItem.hidden = !showMoney;
+    if (commissionItem) commissionItem.hidden = !showMoney;
+    if (netItem) netItem.hidden = !showMoney;
+
     const spec = INSTRUMENTS[$('instrument').value];
     const pointValueEl = $('previewPointValue');
     if (pointValueEl) pointValueEl.textContent = spec ? formatNumber(spec.pointValue, 2) : '—';
@@ -4388,6 +4538,23 @@
 
   function wireEvents() {
     $('tradeForm').addEventListener('submit', handleSubmit);
+
+    /* Points-first eye toggle: flips the persisted `showMoney` preference and
+     * re-renders the result views (KPIs, table, preview, balance). */
+    const toggleMoneyBtn = $('btnToggleMoney');
+    if (toggleMoneyBtn) {
+      toggleMoneyBtn.addEventListener('click', function () {
+        const next = !moneyVisible();
+        Store.setSettings({ showMoney: next });
+        /* Hiding money removes the Neto/Acumulado sort columns; fall back to a
+         * visible sort key so the table never sorts by an invisible column. */
+        if (!next && (state.sortKey === 'net' || state.sortKey === 'cumulative')) {
+          state.sortKey = 'entryDate';
+          state.sortDir = 'asc';
+        }
+        renderAll();
+      });
+    }
 
     /* Info "i" tips: one shared JS-positioned tooltip (clamped to viewport). */
     Array.prototype.forEach.call(document.querySelectorAll('.info-tip'), function (el) {

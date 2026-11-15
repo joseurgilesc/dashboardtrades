@@ -1427,6 +1427,34 @@ input.is-draft {
   color: var(--text);
 }
 
+/* Points-first eye toggle (header): reveals/hides money in result views. */
+.eye-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: center;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.eye-toggle .eye-slash {
+  display: none;
+}
+
+.eye-toggle.is-off .eye-slash {
+  display: block;
+}
+
+.eye-toggle.is-off {
+  color: var(--text-muted);
+}
+
+.eye-toggle:not(.is-off) {
+  color: var(--accent);
+}
+
 .btn-danger {
   background: transparent;
   border-color: rgba(239, 68, 68, 0.5);
