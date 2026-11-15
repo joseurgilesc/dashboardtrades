@@ -870,6 +870,8 @@ const Store = (function () {
       pointsTotal: pointsTotal,
       pointsWins: pointsWins,
       pointsLosses: pointsLosses,
+      pointsGrossProfit: pointsGrossProfit,
+      pointsGrossLoss: pointsGrossLoss,
       pointsProfitFactor: pointsProfitFactor,
       pointsExpectancy: pointsExpectancy,
       pointsAvgWin: pointsAvgWin,
