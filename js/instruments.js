@@ -187,7 +187,9 @@ const STRATEGY_GROUPS = ['scalping', 'swing'];
 const STRATEGIES = [
   { id: 'vela-a-vela', name: 'Vela a Vela', group: 'scalping' },
   { id: 'box-breakout', name: 'Box Breakout (Ruptura de laterales)', group: 'scalping' },
+  { id: 'doble-00', name: 'Doble 00', group: 'scalping' },
   { id: 'cruces-medias', name: 'Cruces de Medias Móviles', group: 'scalping' },
+  { id: 'retroceso-segundo-impulso', name: 'Retroceso hacia Segundo Impulso', group: 'scalping' },
   { id: 'tres-impulsos', name: 'Tres Impulsos (Ruptura con tres impulsos)', group: 'swing' },
   { id: 'gaps', name: 'Operativa de Gaps', group: 'swing' },
   { id: 'figuras-chartistas', name: 'Figuras Chartistas (HCH y dobles/triples)', group: 'swing' }
