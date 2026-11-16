@@ -183,7 +183,7 @@ $('direction').value = 'Largo';
 $('entryPrice').value = '5000';
 $('riskRatio').value = '2';
 $('riskDailyPctInput').value = '2';
-$('riskTradesPerDayInput').value = '3';
+$('headerOpsCount').value = '3';
 $('stop').value = '4998';   /* entry 5000 - 2 points = 8 ticks (MES tick 0.25) */
 uiContext.touchedFields.stop = true;
 uiContext.contractsTouched = false;
@@ -200,7 +200,6 @@ uiContext.contractsTouched = true;
 $('contracts').value = '5';
 uiContext.renderRiskPanel();
 eq('typed contracts stays', $('contracts').value, '5');
-eq('the calculator view mirrors the typed value', $('riskContracts').value, '5');
 /* The readout still derives operations FROM contracts (one direction). */
 uiContext.renderContractsHint();
 check('the hint still derives ops from the typed contracts', hintText().indexOf('operaciones') !== -1);
@@ -231,12 +230,12 @@ eq('66 contracts -> 3 operations', hintText(), 'caben 3 operaciones');
 console.log('\n[3] operations -> contracts: Op/día moves the suggestion');
 
 uiContext.contractsTouched = false;
-$('riskTradesPerDayInput').value = '1';
+$('headerOpsCount').value = '1';
 uiContext.renderRiskPanel();
 /* 1 op/day -> perTradeBudget 2000 -> floor(2000/10) = 200 contracts. */
 eq('1 op/day -> suggests 200 contracts', $('contracts').value, '200');
 
-$('riskTradesPerDayInput').value = '4';
+$('headerOpsCount').value = '4';
 uiContext.renderRiskPanel();
 /* 4 op/day -> perTradeBudget 500 -> floor(500/10) = 50 contracts. */
 eq('4 op/day -> suggests 50 contracts', $('contracts').value, '50');
@@ -262,19 +261,19 @@ console.log('\n[5] gating: contractsTouched keeps the user-owned value');
 
 uiContext.contractsTouched = true;
 $('contracts').value = '7';
-$('riskTradesPerDayInput').value = '1'; /* would suggest 200 */
+$('headerOpsCount').value = '1'; /* would suggest 200 */
 uiContext.renderRiskPanel();
 eq('touched: Op/día change never overwrites contracts', $('contracts').value, '7');
   /* Contracts and Op/día are now INDEPENDENT inputs: editing contracts must
    * NOT auto-change Op/día, and editing Op/día must NOT clear the contracts
    * override. The "Ajustar al riesgo" button handles the sizing adjustment. */
-  eq('restore/render never auto-updates Op/día', $('riskTradesPerDayInput').value, '1');
+  eq('restore/render never auto-updates Op/día', $('headerOpsCount').value, '1');
   uiContext.renderRiskPanel();
-  eq('editing contracts does not auto-change Op/día', $('riskTradesPerDayInput').value, '1');
+  eq('editing contracts does not auto-change Op/día', $('headerOpsCount').value, '1');
 
 uiContext.contractsTouched = false;
 $('contracts').value = '999';
-$('riskTradesPerDayInput').value = '1'; /* re-drive Op/día for a known suggestion */
+$('headerOpsCount').value = '1'; /* re-drive Op/día for a known suggestion */
 uiContext.renderRiskPanel();
 eq('untouched: the suggestion is re-prefilled', $('contracts').value, '200');
 
@@ -286,7 +285,7 @@ console.log('\n[6] cap: getMaxContracts clamps the suggestion (not computeRisk/h
 
 uiContext.contractsTouched = false;
 Store.setMaxContracts(10);
-$('riskTradesPerDayInput').value = '3';
+$('headerOpsCount').value = '3';
 uiContext.renderRiskPanel();
 eq('maxContracts 10 caps the suggestion (66 -> 10)', $('contracts').value, '10');
 

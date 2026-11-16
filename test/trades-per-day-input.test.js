@@ -1,5 +1,5 @@
 /* test/trades-per-day-input.test.js
- * VM harness for the "Operaciones por día" input (#riskTradesPerDayInput).
+ * VM harness for the "Operaciones por día" input (#headerOpsCount).
  *
  * Loads the REAL js/instruments.js + js/store.js into one vm context, then
  * extracts the REAL `syncInstrument`, `clampDailyRiskPct`, `renderRiskPanel`,
@@ -171,7 +171,7 @@ function riskText(id) { return (uiContext.riskItems[id] || {}).text; }
 /* The real input handler: mark touched, then persist (mirrors the listener
  * order in wireEvents: handler first, then the live-update loop's render). */
 function type(raw) {
-  $('riskTradesPerDayInput').value = raw;
+  $('headerOpsCount').value = raw;
   uiContext.onTradesPerDayChanged();
 }
 
@@ -199,12 +199,12 @@ uiContext.lastRiskAccount = null;
 console.log('\n[1] Typing 1 / 2 / 4 / 10 keeps the value');
 
 uiContext.renderRiskPanel();
-eq('initial render seeds the account limit (Sim 2)', $('riskTradesPerDayInput').value, '2');
+eq('initial render seeds the account limit (Sim 2)', $('headerOpsCount').value, '2');
 
 ['2', '1', '4', '10'].forEach(function (v) {
   type(v);
   uiContext.renderRiskPanel();
-  eq('typed "' + v + '" stays in the DOM after render', $('riskTradesPerDayInput').value, v);
+  eq('typed "' + v + '" stays in the DOM after render', $('headerOpsCount').value, v);
 });
 
 /* The math follows the typed value (Sim 5000 / 2% -> daily budget 100). */
@@ -225,9 +225,9 @@ console.log('\n[2] A transient empty field is preserved (no snap to 3)');
 Store.setSettings({ dailyTradeLimit: { Sim: 2, Real: 5, Fondeo: DEFAULT_DAILY_TRADE_LIMIT } });
 type('');
 uiContext.renderRiskPanel();
-eq('empty field stays empty in the DOM', $('riskTradesPerDayInput').value, '');
+eq('empty field stays empty in the DOM', $('headerOpsCount').value, '');
 check('empty field never snaps back to the default 3',
-  $('riskTradesPerDayInput').value !== '3');
+  $('headerOpsCount').value !== '3');
 eq('math falls back to the account default (Sim 2 -> 40 stop ticks)',
   riskText('riskTicksSL'), '40 ticks');
 
@@ -240,18 +240,18 @@ console.log('\n[3] Account switch re-seeds only while untouched');
 uiContext.tradesPerDayTouched = false;
 $('accountSelector').value = 'Real';
 uiContext.renderRiskPanel();
-eq('untouched switch to Real re-seeds 5', $('riskTradesPerDayInput').value, '5');
+eq('untouched switch to Real re-seeds 5', $('headerOpsCount').value, '5');
 $('accountSelector').value = 'Sim';
 uiContext.renderRiskPanel();
-eq('untouched switch back to Sim re-seeds 2', $('riskTradesPerDayInput').value, '2');
+eq('untouched switch back to Sim re-seeds 2', $('headerOpsCount').value, '2');
 
 /* Now touch it and switch accounts: the user value must survive. */
 type('7');
 uiContext.renderRiskPanel();
-eq('typed 7 stays', $('riskTradesPerDayInput').value, '7');
+eq('typed 7 stays', $('headerOpsCount').value, '7');
 $('accountSelector').value = 'Real';
 uiContext.renderRiskPanel();
-eq('touched value survives an account switch', $('riskTradesPerDayInput').value, '7');
+eq('touched value survives an account switch', $('headerOpsCount').value, '7');
 check('touched flag blocks the account-switch re-seed', uiContext.tradesPerDayTouched === true);
 
 /* ------------------------------------------------------------------ */
@@ -296,29 +296,23 @@ check('resetForm resets the touched flag',
 check('Ajustes save mirrors the saved limit into the untouched calculator input',
   appSrc.indexOf('tradesMirrorEl') !== -1);
 
-const tradesIdx = htmlSrc.indexOf('id="riskTradesPerDayInput"');
+const tradesIdx = htmlSrc.indexOf('id="headerOpsCount"');
 const tradesField = tradesIdx === -1 ? '' : htmlSrc.slice(tradesIdx, htmlSrc.indexOf('>', tradesIdx));
-check('#riskTradesPerDayInput exists', tradesIdx !== -1);
+check('#headerOpsCount exists in the header', tradesIdx !== -1);
 check('the input accepts any positive integer (min=1, step=1, no max)',
   tradesField.indexOf('min="1"') !== -1 &&
   tradesField.indexOf('step="1"') !== -1 &&
   tradesField.indexOf('max=') === -1);
+check('the input defaults to 3 operations/day',
+  tradesField.indexOf('value="3"') !== -1);
 
-/* Relocation: the stepper moved from the header into the sizing card in the
- * trade card's right panel, next to the contracts field, keeping its id and
- * +/- wiring. */
-check('the stepper left the header (Op/día header label gone)',
-  htmlSrc.indexOf('title="Operaciones por día"') === -1);
-const contractsIdx = htmlSrc.indexOf('id="riskContracts"');
-check('the stepper sits next to contracts (after #riskContracts)',
-  tradesIdx !== -1 && contractsIdx !== -1 && tradesIdx > contractsIdx);
+/* Relocation: Op/día now lives in the top bar (header), NOT in the sizing
+ * card, so the old sizing-card stepper is gone. */
+check('the old sizing-card stepper #riskTradesPerDayInput is gone',
+  htmlSrc.indexOf('id="riskTradesPerDayInput"') === -1);
 const sizingIdx = htmlSrc.indexOf('id="sizingCard"');
-check('the stepper lives inside the sizing card (after #sizingCard, before the adjust button)',
-  tradesIdx !== -1 && sizingIdx !== -1 && tradesIdx > sizingIdx &&
-  tradesIdx < htmlSrc.indexOf('id="btnAdjustRisk"'));
-check('the +/- stepper buttons still target the input',
-  htmlSrc.indexOf('data-step-down="riskTradesPerDayInput"') !== -1 &&
-  htmlSrc.indexOf('data-step-up="riskTradesPerDayInput"') !== -1);
+check('the input sits in the header (before the sizing card)',
+  tradesIdx !== -1 && sizingIdx !== -1 && tradesIdx < sizingIdx);
 
 /* ------------------------------------------------------------------ */
 /* Result                                                              */

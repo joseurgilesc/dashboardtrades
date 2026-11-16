@@ -58,7 +58,7 @@
         </span>
         <span class="risk-header-item">
           <span class="chip-label">Op/día</span>
-          <span class="chip-value" id="headerOpsCount">—</span>
+          <input type="number" id="headerOpsCount" class="chip-value header-ops-input" min="1" step="1" inputmode="numeric" value="3" title="Operaciones por día" aria-label="Operaciones por día">
         </span>
       </div>
     </div>
@@ -447,10 +447,6 @@
 
             <!-- Trade plan: number (informational), size, strategy and mode. -->
             <div class="form-row">
-              <div class="field field-minor">
-                <label for="tradeNumber">N.º</label>
-                <input type="number" id="tradeNumber" min="1" step="1" inputmode="numeric">
-              </div>
               <div class="field">
                 <label for="contracts">Contratos</label>
                 <div class="stepper">
@@ -545,23 +541,20 @@
                 </div>
               </div>
               <div class="field">
-                <label for="planDeviation">Motivo del cambio (si hubo)</label>
-                <input type="text" id="planDeviation" placeholder="Opcional.">
-              </div>
-              <div class="field">
                 <label for="notes">Notas</label>
                 <textarea id="notes" rows="2" placeholder="Observaciones (opcional)"></textarea>
               </div>
-              <div class="field field-wide">
-                <label for="tradeImage">Captura del trade (imagen, opcional)</label>
-                <input type="file" id="tradeImage" accept="image/*">
-                <span class="field-hint" id="tradeImageHint"></span>
-              </div>
-              <div class="field field-wide" id="tradeImagePreview" hidden>
-                <img id="tradeImageImg" alt="Captura del trade" style="max-width:100%; border-radius:6px;">
-              </div>
             </div>
           </fieldset>
+
+          <div class="field field-wide">
+            <label for="tradeImage">Captura del trade (imagen, obligatoria)</label>
+            <input type="file" id="tradeImage" accept="image/*">
+            <span class="field-hint" id="tradeImageHint"></span>
+          </div>
+          <div class="field field-wide" id="tradeImagePreview" hidden>
+            <img id="tradeImageImg" alt="Captura del trade" style="max-width:100%; border-radius:6px;">
+          </div>
 
           <div class="preview" aria-live="polite">
             <div class="preview-item" id="previewPointValueItem">
@@ -612,36 +605,9 @@
               <button type="button" class="btn btn-mini btn-ghost" id="btnOpenCalculator">Ver calculadora</button>
             </div>
 
-            <div class="sizing-grid">
-              <label class="sizing-field" for="riskContracts">
-                <span class="sizing-label">Contratos</span>
-                <div class="field-inline sizing-controls">
-                  <div class="stepper">
-                    <button type="button" class="stepper-btn" data-step-down="riskContracts" data-step="1" aria-label="Menos contratos">−</button>
-                    <input type="number" id="riskContracts" class="preview-input" min="0" step="1" inputmode="numeric" value="">
-                    <button type="button" class="stepper-btn" data-step-up="riskContracts" data-step="1" aria-label="Más contratos">+</button>
-                  </div>
-                  <button type="button" class="btn btn-mini" id="btnMaxContracts" title="Máximos contratos con tu stop configurado">Máx.</button>
-                  <button type="button" class="btn btn-mini" id="btnOneContract" title="1 contrato con el stop máximo posible">1</button>
-                </div>
-              </label>
-
-              <label class="sizing-field" for="riskTradesPerDayInput">
-                <span class="sizing-label">Op/día</span>
-                <div class="stepper">
-                  <button type="button" class="stepper-btn" data-step-down="riskTradesPerDayInput" data-step="1" aria-label="Menos operaciones">−</button>
-                  <input type="number" id="riskTradesPerDayInput" class="preview-input" min="1" step="1" inputmode="numeric" value="3">
-                  <button type="button" class="stepper-btn" data-step-up="riskTradesPerDayInput" data-step="1" aria-label="Más operaciones">+</button>
-                </div>
-              </label>
-            </div>
-
             <div class="sizing-actions">
-              <button type="button" class="btn btn-mini" id="btnAdjustRisk" title="Mantiene los contratos y ajusta el stop para arriesgar tu parte del presupuesto restante">Ajustar al riesgo</button>
-              <label class="risk-total-toggle" for="riskTotalToggle">
-                <input type="checkbox" id="riskTotalToggle">
-                <span>Total</span>
-              </label>
+              <button type="button" class="btn btn-mini" id="btnAdjustRisk" title="Ajusta el stop para arriesgar tu cupo por operación (contratos × Op/día)">Ajustar al riesgo</button>
+              <button type="button" class="btn btn-mini" id="btnAdjustTotal" title="Ajusta el stop para arriesgar TODO el presupuesto restante del día">Ajustar al total</button>
             </div>
 
             <div class="preview sizing-readouts" aria-live="polite">
@@ -675,6 +641,15 @@
             <tbody id="tradesBody"></tbody>
           </table>
         </div>
+        <div class="ninja-import-row">
+          <button type="button" class="btn" id="btnImportNinja">Importar NinjaTrader (CSV)</button>
+          <label class="field ninja-import-account">
+            <span class="sr-only">Cuenta destino</span>
+            <select id="ninjaImportAccount"></select>
+          </label>
+        </div>
+        <p class="hint">Sube el archivo exportado por NinjaTrader (formato Grid): columnas separadas por ;, precio con coma decimal, dirección Long/Short. Los trades se AÑADEN al diario en la cuenta seleccionada.</p>
+        <input type="file" id="importNinjaFile" accept=".csv,text/csv" hidden>
       </div>
     </section>
 
@@ -1072,15 +1047,6 @@
           <button type="button" class="btn btn-danger" id="btnClearAll">Borrar todo</button>
         </div>
         <input type="file" id="importJSONFile" accept=".json,application/json" hidden>
-        <div class="ninja-import-row">
-          <button type="button" class="btn" id="btnImportNinja">Importar NinjaTrader (CSV)</button>
-          <label class="field ninja-import-account">
-            <span class="sr-only">Cuenta destino</span>
-            <select id="ninjaImportAccount"></select>
-          </label>
-        </div>
-        <p class="hint">Sube el archivo exportado por NinjaTrader (formato Grid): columnas separadas por ;, precio con coma decimal, dirección Long/Short. Los trades se AÑADEN al diario en la cuenta seleccionada.</p>
-        <input type="file" id="importNinjaFile" accept=".csv,text/csv" hidden>
       </div>
     </section>
   </main>

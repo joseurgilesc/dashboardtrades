@@ -939,7 +939,6 @@
 
   const TABLE_COLUMNS = [
     { key: 'entryDate', label: 'Fecha' },
-    { key: 'tradeNumber', label: '#' },
     { key: 'account', label: 'Cuenta' },
     { key: 'instrument', label: 'Instrumento' },
     { key: 'direction', label: 'Dirección' },
@@ -1126,7 +1125,6 @@
     const rowClass = editing ? 'editing' : (Number(t.net) > 0 ? 'row-pos' : 'row-neg');
     return '<tr' + (rowClass ? ' class="' + rowClass + '"' : '') + '>' +
       '<td><span class="cell-main">' + escapeHtml(t.entryTime) + '</span> <span class="muted">' + escapeHtml(t.entryDate) + '</span></td>' +
-      '<td>' + escapeHtml(t.tradeNumber) + '</td>' +
       '<td>' + escapeHtml(t.account) + '</td>' +
       '<td>' + escapeHtml(t.instrument) + missingStopBadge(t) + '</td>' +
       '<td>' + directionCellHtml(t.direction) + '</td>' +
@@ -1597,21 +1595,17 @@
   }
 
   /**
-   * Single source of truth for the contracts count. `#contracts` (the trade
-   * form) is canonical because the save path (`readForm`) reads it;
-   * `#riskContracts` (the calculator's manual override) is a view over the
-   * SAME value. Both are written together on every change, so the two views
-   * can never diverge and exactly one value reaches the save payload.
+   * Single source of truth for the contracts count: `#contracts` (the trade
+   * form) is canonical because the save path (`readForm`) reads it. The
+   * redundant calculator mirror was removed — contracts live only in the form.
    *
    * The value only REPORTS risk: it is never fed back into the sizing chain
    * (stop distance, daily budget, per-trade cupo, max-ticks-one-contract).
    */
   function syncContracts(value) {
     const formEl = $('contracts');
-    const calcEl = $('riskContracts');
     const next = (value === null || value === undefined) ? '' : String(value);
     if (formEl) formEl.value = next;
-    if (calcEl) calcEl.value = next;
     return next;
   }
 
@@ -1624,7 +1618,9 @@
   function readForm() {
     return {
       id: state.editingId || undefined,
-      tradeNumber: parseInt($('tradeNumber').value, 10),
+      /* The trade number is auto-assigned by the store on save; there is no
+       * visible field anymore (item: hide the trade number). */
+      tradeNumber: 0,
       account: activeAccount(),
       instrument: $('instrument').value,
       contracts: parseFloat($('contracts').value),
@@ -1656,6 +1652,50 @@
     const img = $('tradeImageImg');
     if (preview) preview.hidden = !imageUrl;
     if (img) img.src = imageUrl || '';
+  }
+
+  /**
+   * Compresses a trade screenshot client-side before upload so images stay
+   * small in Firebase Storage. The image is resized to at most MAX_DIM pixels
+   * on its longest side and re-encoded as JPEG at QUALITY. Non-image files and
+   * any decode/encode failure fall back to the original file untouched, so the
+   * upload can never be lost because of compression.
+   */
+  function compressImage(file) {
+    if (!file || !/^image\//.test(file.type)) return Promise.resolve(file);
+    return new Promise(function (resolve) {
+      const MAX_DIM = 1600;
+      const QUALITY = 0.8;
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(objectUrl);
+        try {
+          const longest = Math.max(img.width || 1, img.height || 1);
+          const scale = Math.min(1, MAX_DIM / longest);
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(file); return; }
+          ctx.drawImage(img, 0, 0, w, h);
+          canvas.toBlob(function (blob) {
+            if (!blob) { resolve(file); return; }
+            const name = String(file.name || 'captura.jpg').replace(/\.[^.]+$/, '') + '.jpg';
+            resolve(new File([blob], name, { type: 'image/jpeg' }));
+          }, 'image/jpeg', QUALITY);
+        } catch (err) {
+          resolve(file);
+        }
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file);
+      };
+      img.src = objectUrl;
+    });
   }
 
   function instrumentMeta(id) {
@@ -1844,13 +1884,13 @@
   /** Compact header readout beside the daily-risk stepper: the daily risk
    *  amount in $ and the configured operations/day, from the SAME capital /
    *  risk % / trades-per-day the calculator sizes from. */
-  function renderHeaderRiskCard(riskPct, dailyBudget, tradesPerDay) {
+  function renderHeaderRiskCard(riskPct, dailyBudget) {
     const amountEl = $('headerRiskAmount');
     if (amountEl) {
       amountEl.textContent = formatNumber(riskPct, 1) + '% = ' + formatMoney(dailyBudget);
     }
-    const opsEl = $('headerOpsCount');
-    if (opsEl) opsEl.textContent = tradesPerDay + ' op/día';
+    /* Op/día is the header INPUT (canonical source), read in renderRiskPanel and
+     * never overwritten here. */
   }
 
   /** Clamps the daily risk % to the spec band [1, 3]; non-numeric -> default. */
@@ -2381,7 +2421,7 @@
    */
   function onTradesPerDayChanged() {
     tradesPerDayTouched = true;
-    const el = $('riskTradesPerDayInput');
+    const el = $('headerOpsCount');
     if (el) persistTradesPerDay(el.value);
   }
 
@@ -2458,7 +2498,7 @@
     /* The calculator needs a divisor >= 1 even though Ajustes accepts a daily
      * limit of 0 (which only affects the discipline warning). */
     const tradesFallback = Math.max(1, defaultTrades);
-    const tradesInput = $('riskTradesPerDayInput');
+    const tradesInput = $('headerOpsCount');
     if (tradesInput && accountChanged && !tradesPerDayTouched) {
       tradesInput.value = String(tradesFallback);
     }
@@ -2646,14 +2686,11 @@
       return;
     }
 
-    /* Contracts: one canonical value (`#contracts`, read by the save path)
-     * mirrored into the calculator's editable override (`#riskContracts`).
-     * While the field is untouched the calculator prefills its suggestion;
-     * once the user types, their value is FINAL and is only mirrored, never
-     * recomputed. This NEVER feeds the sizing chain: the stop, the daily
-     * budget, the per-trade cupo and the max-ticks stay budget-derived. */
+    /* Contracts live only in the trade form (`#contracts`, read by the save
+     * path) and are user-owned: the calculator reports risk but never writes
+     * the contracts field back. This NEVER feeds the sizing chain: the stop,
+     * the daily budget, the per-trade cupo and the max-ticks stay budget-derived. */
     const contractsEl = $('contracts');
-    const riskContractsEl = $('riskContracts');
     if (!contractsTouched) {
       /* Guarded so the render stays callable when the helper is not in scope
        * (e.g. an isolated harness that extracts this function alone). */
@@ -2661,8 +2698,6 @@
         ? Store.getMaxContracts() : 0;
       const suggested = (maxC > 0) ? Math.min(risk.contracts, maxC) : risk.contracts;
       if (typeof syncContracts === 'function') syncContracts(suggested);
-    } else if (contractsEl && riskContractsEl) {
-      riskContractsEl.value = contractsEl.value;
     }
     if (typeof renderContractsHint === 'function') renderContractsHint();
 
@@ -2773,9 +2808,10 @@
   /**
    * "Ajustar al riesgo": KEEPS the current contracts and adjusts the stop PRICE
    * so the trade risks its fair share of the remaining daily budget. In the
-   * default "repartido" mode the remaining budget is divided across the
-   * operativas still pending today; with "Total" on, the whole remaining
-   * budget is targeted. Writes #stop, marks it user-owned, and recomputes.
+   * default "repartido" mode (`total` false) the remaining budget is divided
+   * across the operativas still pending today; with `total` true, the whole
+   * remaining budget is targeted. Writes #stop, marks it user-owned, and
+   * recomputes.
    *
    *   operativasRestantes = max(1, tradesPerDay - tradesHoy)
    *   riesgoObjetivo      = total ? available : (available / operativasRestantes)
@@ -2784,7 +2820,8 @@
    *   stopPoints          = stopTicks x tick
    *   stopPrice           = (Corto) ? entry + stopPoints : entry - stopPoints
    */
-  function adjustRiskToBudget() {
+  function adjustRiskToBudget(total) {
+    total = !!total;
     const account = activeAccount();
     const instrument = $('instrument') ? $('instrument').value : '';
     const spec = instrumentMeta(instrument);
@@ -2798,7 +2835,7 @@
     /* Risk % comes from Ajustes only (single source of truth). */
     const riskPct = defaultPct;
 
-    const tradesInput = $('riskTradesPerDayInput');
+    const tradesInput = $('headerOpsCount');
     const defaultTrades = Number.isFinite(settings.dailyTradeLimit)
       ? settings.dailyTradeLimit
       : DEFAULT_DAILY_TRADE_LIMIT;
@@ -2820,9 +2857,6 @@
 
     const contractsEl = $('contracts');
     const contratos = contractsEl ? parseFloat(contractsEl.value) : NaN;
-
-    const totalToggle = $('riskTotalToggle');
-    const total = !!(totalToggle && totalToggle.checked);
 
     if (!(contratos > 0) || !(tickValue > 0) || !(usage.available > 0) ||
         !Number.isFinite(entryPrice)) {
@@ -3362,6 +3396,7 @@
     if (!Number.isFinite(form.exitPrice)) errors.push('El precio de salida debe ser un número válido.');
     if (!form.exitType) errors.push('El tipo de salida es obligatorio.');
     if (!form.emotion) errors.push('La emoción es obligatoria.');
+    if (!form.imageUrl) errors.push('La captura del trade es obligatoria.');
 
     const entryDt = parseLocalDateTime(form.entryDate, form.entryTime);
     const exitDt = parseLocalDateTime(form.exitDate, form.exitTime);
@@ -3500,7 +3535,7 @@
      * re-seeds from the selected account's stored limit (the last value the
      * user committed, or the account default). */
     tradesPerDayTouched = false;
-    const tradesSeedEl = $('riskTradesPerDayInput');
+    const tradesSeedEl = $('headerOpsCount');
     if (tradesSeedEl) {
       const seedAccount = activeAccount();
       const seedStored = Store.getRiskSettings()[seedAccount] || {};
@@ -3523,11 +3558,9 @@
   /** Snapshots the active form + calculator state for a trade tab. */
   function captureDraft() {
     return {
-      tradeNumber: $('tradeNumber').value,
       instrument: $('instrument').value,
       contracts: $('contracts').value,
-      riskContracts: $('riskContracts') ? $('riskContracts').value : '',
-      riskTradesPerDay: $('riskTradesPerDayInput') ? $('riskTradesPerDayInput').value : '',
+      riskTradesPerDay: $('headerOpsCount') ? $('headerOpsCount').value : '',
       strategy: $('strategy').value,
       direction: $('direction').value,
       entryDate: $('entryDate').value,
@@ -3553,11 +3586,9 @@
   /** Restores a draft into the form; a null draft resets to a fresh trade. */
   function restoreDraft(d) {
     if (!d) { resetForm(); return; }
-    $('tradeNumber').value = d.tradeNumber;
     syncInstrument(d.instrument);
     $('contracts').value = d.contracts;
-    if (d.riskContracts !== undefined && $('riskContracts')) $('riskContracts').value = d.riskContracts;
-    if (d.riskTradesPerDay !== undefined && $('riskTradesPerDayInput')) $('riskTradesPerDayInput').value = d.riskTradesPerDay;
+    if (d.riskTradesPerDay !== undefined && $('headerOpsCount')) $('headerOpsCount').value = d.riskTradesPerDay;
     $('strategy').value = d.strategy;
     $('direction').value = d.direction;
     $('entryDate').value = d.entryDate;
@@ -3726,7 +3757,6 @@
     const trade = Store.getTrades().find(function (t) { return t.id === id; });
     if (!trade) return;
     state.editingId = id;
-    $('tradeNumber').value = trade.tradeNumber;
     $('instrument').value = trade.instrument;
     $('contracts').value = trade.contracts;
     ensureStrategyOption($('strategy'), trade.strategy);
@@ -3753,7 +3783,7 @@
     if ($('planDeviation')) $('planDeviation').value = trade.planDeviation || '';
     imageUrl = trade.imageUrl || '';
     renderTradeImagePreview();
-    $('formTitle').textContent = 'Editar trade #' + trade.tradeNumber;
+    $('formTitle').textContent = 'Editar trade';
     $('btnSave').textContent = 'Guardar cambios';
     $('btnCancel').hidden = false;
     /* Editing owns the contracts value; the calculator must not overwrite it. */
@@ -3793,8 +3823,7 @@
     }
 
     state.editingId = null;
-    /* New trade: no copied trade number, no copied id. */
-    $('tradeNumber').value = '';
+    /* New trade: no copied id (the number is auto-assigned on save). */
     $('instrument').value = last.instrument;
     $('contracts').value = last.contracts > 0 ? String(last.contracts) : '';
     ensureStrategyOption($('strategy'), last.strategy);
@@ -3839,8 +3868,8 @@
 
   function handleDelete(id) {
     const trade = Store.getTrades().find(function (t) { return t.id === id; });
-    const label = trade ? '#' + trade.tradeNumber : '';
-    if (!window.confirm('¿Eliminar el trade ' + label + '? Esta acción no se puede deshacer.')) return;
+    const label = trade ? (trade.instrument + ' del ' + trade.entryDate) : '';
+    if (!window.confirm('¿Eliminar el trade ' + (label || '') + '? Esta acción no se puede deshacer.')) return;
     Store.deleteTrade(id);
     if (state.editingId === id) {
       /* The deleted trade was being edited: leave edit mode and reset. */
@@ -4150,7 +4179,7 @@
     if (!tradesPerDayTouched) {
       const activeAccount = activeAccount();
       const savedLimit = limits[activeAccount];
-      const tradesMirrorEl = $('riskTradesPerDayInput');
+      const tradesMirrorEl = $('headerOpsCount');
       if (tradesMirrorEl && Number.isFinite(savedLimit)) {
         tradesMirrorEl.value = String(Math.max(1, savedLimit));
       }
@@ -4679,8 +4708,10 @@
           if (hint) hint.textContent = 'Subida no disponible (Storage no configurado).';
           return;
         }
-        if (hint) hint.textContent = 'Subiendo…';
-        imageUploadPromise = FirebaseService.uploadTradeImage(user.uid, state.editingId || 'draft', file);
+        if (hint) hint.textContent = 'Comprimiendo y subiendo…';
+        imageUploadPromise = compressImage(file).then(function (compressed) {
+          return FirebaseService.uploadTradeImage(user.uid, state.editingId || 'draft', compressed);
+        });
         imageUploadPromise.then(function (url) {
           imageUrl = url;
           imageUploadPromise = null;
@@ -4743,30 +4774,17 @@
       });
     }
 
-    /* Sizing presets: "Máx." re-suggests max contracts at the configured stop;
-     * "1" fixes 1 contract and widens the stop to the maximum it affords. */
-    const maxContractsBtn = $('btnMaxContracts');
-    if (maxContractsBtn) {
-      maxContractsBtn.addEventListener('click', function () {
-        contractsTouched = false;
-        renderRiskPanel();
-      });
-    }
-    const oneContractBtn = $('btnOneContract');
-    if (oneContractBtn) {
-      oneContractBtn.addEventListener('click', function () {
-        contractsTouched = true;
-        syncContracts(1);
-        renderRiskPanel();
-      });
-    }
-
     /* "Ajustar al riesgo": keeps the current contracts and adjusts the stop so
-     * the trade risks its fair share of the remaining daily budget (repartido
-     * by default; "Total" targets the whole remaining budget). */
+     * the trade risks its fair share of the remaining daily budget (repartido:
+     * contracts × Op/día). "Ajustar al total" targets the WHOLE remaining
+     * budget and is the non-default path. */
     const adjustRiskBtn = $('btnAdjustRisk');
     if (adjustRiskBtn) {
-      adjustRiskBtn.addEventListener('click', adjustRiskToBudget);
+      adjustRiskBtn.addEventListener('click', function () { adjustRiskToBudget(false); });
+    }
+    const adjustTotalBtn = $('btnAdjustTotal');
+    if (adjustTotalBtn) {
+      adjustTotalBtn.addEventListener('click', function () { adjustRiskToBudget(true); });
     }
 
     /* Leaderboard refresh (admin). */
@@ -4884,20 +4902,6 @@
       contractsField.addEventListener('input', markContractsTouched);
       contractsField.addEventListener('change', markContractsTouched);
     }
-    /* The calculator's contracts input is the other view: on change it writes
-     * the canonical #contracts FIRST, then the shared render pass mirrors it
-     * back and updates the reported real risk. */
-    const riskContractsField = $('riskContracts');
-    if (riskContractsField) {
-      const onRiskContracts = function () {
-        contractsTouched = true;
-        syncContracts(riskContractsField.value);
-        updatePreview();
-      };
-      riskContractsField.addEventListener('input', onRiskContracts);
-      riskContractsField.addEventListener('change', onRiskContracts);
-    }
-
     /* Draft fields: the first user keystroke makes the value final and clears
      * the draft mark. Registered before the live-update loop below so the flag
      * is set before the panel re-renders. */
@@ -4924,7 +4928,7 @@
      * to the account's daily trade limit so it survives a reload and stays in
      * sync with Ajustes. Registered before the live-update loop below so the
      * flag is set before the panel re-renders on the same keystroke. */
-    const riskTradesField = $('riskTradesPerDayInput');
+    const riskTradesField = $('headerOpsCount');
     if (riskTradesField) {
       riskTradesField.addEventListener('input', onTradesPerDayChanged);
       riskTradesField.addEventListener('change', onTradesPerDayChanged);
@@ -4948,7 +4952,7 @@
 
     ['instrument', 'contracts', 'direction', 'emotion', 'entryPrice', 'exitPrice',
       'stop', 'entryDate',
-      'riskRatio', 'riskTradesPerDayInput'].forEach(function (id) {
+      'riskRatio', 'headerOpsCount'].forEach(function (id) {
       const el = $(id);
       if (el) el.addEventListener('input', updatePreview);
       if (el) el.addEventListener('change', updatePreview);
@@ -4972,7 +4976,7 @@
         switchTab('registro');
         const form = $('tradeForm');
         if (form && form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        const firstField = $('tradeNumber');
+        const firstField = $('instrument');
         if (firstField && firstField.focus) firstField.focus();
         return;
       }

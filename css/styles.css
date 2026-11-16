@@ -315,6 +315,22 @@ textarea {
   border-left: 1px solid var(--border);
 }
 
+/* The Op/día header control is an editable number, not a readout: same mono
+ * treatment as the other header inputs but compact. */
+.risk-header-item input.header-ops-input {
+  height: auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+  width: 34px;
+}
+
 /* Time fields use flatpickr (CDN) — a compact mono input. */
 .time-input {
   width: 72px;

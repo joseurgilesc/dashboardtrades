@@ -262,7 +262,7 @@ $('direction').value = 'Largo';
 $('entryPrice').value = '5000';
 $('riskRatio').value = '2';
 $('riskDailyPctInput').value = '2';
-$('riskTradesPerDayInput').value = '3';
+$('headerOpsCount').value = '3';
 
 uiContext.renderRiskPanel();
 
@@ -272,12 +272,12 @@ console.log('  MES 5000/2%/3 -> stop "' + riskText('riskTicksSL') + '"');
 eq('UI stop row = 26 ticks', riskText('riskTicksSL'), '26 ticks');
 
 /* Change trades/day: the AUTO stop moves with the per-trade budget. */
-$('riskTradesPerDayInput').value = '1';
+$('headerOpsCount').value = '1';
 uiContext.renderRiskPanel();
 eq('UI stop row follows trades/day = 80 ticks', riskText('riskTicksSL'), '80 ticks');
 
 /* Invalid input still blanks the stop row (no stale numbers). */
-$('riskTradesPerDayInput').value = '3';
+$('headerOpsCount').value = '3';
 $('riskDailyPctInput').value = '2';
 $('instrument').value = '';
 $('riskInstrument').value = '';

@@ -205,7 +205,7 @@ $('direction').value = 'Largo';
 $('entryPrice').value = '5000';
 $('riskRatio').value = '2';
 $('riskDailyPctInput').value = '2';
-$('riskTradesPerDayInput').value = '3';
+$('headerOpsCount').value = '3';
 $('stop').value = '4998';   /* entry 5000 - 2 points = 8 ticks (MES tick 0.25) */
 uiContext.touchedFields.stop = true;   /* fix the stop so the chain is stable */
 uiContext.contractsTouched = false;
@@ -213,36 +213,18 @@ uiContext.lastRiskAccount = null;
 uiContext.renderRiskPanel();
 
 /* ------------------------------------------------------------------ */
-/* [1] Bidirectional sync with the canonical #contracts                */
+/* [1] Single-source contracts: the form field is canonical             */
 /* ------------------------------------------------------------------ */
 
-console.log('\n[1] #riskContracts syncs both ways with #contracts');
+console.log('\n[1] #contracts is the single contracts source (no mirror)');
 
 eq('untouched render prefills the form field', $('contracts').value, '66');
-eq('untouched render prefills the calculator input', $('riskContracts').value, '66');
-eq('both views hold the same value', $('contracts').value, $('riskContracts').value);
 
-/* Calculator -> form (mirrors the riskContracts change handler). */
-$('riskContracts').value = '5';
-uiContext.contractsTouched = true;
-uiContext.syncContracts($('riskContracts').value);
-eq('calculator input reaches #contracts', $('contracts').value, '5');
-eq('calculator input keeps its value', $('riskContracts').value, '5');
-
-/* Form -> calculator (mirrors the contracts change handler). */
-$('contracts').value = '9';
-uiContext.syncContracts($('contracts').value);
-eq('form input reaches #riskContracts', $('riskContracts').value, '9');
-
-/* renderRiskPanel mirrors the canonical value while touched. */
-$('riskContracts').value = '';       /* force a divergence to prove the mirror */
-$('contracts').value = '9';
-uiContext.renderRiskPanel();
-eq('render mirrors the canonical value while touched', $('riskContracts').value, '9');
-
-/* Exactly one value reaches the save payload. */
-eq('readForm reads the canonical contracts', uiContext.readForm().contracts, 9);
-check('readForm never reads the calculator input',
+/* The calculator mirror is gone: syncContracts only writes #contracts. */
+uiContext.syncContracts('5');
+eq('syncContracts writes #contracts', $('contracts').value, '5');
+eq('readForm reads the canonical contracts', uiContext.readForm().contracts, 5);
+check('readForm never reads a calculator input',
   extractFunction(appSrc, 'function readForm()').indexOf('riskContracts') === -1);
 
 /* ------------------------------------------------------------------ */
@@ -255,14 +237,12 @@ uiContext.contractsTouched = true;
 $('contracts').value = '3';
 uiContext.renderRiskPanel();
 eq('a user-typed value is never overwritten', $('contracts').value, '3');
-eq('the calculator view mirrors the user value', $('riskContracts').value, '3');
 eq('readForm sees the user value', uiContext.readForm().contracts, 3);
 
 uiContext.contractsTouched = false;
 $('contracts').value = '999';
 uiContext.renderRiskPanel();
 eq('an untouched field is re-prefilled with the suggestion', $('contracts').value, '66');
-eq('the calculator view is re-prefilled too', $('riskContracts').value, '66');
 
 /* ------------------------------------------------------------------ */
 /* [3] Reported real risk = contracts x stopTicks x tickValue          */
@@ -400,37 +380,24 @@ eq('computeRisk is contracts-free and deterministic', sizingA.contracts, sizingB
 eq('the suggestion stays 66 regardless of the DOM', sizingA.contracts, 66);
 
 /* ------------------------------------------------------------------ */
-/* [6] Structural: input markup, wiring and single-source read         */
+/* [6] Structural: single-source contracts + risk-adjustment buttons   */
 /* ------------------------------------------------------------------ */
 
-console.log('\n[6] Structural: input markup, wiring and single-source read');
+console.log('\n[6] Structural: single-source contracts + risk-adjustment buttons');
 
-const inputIdx = htmlSrc.indexOf('id="riskContracts"');
-check('#riskContracts exists in the markup', inputIdx !== -1);
-const inputStart = inputIdx === -1 ? -1 : htmlSrc.lastIndexOf('<input', inputIdx);
-const inputEnd = inputIdx === -1 ? -1 : htmlSrc.indexOf('>', inputIdx);
-const inputTag = (inputStart !== -1 && inputStart < inputIdx && inputEnd !== -1)
-  ? htmlSrc.slice(inputStart, inputEnd + 1)
-  : '';
-check('#riskContracts is a number input',
-  inputTag.indexOf('id="riskContracts"') !== -1 && inputTag.indexOf('type="number"') !== -1);
-check('#riskContracts is min 0, step 1, numeric',
-  inputTag.indexOf('min="0"') !== -1 &&
-  inputTag.indexOf('step="1"') !== -1 &&
-  inputTag.indexOf('inputmode="numeric"') !== -1);
-check('the old read-only preview span is gone',
-  htmlSrc.indexOf('<span class="preview-value" id="riskContracts">') === -1);
+check('#riskContracts is gone (contracts live only in the form)',
+  htmlSrc.indexOf('id="riskContracts"') === -1);
 check('#riskRealRisk row exists', htmlSrc.indexOf('id="riskRealRisk"') !== -1);
 check('#riskRealRiskPct row exists', htmlSrc.indexOf('id="riskRealRiskPct"') !== -1);
 check('#riskContractsWarning inline element is gone (now a popup)',
   htmlSrc.indexOf('id="riskContractsWarning"') === -1);
 
 check('app.js defines syncContracts', appSrc.indexOf('function syncContracts(value)') !== -1);
+check('syncContracts writes only the canonical #contracts',
+  extractFunction(appSrc, 'function syncContracts(value)').indexOf("riskContracts") === -1);
 check('renderRiskPanel prefills the suggestion through syncContracts',
   extractFunction(appSrc, 'function renderRiskPanel()').indexOf('syncContracts(suggested)') !== -1);
-check('the calculator contracts handler mirrors into #contracts',
-  appSrc.indexOf('syncContracts(riskContractsField.value)') !== -1);
-check('the form contracts handler mirrors into #riskContracts',
+check('the form contracts handler mirrors into #contracts only',
   appSrc.indexOf('syncContracts(contractsField.value)') !== -1);
 check('readForm reads the canonical #contracts only',
   appSrc.indexOf("contracts: parseFloat($('contracts').value)") !== -1);
@@ -446,19 +413,25 @@ check('the result reset list includes the new real-risk rows',
   extractFunction(appSrc, 'function renderRiskPanel()').indexOf('riskRealRisk') !== -1 &&
   extractFunction(appSrc, 'function renderRiskPanel()').indexOf("'riskRealRiskPct'") !== -1);
 
-/* Part B: "Ajustar al riesgo" button + "Total" toggle (additive, structural). */
+/* Part B: "Ajustar al riesgo" (default) + "Ajustar al total" (extra). */
 check('#btnAdjustRisk exists as a btn-mini button',
   htmlSrc.indexOf('class="btn btn-mini" id="btnAdjustRisk"') !== -1);
-check('#riskTotalToggle exists as a checkbox',
-  htmlSrc.indexOf('type="checkbox" id="riskTotalToggle"') !== -1);
-check('#riskTotalToggle sits inside the sizing card (#sizingCard)',
+check('#btnAdjustTotal exists as a btn-mini button (not a checkbox)',
+  htmlSrc.indexOf('class="btn btn-mini" id="btnAdjustTotal"') !== -1);
+check('the old #riskTotalToggle checkbox is gone',
+  htmlSrc.indexOf('id="riskTotalToggle"') === -1);
+check('#btnAdjustTotal sits inside the sizing card (#sizingCard)',
   htmlSrc.indexOf('id="sizingCard"') !== -1 &&
-  htmlSrc.indexOf('id="sizingCard"') < htmlSrc.indexOf('id="riskTotalToggle"') &&
-  htmlSrc.indexOf('id="riskTotalToggle"') < htmlSrc.indexOf('id="riskRealRisk"'));
-check('app.js defines adjustRiskToBudget', appSrc.indexOf('function adjustRiskToBudget()') !== -1);
-check('app.js wires #btnAdjustRisk to adjustRiskToBudget',
+  htmlSrc.indexOf('id="sizingCard"') < htmlSrc.indexOf('id="btnAdjustTotal"') &&
+  htmlSrc.indexOf('id="btnAdjustTotal"') < htmlSrc.indexOf('id="riskRealRisk"'));
+check('app.js defines adjustRiskToBudget(total)',
+  appSrc.indexOf('function adjustRiskToBudget(total)') !== -1);
+check('app.js wires #btnAdjustRisk to the default (repartido) path',
   appSrc.indexOf("$('btnAdjustRisk')") !== -1 &&
-  appSrc.indexOf('addEventListener(\'click\', adjustRiskToBudget)') !== -1);
+  appSrc.indexOf('adjustRiskToBudget(false)') !== -1);
+check('app.js wires #btnAdjustTotal to the whole-budget path',
+  appSrc.indexOf("$('btnAdjustTotal')") !== -1 &&
+  appSrc.indexOf('adjustRiskToBudget(true)') !== -1);
 
 /* ------------------------------------------------------------------ */
 /* [7] computeRisk.usedToday reads the TRUE loser sum (gain fix)       */
