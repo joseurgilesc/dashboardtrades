@@ -1056,15 +1056,16 @@ details.card > summary h2 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
   align-items: start;
 }
 
 /* Reserve the price-level rule on every field so the coloured rows keep the
- * same box model — and therefore the same alignment — as the neutral rows. */
+ * same box model — and therefore the same alignment — as the neutral rows.
+ * A tighter left padding keeps the fields narrow so more fit per row. */
 .form-row > .field {
   border-left: 2px solid transparent;
-  padding-left: 8px;
+  padding-left: 6px;
 }
 
 /* Price-level colour code: entry = accent, exit = positive, stop = negative.

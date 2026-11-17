@@ -437,11 +437,15 @@
                Identity/metadata first, then the plan, the three price levels
                (entry/exit/stop) and finally how the trade closed. -->
           <div class="form-grid">
-            <!-- Identity: instrument, direction, size and entry date together. -->
-            <div class="form-row form-row--4">
+            <!-- Row 1: instrument, date, direction, size and strategy together. -->
+            <div class="form-row form-row--5">
               <div class="field">
                 <label for="instrument">Instrumento</label>
                 <select id="instrument"></select>
+              </div>
+              <div class="field">
+                <label for="entryDate">Fecha</label>
+                <input type="date" id="entryDate">
               </div>
               <div class="field">
                 <label for="direction">Dirección</label>
@@ -456,17 +460,13 @@
                 </div>
               </div>
               <div class="field">
-                <label for="entryDate">Fecha</label>
-                <input type="date" id="entryDate">
-              </div>
-            </div>
-
-            <!-- Strategy + entry price level. -->
-            <div class="form-row">
-              <div class="field">
                 <label for="strategy">Estrategia</label>
                 <select id="strategy"></select>
               </div>
+            </div>
+
+            <!-- Row 2: entry price + time. -->
+            <div class="form-row">
               <div class="field field-entry">
                 <label for="entryPrice">Precio de entrada</label>
                 <input type="number" id="entryPrice" step="any" inputmode="decimal">
@@ -477,7 +477,7 @@
               </div>
             </div>
 
-            <!-- Exit price level (positive). -->
+            <!-- Row 3: exit price + time (exit date only for swing). -->
             <div class="form-row">
               <div class="field field-exit">
                 <label for="exitPrice">Precio de salida</label>
