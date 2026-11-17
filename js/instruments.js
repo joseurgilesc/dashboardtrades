@@ -190,9 +190,14 @@ const STRATEGIES = [
   { id: 'doble-00', name: 'Doble 00', group: 'scalping' },
   { id: 'cruces-medias', name: 'Cruces de Medias Móviles', group: 'scalping' },
   { id: 'retroceso-segundo-impulso', name: 'Retroceso hacia Segundo Impulso', group: 'scalping' },
+  { id: 'bpt-conservadora', name: 'BPT entrada conservadora', group: 'scalping' },
+  { id: 'bpt-arriesgada', name: 'BPT entrada arriesgada', group: 'scalping' },
   { id: 'tres-impulsos', name: 'Tres Impulsos (Ruptura con tres impulsos)', group: 'swing' },
   { id: 'gaps', name: 'Operativa de Gaps', group: 'swing' },
-  { id: 'figuras-chartistas', name: 'Figuras Chartistas (HCH y dobles/triples)', group: 'swing' }
+  { id: 'figuras-chartistas', name: 'Figuras Chartistas (HCH y dobles/triples)', group: 'swing' },
+  { id: 'patron-w', name: 'W', group: 'swing' },
+  { id: 'patron-m', name: 'M', group: 'swing' },
+  { id: 'fibonacci', name: 'Fibonacci', group: 'swing' }
 ];
 
 /* Derived, ordered list of catalog ids. */
