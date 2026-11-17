@@ -51,6 +51,10 @@
         <span class="chip-label">Día</span>
         <input type="date" id="globalDate">
       </label>
+      <label class="header-ctl" title="Modo de la operación">
+        <span class="chip-label">Modo</span>
+        <select id="tradeMode"></select>
+      </label>
       <div class="risk-header-card" aria-label="Riesgo diario aplicado y operaciones del día">
         <span class="risk-header-item">
           <span class="chip-label">Riesgo</span>
@@ -208,7 +212,7 @@
         </details>
 
         <!-- Bloque 3 — Motor de cálculo -->
-        <details class="risk-block risk-block-collapsible" open>
+        <details class="risk-block risk-block-collapsible">
           <summary class="risk-block-title">3. Cálculo</summary>
           <div class="risk-block-content">
           <div class="field">
@@ -325,7 +329,7 @@
         </details>
 
         <!-- Bloque 4 — Reglas de control y bloqueo -->
-        <details class="risk-block risk-block-collapsible" open>
+        <details class="risk-block risk-block-collapsible">
           <summary class="risk-block-title">4. Control y bloqueo</summary>
           <div class="risk-block-content">
           <div class="risk-block-alert" id="riskBlockAlert" role="alert" hidden></div>
@@ -433,8 +437,8 @@
                Identity/metadata first, then the plan, the three price levels
                (entry/exit/stop) and finally how the trade closed. -->
           <div class="form-grid">
-            <!-- Identity: instrument first, direction right beside it. -->
-            <div class="form-row">
+            <!-- Identity: instrument, direction, size and entry date together. -->
+            <div class="form-row form-row--4">
               <div class="field">
                 <label for="instrument">Instrumento</label>
                 <select id="instrument"></select>
@@ -443,10 +447,6 @@
                 <label for="direction">Dirección</label>
                 <select id="direction"></select>
               </div>
-            </div>
-
-            <!-- Trade plan: number (informational), size, strategy and mode. -->
-            <div class="form-row">
               <div class="field">
                 <label for="contracts">Contratos</label>
                 <div class="stepper">
@@ -456,24 +456,20 @@
                 </div>
               </div>
               <div class="field">
-                <label for="strategy">Estrategia</label>
-                <select id="strategy"></select>
-              </div>
-              <div class="field">
-                <label for="tradeMode">Modo</label>
-                <select id="tradeMode"></select>
+                <label for="entryDate">Fecha</label>
+                <input type="date" id="entryDate">
               </div>
             </div>
 
-            <!-- Entry price level (accent). -->
+            <!-- Strategy + entry price level. -->
             <div class="form-row">
+              <div class="field">
+                <label for="strategy">Estrategia</label>
+                <select id="strategy"></select>
+              </div>
               <div class="field field-entry">
                 <label for="entryPrice">Precio de entrada</label>
                 <input type="number" id="entryPrice" step="any" inputmode="decimal">
-              </div>
-              <div class="field field-entry">
-                <label for="entryDate">Fecha de entrada</label>
-                <input type="date" id="entryDate">
               </div>
               <div class="field field-entry">
                 <label for="entryTime">Hora de entrada</label>
@@ -513,8 +509,8 @@
               </div>
             </div>
 
-            <!-- Outcome / context: how the trade closed and the emotion. -->
-            <div class="form-row">
+            <!-- Outcome + plan compliance on one row. -->
+            <div class="form-row form-row--5">
               <div class="field">
                 <label for="exitType">Tipo de salida</label>
                 <select id="exitType"></select>
@@ -526,20 +522,36 @@
                   <select id="emotion"></select>
                 </div>
               </div>
+              <div class="field field-plan">
+                <label for="respectedEntry">Respeté entrada</label>
+                <select id="respectedEntry">
+                  <option value="">—</option>
+                  <option value="si">Sí</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
+              <div class="field field-plan">
+                <label for="respectedStop">Respeté stop</label>
+                <select id="respectedStop">
+                  <option value="">—</option>
+                  <option value="si">Sí</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
+              <div class="field field-plan">
+                <label for="respectedSize">Respeté tamaño</label>
+                <select id="respectedSize">
+                  <option value="">—</option>
+                  <option value="si">Sí</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
             </div>
           </div>
 
           <fieldset class="advanced-options" id="advancedOptions">
             <legend>Más opciones</legend>
             <div class="form-grid">
-              <div class="field field-wide">
-                <span class="field-label">Plan vs ejecución</span>
-                <div class="check-row-group">
-                  <label class="check-row"><input type="checkbox" id="respectedEntry"> Respeté la entrada</label>
-                  <label class="check-row"><input type="checkbox" id="respectedStop"> Respeté el stop</label>
-                  <label class="check-row"><input type="checkbox" id="respectedSize"> Respeté el tamaño</label>
-                </div>
-              </div>
               <div class="field">
                 <label for="notes">Notas</label>
                 <textarea id="notes" rows="2" placeholder="Observaciones (opcional)"></textarea>

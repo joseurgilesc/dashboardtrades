@@ -142,6 +142,7 @@ const stubs = [
   'function showFormErrors() {}',
   'function resetForm() {}',
   'function renderAll() {}',
+  'function maybePromptSessionReview() {}',
   'function readForm() {' +
   '  return {' +
   '    account: "Sim", instrument: "MES", contracts: 1, strategy: "vela-a-vela",' +

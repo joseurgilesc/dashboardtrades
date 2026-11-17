@@ -1615,6 +1615,22 @@
     return (el && el.value) ? el.value : ACCOUNTS[0];
   }
 
+  /* The three "respeté" fields are tri-state (Sí/No/—): "Sí" -> true, "No" ->
+   * false, and "—" -> undefined (unanswered, which validation rejects). */
+  function readRespected(id) {
+    const el = $(id);
+    if (!el) return undefined;
+    if (el.value === 'si') return true;
+    if (el.value === 'no') return false;
+    return undefined;
+  }
+
+  function setRespected(id, value) {
+    const el = $(id);
+    if (!el) return;
+    el.value = (value === true) ? 'si' : (value === false ? 'no' : '');
+  }
+
   function readForm() {
     return {
       id: state.editingId || undefined,
@@ -1639,9 +1655,9 @@
       exitType: $('exitType').value,
       emotion: $('emotion').value,
       notes: $('notes').value.trim(),
-      respectedEntry: $('respectedEntry') ? $('respectedEntry').checked : false,
-      respectedStop: $('respectedStop') ? $('respectedStop').checked : false,
-      respectedSize: $('respectedSize') ? $('respectedSize').checked : false,
+      respectedEntry: readRespected('respectedEntry'),
+      respectedStop: readRespected('respectedStop'),
+      respectedSize: readRespected('respectedSize'),
       planDeviation: $('planDeviation') ? $('planDeviation').value.trim() : '',
       imageUrl: imageUrl
     };
@@ -3398,6 +3414,18 @@
     if (!form.emotion) errors.push('La emoción es obligatoria.');
     if (!form.imageUrl) errors.push('La captura del trade es obligatoria.');
 
+    /* Plan compliance: the three "respeté" selectors must be answered. */
+    if (form.respectedEntry === undefined) errors.push('Indica si respetaste la entrada.');
+    if (form.respectedStop === undefined) errors.push('Indica si respetaste el stop.');
+    if (form.respectedSize === undefined) errors.push('Indica si respetaste el tamaño.');
+
+    /* Process goal: no trade can be saved without today's process goal. */
+    const goalDate = state.globalDate || todayISO();
+    const dayGoal = (typeof Store.getDailyGoal === 'function') ? Store.getDailyGoal(goalDate) : null;
+    if (!dayGoal || !String(dayGoal.goal || '').trim()) {
+      errors.push('Define la meta de proceso de hoy antes de guardar.');
+    }
+
     const entryDt = parseLocalDateTime(form.entryDate, form.entryTime);
     const exitDt = parseLocalDateTime(form.exitDate, form.exitTime);
     if (entryDt && exitDt && exitDt.getTime() < entryDt.getTime()) {
@@ -3517,9 +3545,9 @@
     /* Stop is optional and starts empty. The legacy USD target no longer has a
      * field; a new trade starts without one. */
     $('stop').value = '';
-    if ($('respectedEntry')) $('respectedEntry').checked = false;
-    if ($('respectedStop')) $('respectedStop').checked = false;
-    if ($('respectedSize')) $('respectedSize').checked = false;
+    setRespected('respectedEntry', undefined);
+    setRespected('respectedStop', undefined);
+    setRespected('respectedSize', undefined);
     if ($('planDeviation')) $('planDeviation').value = '';
     imageUrl = '';
     renderTradeImagePreview();
@@ -3574,9 +3602,9 @@
       exitType: $('exitType').value,
       emotion: $('emotion').value,
       notes: $('notes').value,
-      respectedEntry: $('respectedEntry') ? $('respectedEntry').checked : false,
-      respectedStop: $('respectedStop') ? $('respectedStop').checked : false,
-      respectedSize: $('respectedSize') ? $('respectedSize').checked : false,
+      respectedEntry: readRespected('respectedEntry'),
+      respectedStop: readRespected('respectedStop'),
+      respectedSize: readRespected('respectedSize'),
       planDeviation: $('planDeviation') ? $('planDeviation').value : '',
       imageUrl: imageUrl,
       ratio: $('riskRatio') ? $('riskRatio').value : ''
@@ -3602,9 +3630,9 @@
     $('exitType').value = d.exitType;
     $('emotion').value = d.emotion;
     $('notes').value = d.notes;
-    if (d.respectedEntry !== undefined && $('respectedEntry')) $('respectedEntry').checked = !!d.respectedEntry;
-    if (d.respectedStop !== undefined && $('respectedStop')) $('respectedStop').checked = !!d.respectedStop;
-    if (d.respectedSize !== undefined && $('respectedSize')) $('respectedSize').checked = !!d.respectedSize;
+    if (d.respectedEntry !== undefined) setRespected('respectedEntry', d.respectedEntry);
+    if (d.respectedStop !== undefined) setRespected('respectedStop', d.respectedStop);
+    if (d.respectedSize !== undefined) setRespected('respectedSize', d.respectedSize);
     if (d.planDeviation !== undefined && $('planDeviation')) $('planDeviation').value = d.planDeviation;
     imageUrl = d.imageUrl || '';
     renderTradeImagePreview();
@@ -3704,6 +3732,28 @@
     }
   }
 
+  /** After saving a new trade, when the account hits its daily operation limit,
+   *  prompts the user to complete the session review (cierre de sesión). */
+  function maybePromptSessionReview() {
+    const date = state.globalDate || todayISO();
+    const account = activeAccount();
+    const tradesToday = Store.getTrades().filter(function (t) {
+      return t && t.account === account && t.entryDate === date;
+    }).length;
+    const settings = Store.getRiskSettings()[account] || {};
+    const rawLimit = Number.isFinite(settings.dailyTradeLimit) ? settings.dailyTradeLimit : DEFAULT_DAILY_TRADE_LIMIT;
+    const limit = rawLimit >= 1 ? rawLimit : DEFAULT_DAILY_TRADE_LIMIT;
+    if (tradesToday < limit) return;
+    const review = (typeof Store.getSessionReview === 'function') ? Store.getSessionReview(date) : null;
+    if (review) return;
+    showToast('Completa el cierre de sesión (revisión diaria).', 'warn');
+    const card = $('reviewCard');
+    if (card) {
+      card.open = true;
+      if (card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
   function handleSubmit(event) {
     event.preventDefault();
     const run = function () {
@@ -3728,6 +3778,7 @@
           : Store.nextTradeNumber();
         Store.addTrade(trade);
         showToast('Trade guardado', 'ok');
+        maybePromptSessionReview();
       }
 
       /* Remember the setup the user just used so the next new trade starts
@@ -3777,9 +3828,9 @@
     $('exitType').value = trade.exitType;
     $('emotion').value = trade.emotion;
     $('notes').value = trade.notes;
-    if ($('respectedEntry')) $('respectedEntry').checked = !!trade.respectedEntry;
-    if ($('respectedStop')) $('respectedStop').checked = !!trade.respectedStop;
-    if ($('respectedSize')) $('respectedSize').checked = !!trade.respectedSize;
+    setRespected('respectedEntry', trade.respectedEntry);
+    setRespected('respectedStop', trade.respectedStop);
+    setRespected('respectedSize', trade.respectedSize);
     if ($('planDeviation')) $('planDeviation').value = trade.planDeviation || '';
     imageUrl = trade.imageUrl || '';
     renderTradeImagePreview();
@@ -3794,10 +3845,9 @@
     touchedFields.exitPrice = true;
     setDraftField($('stop'), $('stopDraftBadge'), null, false);
     setDraftField($('exitPrice'), $('exitPriceDraftBadge'), null, false);
-    /* Reveal the optional fields when the trade actually uses them. */
+    /* Reveal "Más opciones" when the trade actually uses its fields. */
     const advanced = $('advancedOptions');
-    if (advanced) advanced.open = trade.target > 0 || trade.plannedRisk > 0 || !!trade.notes ||
-      !!trade.respectedEntry || !!trade.respectedStop || !!trade.respectedSize || !!trade.planDeviation;
+    if (advanced) advanced.open = trade.target > 0 || trade.plannedRisk > 0 || !!trade.notes;
     showFormErrors([]);
     updatePreview();
     /* Re-render so the edited row is highlighted in the table. */
@@ -5433,13 +5483,13 @@
       loadBalancesIntoForm();
       loadRiskSettingsIntoForm();
       loadInstrumentConfigIntoForm();
-      drafts = loadDrafts();
+      /* Fresh start on every session: a persisted draft is never restored into
+       * the form, so reloading always shows an empty trade. In-session tab
+       * drafts still work; they just don't survive a reload. */
+      drafts = [null, null, null];
       state.activeTrade = 0;
       resetForm();
-      if (drafts[0]) restoreDraft(drafts[0]);
-      /* Cada arranque el trade empieza en la fecha y hora actuales, aun cuando
-       * un borrador persistido restaure el resto del formulario. Un borrador
-       * nunca debe arrastrar una fecha u hora vieja a la sesión nueva. */
+      /* Cada arranque el trade empieza en la fecha y hora actuales. */
       $('entryDate').value = state.globalDate || todayISO();
       const startupNow = nowTime();
       writeTimeSelect('entryTime', startupNow);

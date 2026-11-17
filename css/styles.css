@@ -1089,6 +1089,32 @@ details.card > summary h2 {
   }
 }
 
+/* Wider rows: the identity row (4 fields) and the outcome row (5 fields with
+ * the three compact tri-state "respeté" selectors). Collapse like the base
+ * row on smaller screens. */
+.form-row--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.form-row--5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+/* The tri-state plan selectors (Sí/No/—) stay compact so the 5-field outcome
+ * row doesn't overflow. */
+.form-row--5 .field-plan {
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .form-row--4,
+  .form-row--5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .form-row--4,
+  .form-row--5 {
+    grid-template-columns: 1fr;
+  }
+}
+
 .field {
   display: flex;
   flex-direction: column;

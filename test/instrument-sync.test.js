@@ -80,6 +80,7 @@ const extracted = [
   extractFunction(appSrc, 'function renderRiskPanel()'),
   extractFunction(appSrc, 'function activeAccount()'),
   extractFunction(appSrc, 'function readTimeSelect(prefix)'),
+  extractFunction(appSrc, 'function readRespected(id)'),
   extractFunction(appSrc, 'function readForm()')
 ].join('\n');
 
