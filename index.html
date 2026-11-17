@@ -437,8 +437,8 @@
                Identity/metadata first, then the plan, the three price levels
                (entry/exit/stop) and finally how the trade closed. -->
           <div class="form-grid">
-            <!-- Row 1: instrument, date, direction, size and strategy together. -->
-            <div class="form-row form-row--5">
+            <!-- Row 1: identity and context. -->
+            <div class="form-row">
               <div class="field">
                 <label for="instrument">Instrumento</label>
                 <select id="instrument"></select>
@@ -451,6 +451,10 @@
                 <label for="direction">Dirección</label>
                 <select id="direction"></select>
               </div>
+            </div>
+
+            <!-- Row 2: size and strategy. -->
+            <div class="form-row">
               <div class="field">
                 <label for="contracts">Contratos</label>
                 <div class="stepper">
@@ -510,7 +514,7 @@
             </div>
 
             <!-- Outcome + plan compliance on one row. -->
-            <div class="form-row form-row--5">
+            <div class="form-row form-row--outcome">
               <div class="field">
                 <label for="exitType">Tipo de salida</label>
                 <select id="exitType"></select>
