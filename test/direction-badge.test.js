@@ -73,6 +73,8 @@ const uiContext = vm.createContext({
   /* The fake DOM element the row is rendered against. */
   $: function () { return null; },
   state: { editingId: null },
+  /* The extracted row renderer normally closes over this UI preference. */
+  moneyVisible: function () { return true; },
   escapeHtml: function (v) {
     return String(v === null || v === undefined ? '' : v)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
