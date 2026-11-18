@@ -3815,3 +3815,22 @@ input[type="number"] { -moz-appearance: textfield; }
     grid-template-columns: 1fr;
   }
 }
+
+/* Phase 1: explicit Firestore synchronization feedback (no false success). */
+.sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.sync-status::before { content: ''; width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: currentColor; }
+.sync-status-pending { color: var(--amber); }
+.sync-status-error { color: var(--neg); }
+.sync-status-ok { color: var(--pos); }
+.dashboard-account-context { font-size: var(--text-sm); color: var(--text-muted); margin: 0 0 var(--space-3); }
+.dashboard-account-context strong { color: var(--text); }
