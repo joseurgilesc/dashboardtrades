@@ -827,9 +827,12 @@ const Store = (function () {
     let worstTradePoints = 0;
 
     list.forEach(function (t) {
+      /* Points mode is size-weighted: raw movement x contracts, so the equity
+       * and points KPIs reflect the actual exposure, not just price move. */
+      const weightedPoints = t.points * numOr(t.contracts, 0);
       netTotal += t.net;
       totalCommission += t.commission;
-      pointsTotal += t.points;
+      pointsTotal += weightedPoints;
       if (t.durationMinutes !== null && t.durationMinutes !== undefined) {
         durationSum += t.durationMinutes;
         durationCount += 1;
@@ -843,16 +846,16 @@ const Store = (function () {
       }
       if (t.points > 0) {
         pointsWins += 1;
-        pointsGrossProfit += t.points;
+        pointsGrossProfit += weightedPoints;
       } else {
         pointsLosses += 1;
-        pointsGrossLoss += t.points;
+        pointsGrossLoss += weightedPoints;
       }
       if (totalTrades > 0) {
         if (t.net > bestTrade) bestTrade = t.net;
         if (t.net < worstTrade) worstTrade = t.net;
-        if (t.points > bestTradePoints) bestTradePoints = t.points;
-        if (t.points < worstTradePoints) worstTradePoints = t.points;
+        if (weightedPoints > bestTradePoints) bestTradePoints = weightedPoints;
+        if (weightedPoints < worstTradePoints) worstTradePoints = weightedPoints;
       }
     });
 
@@ -918,13 +921,14 @@ const Store = (function () {
     return maxDrawdown;
   }
 
-  /** Peak-to-trough drawdown in points over the cumulative points series. */
+  /** Peak-to-trough drawdown in points over the cumulative points series
+   *  (size-weighted: raw movement x contracts). */
   function computePointsMaxDrawdown(list) {
     let cumulative = 0;
     let peak = 0;
     let maxDrawdown = 0;
     list.forEach(function (t) {
-      cumulative += t.points;
+      cumulative += t.points * numOr(t.contracts, 0);
       if (cumulative > peak) peak = cumulative;
       const drawdown = peak - cumulative;
       if (drawdown > maxDrawdown) maxDrawdown = drawdown;

@@ -150,6 +150,8 @@ const stubs = [
   'var contractsTouched = false;',
   'var touchedFields = { stop: false, exitPrice: false };',
   'var riskItems = {};',
+  'var riskWarningTimer = null;',
+  'var window = { setTimeout: function (fn) { fn(); return 0; }, clearTimeout: function () {} };',
   'function instrumentMeta(id) { return INSTRUMENTS[id] || null; }',
   'function setRiskItem(id, text, cls) { riskItems[id] = { text: text, cls: cls || "" }; }',
   'function formatMoney(v) { return String(v); }',

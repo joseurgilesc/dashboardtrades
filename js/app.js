@@ -102,6 +102,10 @@
    * popup fires only on the false -> true transition and never spams. */
   let lastExceedsCupo = false;
 
+  /* Debounce timer for the cupo advisory, so a number still being typed does
+   * not fire the popup on the first keystroke. */
+  let riskWarningTimer = null;
+
   /* Last daily-risk threshold level (0 = ok, 1 = ≥90% used, 2 = budget
    * exhausted), so the "¡Debes parar!" popup fires only on a rising transition
    * and never spams. */
@@ -1377,9 +1381,12 @@
         const color = recent && recent.netTotal < 0 ? 'neg' : (recent && recent.netTotal > 0 ? 'pos' : '');
         return sparklineSvg(values, color);
       }
-      /* Points-first: spark the cumulative points series, not the equity. */
+      /* Points-first: spark the cumulative points series (size-weighted). */
       let running = 0;
-      const values = list.map(function (t) { running += t.points; return running; });
+      const values = list.map(function (t) {
+        running += t.points * (Number.isFinite(t.contracts) ? t.contracts : 0);
+        return running;
+      });
       const color = recent && recent.pointsTotal < 0 ? 'neg' : (recent && recent.pointsTotal > 0 ? 'pos' : '');
       return sparklineSvg(values, color);
     }
@@ -2749,13 +2756,21 @@
     /* Advisory only: never blocks or zeroes the calculation. The circuit
      * breakers in Block 4 are untouched. When the manual contracts FIRST push
      * the real risk over the per-operation cupo (false -> true), surface it as
-     * a popup once; staying over the cupo does not spam. */
+     * a popup once; staying over the cupo does not spam. The popup is debounced
+     * so a number still being typed does not fire it on the first keystroke. */
     if (exceedsCupo && !lastExceedsCupo) {
-      if (typeof showRiskWarning === 'function') {
-        showRiskWarning('Riesgo real ' + formatMoney(realRisk) +
-          ' supera el cupo por operación (' + formatMoney(risk.perTradeBudget) +
-          '). Es solo un aviso: puedes seguir registrando.');
-      }
+      if (riskWarningTimer) window.clearTimeout(riskWarningTimer);
+      riskWarningTimer = window.setTimeout(function () {
+        riskWarningTimer = null;
+        if (typeof showRiskWarning === 'function') {
+          showRiskWarning('Riesgo real ' + formatMoney(realRisk) +
+            ' supera el cupo por operación (' + formatMoney(risk.perTradeBudget) +
+            '). Es solo un aviso: puedes seguir registrando.');
+        }
+      }, 700);
+    } else if (!exceedsCupo && riskWarningTimer) {
+      window.clearTimeout(riskWarningTimer);
+      riskWarningTimer = null;
     }
     lastExceedsCupo = exceedsCupo;
 
@@ -4810,6 +4825,20 @@
           imageUploadPromise = null;
           if (hint) hint.textContent = 'No se pudo subir la imagen.';
         });
+      });
+    }
+
+    /* Remove the attached screenshot: clear the URL, the file input and any
+     * in-flight upload, then hide the preview. */
+    const removeImageBtn = $('btnRemoveImage');
+    if (removeImageBtn) {
+      removeImageBtn.addEventListener('click', function () {
+        imageUrl = '';
+        imageUploadPromise = null;
+        if (imageInput) imageInput.value = '';
+        renderTradeImagePreview();
+        const hint = $('tradeImageHint');
+        if (hint) hint.textContent = '';
       });
     }
 

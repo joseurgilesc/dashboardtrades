@@ -213,10 +213,14 @@ const DashboardCharts = (function () {
   /* Chart renderers                                                     */
   /* ------------------------------------------------------------------ */
 
-  /** Running sum of points, in the same chronological order as `computeAll`. */
+  /** Running sum of points (size-weighted: raw movement x contracts), in the
+   *  same chronological order as `computeAll`. */
   function cumulativePoints(list) {
     let running = 0;
-    return list.map(function (t) { running += t.points; return running; });
+    return list.map(function (t) {
+      running += t.points * (Number.isFinite(t.contracts) ? t.contracts : 0);
+      return running;
+    });
   }
 
   function renderEquity(list, pointsFirst) {

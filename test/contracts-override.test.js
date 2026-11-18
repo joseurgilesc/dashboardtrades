@@ -164,6 +164,8 @@ const stubs = [
   'var imageUrl = "";',
   'function renderTradeImagePreview() {}',
   'var riskItems = {};',
+  'var riskWarningTimer = null;',
+  'var window = { setTimeout: function (fn) { fn(); return 0; }, clearTimeout: function () {} };',
   'var lastExceedsCupo = false;',
   'var toastCalls = [];',
   'var warnCalls = [];',
