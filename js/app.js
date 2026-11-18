@@ -631,7 +631,11 @@
 
   /** Dashboard-only date range, independent of the global day selector. */
   function getDashboardTrades() {
-    const base = getFilterBarTrades();
+    /* Financial analytics default to the same account as the process view.
+     * Search and instrument/date filters still apply inside that account. */
+    const base = getFilterBarTrades().filter(function (t) {
+      return t.account === activeAccount();
+    });
     const period = state.dashboardPeriod;
     if (period === 'all') return base;
     const today = todayISO();
@@ -1950,7 +1954,7 @@
   function riskBlockMessage(reasons) {
     const parts = [];
     if (reasons.indexOf('drawdown') !== -1) {
-      parts.push('Drawdown diario ≥ 5 % del capital: límite de pérdida acumulada alcanzado.');
+      parts.push('Pérdidas brutas acumuladas hoy ≥ 5 % del capital: límite de seguridad alcanzado.');
     }
     if (reasons.indexOf('streak') !== -1) {
       parts.push('Racha de 3 derrotas consecutivas hoy: cálculo detenido para proteger la cuenta.');
@@ -2634,7 +2638,7 @@
 
     const blocked = risk.valid && risk.blocked;
     setRiskItem('riskState',
-      !risk.valid ? '—' : (blocked ? 'BLOQUEADO' : 'Operativo'),
+      !risk.valid ? '—' : (blocked ? 'NO OPERAR' : 'Dentro del plan'),
       !risk.valid ? '' : (blocked ? 'neg' : 'pos'));
 
     if (blockEl) {
@@ -3770,14 +3774,24 @@
       if (state.editingId) {
         if (!Number.isFinite(trade.tradeNumber) || trade.tradeNumber <= 0) delete trade.tradeNumber;
         Store.updateTrade(state.editingId, trade);
-        showToast('Trade actualizado', 'ok');
+        const savedUid = currentUid;
+        Store.getLastWritePromise().then(function (confirmed) {
+          if (currentUid === savedUid) showToast(confirmed ? 'Trade actualizado y sincronizado' :
+            'No se pudo sincronizar el trade. Exporta un respaldo y revisa la conexión.', confirmed ? 'ok' : 'error');
+        });
+        showToast('Actualización local; sincronizando…', 'warn');
       } else {
         nudgeBeforeNewTrade();
         trade.tradeNumber = Number.isFinite(trade.tradeNumber) && trade.tradeNumber > 0
           ? trade.tradeNumber
           : Store.nextTradeNumber();
         Store.addTrade(trade);
-        showToast('Trade guardado', 'ok');
+        const savedUid = currentUid;
+        Store.getLastWritePromise().then(function (confirmed) {
+          if (currentUid === savedUid) showToast(confirmed ? 'Trade guardado y sincronizado' :
+            'No se pudo sincronizar el trade. Exporta un respaldo y revisa la conexión.', confirmed ? 'ok' : 'error');
+        });
+        showToast('Trade registrado localmente; sincronizando…', 'warn');
         maybePromptSessionReview();
       }
 
@@ -3982,12 +3996,12 @@
    * collapsed; the toggle button mirrors the state through `aria-expanded`.
    */
   function applyFiltersVisibility() {
-    const onAjustes = state.activeTab === 'ajustes';
+    const hideFilters = state.activeTab !== 'registro';
     const toggle = $('filtersToggle');
     const bar = $('filtersBar');
     const button = $('btnToggleFilters');
-    if (toggle) toggle.hidden = onAjustes;
-    if (bar) bar.hidden = onAjustes || !state.filtersOpen;
+    if (toggle) toggle.hidden = hideFilters;
+    if (bar) bar.hidden = hideFilters || !state.filtersOpen;
     if (button) button.setAttribute('aria-expanded', state.filtersOpen ? 'true' : 'false');
   }
 
@@ -4026,7 +4040,7 @@
       renderDashboardView();
       renderProcessIndicators();
       renderWeeklyReview();
-      renderChartsIfVisible(getFilteredTrades());
+      renderChartsIfVisible(getDashboardTrades());
     }
   }
 
@@ -5179,6 +5193,19 @@
   /* Auth gate                                                           */
   /* ------------------------------------------------------------------ */
 
+  function renderSyncStatus() {
+    const el = $('syncStatus');
+    if (!el || typeof Store.getSyncStatus !== 'function') return;
+    const status = Store.getSyncStatus();
+    el.hidden = !currentUid || (!status.pending && !status.error && !status.confirmed);
+    el.className = 'sync-status' + (status.error ? ' sync-status-error' :
+      status.pending ? ' sync-status-pending' : ' sync-status-ok');
+    el.textContent = status.error ? 'Error de sincronización' :
+      status.pending ? 'Sincronizando ' + status.pending + ' cambio(s)…' : 'Sincronizado';
+    el.title = status.error ? 'Al menos un cambio no fue confirmado en Firestore. Exporta una copia JSON.' :
+      status.pending ? 'Hay cambios locales pendientes de confirmación.' : 'Cambios confirmados.';
+  }
+
   function setAppVisible(visible) {
     APP_REGIONS.forEach(function (selector) {
       const el = document.querySelector(selector);
@@ -5601,6 +5628,7 @@
 
     /* Re-render whenever the store's in-memory state changes. */
     Store.subscribe(function () { renderAll(); });
+    if (typeof Store.subscribeSync === 'function') Store.subscribeSync(renderSyncStatus);
 
     FirebaseService.init().then(function () {
       if (!FirebaseService.getAuth()) {
