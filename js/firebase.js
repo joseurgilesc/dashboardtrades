@@ -74,11 +74,26 @@ const FirebaseService = (function () {
   function uploadTradeImage(uid, tradeId, file) {
     const storage = getStorage();
     if (!storage) return Promise.reject(new Error('storage-unavailable'));
+    if (!file || !/^image\//.test(file.type) || file.size > 8 * 1024 * 1024) {
+      return Promise.reject(new Error('invalid-trade-image'));
+    }
     const safe = file && file.name ? String(file.name).replace(/[^a-zA-Z0-9._-]/g, '_') : 'captura.jpg';
     const ref = storage.ref('trade-images/' + uid + '/' + tradeId + '/' + Date.now() + '-' + safe);
     return ref.put(file).then(function () {
       return ref.getDownloadURL();
     });
+  }
+
+  /** Delete only an image inside the signed-in owner's Storage namespace.
+   * Old external URLs are ignored rather than deleting an unrelated file. */
+  function deleteTradeImage(uid, url) {
+    const storage = getStorage();
+    if (!storage || !uid || !url) return Promise.resolve(false);
+    let ref;
+    try { ref = storage.refFromURL(url); }
+    catch (err) { return Promise.resolve(false); }
+    if (ref.fullPath.indexOf('trade-images/' + uid + '/') !== 0) return Promise.resolve(false);
+    return ref.delete().then(function () { return true; });
   }
 
   function isPersistenceEnabled() {
@@ -649,6 +664,7 @@ const FirebaseService = (function () {
 
     getStorage: getStorage,
     uploadTradeImage: uploadTradeImage,
+    deleteTradeImage: deleteTradeImage,
 
     migrateLocalData: migrateLocalData,
     deleteAccount: deleteAccount
