@@ -1,0 +1,49 @@
+name: Verificar diario de trading
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - ux-phase-1-risk-data-safety
+      - ux-phase-2-today-navigation
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Comprobar sintaxis JS
+        run: |
+          for file in js/*.js; do node --check "$file"; done
+      - name: Probar lógica y UI aislada
+        run: |
+          failures=0
+          for file in test/*.test.js; do
+            if [ "$file" = "test/rules.test.js" ]; then continue; fi
+            echo "::group::$file"
+            if node "$file"; then
+              echo "PASS $file"
+            else
+              echo "::error file=$file::Regresión detectada"
+              failures=$((failures + 1))
+            fi
+            echo "::endgroup::"
+          done
+          echo "Pruebas fallidas: $failures"
+          test "$failures" -eq 0
+  firestore-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm install --no-audit --no-fund
+      - run: npm run test:rules

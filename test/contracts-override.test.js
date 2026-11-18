@@ -292,7 +292,7 @@ $('contracts').value = '66';
 uiContext.renderRiskPanel();
 eq('within the cupo: no popup', uiContext.warnCalls.length, 0);
 eq('within the cupo: no warn class', riskCls('riskRealRisk'), '');
-eq('within the cupo: calculation stays operative', riskText('riskState'), 'Operativo');
+eq('within the cupo: calculation stays operative', riskText('riskState'), 'Dentro del plan');
 
 /* 67 x 10 = 670 > 666.67 -> exceeds the cupo (transition: popup fires). */
 $('contracts').value = '67';
@@ -303,7 +303,7 @@ check('popup names the per-operation cupo',
   uiContext.warnCalls[0].indexOf('cupo por operación') !== -1);
 eq('above the cupo: warn class on the real risk', riskCls('riskRealRisk'), 'warn');
 eq('above the cupo: warn class on the percentage', riskCls('riskRealRiskPct'), 'warn');
-eq('the calculation is never blocked', riskText('riskState'), 'Operativo');
+eq('the calculation is never blocked', riskText('riskState'), 'Dentro del plan');
 eq('the contract count is never zeroed', uiContext.readForm().contracts, 67);
 
 /* Staying over the cupo does NOT spam: no additional popup. */
@@ -323,7 +323,7 @@ eq('crossing the cupo again fires a new popup', uiContext.warnCalls.length, 2);
 $('contracts').value = '500';
 uiContext.renderRiskPanel();
 eq('a large override still reports the real risk', riskText('riskRealRisk'), '$5000.00');
-eq('a large override still warns (not blocks)', riskText('riskState'), 'Operativo');
+eq('a large override still warns (not blocks)', riskText('riskState'), 'Dentro del plan');
 eq('a large override keeps the user value', uiContext.readForm().contracts, 500);
 
 /* ------------------------------------------------------------------ */

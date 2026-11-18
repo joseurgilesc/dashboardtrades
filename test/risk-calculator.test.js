@@ -161,10 +161,13 @@ eq('ES: effective budget is capped by available', es250.effectiveBudget, 250);
 const mes250 = Store.computeRisk({ balance: 100000, capital: 100000, riskPct: 2, instrument: 'MES', stopTicks: 8, available: 250 });
 eq('MES: floor(250 / 10) = 25 contracts', mes250.contracts, 25);
 
-/* Small account: capital <= 1000 forces exactly 1 contract. */
-const small = Store.computeRisk({ balance: 1000, capital: 1000, riskPct: 2, instrument: 'MES', stopTicks: 8 });
-eq('small account (1000) -> forced 1 contract', small.contracts, 1);
+/* Small account: limit to one affordable contract, never bypass budget. */
+const small = Store.computeRisk({ balance: 1000, capital: 1000, riskPct: 2, instrument: 'MES', stopTicks: 1 });
+eq('small account (1000) -> at most 1 affordable contract', small.contracts, 1);
 eq('small account flag set', small.smallAccount, true);
+const smallTooRisky = Store.computeRisk({ balance: 1000, capital: 1000, riskPct: 2, instrument: 'MES', stopTicks: 8 });
+eq('small account rejects unaffordable contract', smallTooRisky.contracts, 0);
+eq('small account unaffordable trade is not viable', smallTooRisky.viable, false);
 /* A 5000 account is NOT small: it sizes by its risk budget. */
 const normal5k = Store.computeRisk({ balance: 5000, capital: 5000, riskPct: 2, instrument: 'MES', stopTicks: 8 });
 eq('capital 5000 is not small', normal5k.smallAccount, false);
@@ -299,7 +302,7 @@ eq('boosted available + 3-loss streak -> 0 contracts', boostedStreak.contracts, 
 
 /* A small account stays at 1 contract regardless of a boosted available. */
 const boostedSmall = Store.computeRisk({
-  balance: 1000, capital: 1000, riskPct: 2, instrument: 'MES', stopTicks: 8,
+  balance: 1000, capital: 1000, riskPct: 2, instrument: 'MES', stopTicks: 1,
   available: 10000
 });
 eq('boosted available + small account -> still 1 contract', boostedSmall.contracts, 1);

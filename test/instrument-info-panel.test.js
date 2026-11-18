@@ -161,6 +161,7 @@ const uiContext = vm.createContext({
 const stubs = [
   'function formatNumber(v) { return String(v); }',
   'function formatMoney(v) { return "$" + String(v); }',
+  'function moneyVisible() { return true; }',
   'function escapeHtml(v) { return String(v); }',
   'function signClass() { return ""; }',
   'function renderEntryWarnings() {}',

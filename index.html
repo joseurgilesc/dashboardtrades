@@ -71,6 +71,7 @@
       <span class="user-email" id="userEmail"></span>
       <button type="button" class="btn btn-ghost" id="btnLogout">Cerrar sesión</button>
     </div>
+    <span id="syncStatus" class="sync-status" role="status" aria-live="polite" hidden></span>
   </header>
 
   <section id="authGate" class="auth-gate" hidden>
@@ -339,7 +340,7 @@
               <span class="preview-value" id="riskDayLoss">—</span>
             </div>
             <div class="preview-item">
-              <span class="preview-label">Drawdown diario <i class="info-tip" data-tip="Caída máxima del capital desde su pico durante el día.">i</i></span>
+              <span class="preview-label">Pérdidas brutas del día <i class="info-tip" data-tip="Suma de pérdidas realizadas hoy, como porcentaje del capital de inicio. No es el drawdown máximo de la curva.">i</i></span>
               <span class="preview-value" id="riskDrawdown">—</span>
             </div>
             <div class="preview-item">
@@ -683,6 +684,7 @@
 
     <!-- ============================ DASHBOARD =========================== -->
     <section id="tab-dashboard" role="tabpanel" data-accent="cyan" aria-labelledby="tab-dashboard" hidden>
+      <p class="dashboard-account-context">Análisis financiero y disciplina de la <strong>cuenta activa</strong> seleccionada en la cabecera.</p>
       <div class="segmented" id="dashboardViewToggle" role="group" aria-label="Vista del dashboard">
         <button type="button" class="segmented-btn" data-view="proceso" aria-pressed="false">Proceso</button>
         <button type="button" class="segmented-btn active" data-view="resultados" aria-pressed="true">Resultados</button>

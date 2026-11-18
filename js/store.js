@@ -134,28 +134,79 @@ const Store = (function () {
     }
   }
 
+  /* A successful local mutation is not yet a confirmed Firestore write. */
+  let syncListeners = [];
+  let pendingWrites = 0;
+  let syncError = '';
+  let syncConfirmed = false;
+  let syncEpoch = 0;
+  let lastWritePromise = Promise.resolve(false);
+
+  function getSyncStatus() {
+    return { pending: pendingWrites, error: syncError, confirmed: syncConfirmed };
+  }
+
+  function subscribeSync(fn) {
+    if (typeof fn !== 'function') return function () {};
+    syncListeners.push(fn);
+    return function () { syncListeners = syncListeners.filter(function (item) { return item !== fn; }); };
+  }
+
+  function notifySync() {
+    syncListeners.slice().forEach(function (fn) {
+      try { fn(getSyncStatus()); } catch (err) { /* Isolate observers. */ }
+    });
+  }
+
+  function trackWrite(promise) {
+    const epoch = syncEpoch;
+    pendingWrites += 1;
+    syncConfirmed = false;
+    syncError = '';
+    notifySync();
+    const tracked = Promise.resolve(promise).then(function () {
+      if (epoch !== syncEpoch) return false;
+      pendingWrites = Math.max(0, pendingWrites - 1);
+      if (pendingWrites === 0 && !syncError) syncConfirmed = true;
+      notifySync();
+      return true;
+    }, function (err) {
+      if (epoch !== syncEpoch) return false;
+      pendingWrites = Math.max(0, pendingWrites - 1);
+      syncError = err && err.code ? String(err.code) : 'sync-failed';
+      syncConfirmed = false;
+      reportPersistError(err);
+      notifySync();
+      return false;
+    });
+    lastWritePromise = tracked;
+    return tracked;
+  }
+
+  function getLastWritePromise() { return lastWritePromise; }
+
   function persistTrade(trade) {
     const adapter = firebaseAdapter();
-    if (!attachedUid || !adapter) return;
-    adapter.setTrade(attachedUid, trade).catch(reportPersistError);
+    if (!attachedUid || !adapter) return Promise.resolve(false);
+    return trackWrite(adapter.setTrade(attachedUid, trade));
   }
 
   function persistTradeDeletion(tradeId) {
     const adapter = firebaseAdapter();
-    if (!attachedUid || !adapter) return;
-    adapter.deleteTrade(attachedUid, tradeId).catch(reportPersistError);
+    if (!attachedUid || !adapter) return Promise.resolve(false);
+    return trackWrite(adapter.deleteTrade(attachedUid, tradeId));
   }
 
   function persistBalances() {
     const adapter = firebaseAdapter();
-    if (!attachedUid || !adapter) return;
-    adapter.setBalances(attachedUid, state.balances).catch(reportPersistError);
+    if (!attachedUid || !adapter) return Promise.resolve(false);
+    return trackWrite(adapter.setBalances(attachedUid, state.balances));
   }
 
   function persistSettings() {
     const adapter = firebaseAdapter();
-    if (!attachedUid || !adapter) return;
-    adapter.setSettings(attachedUid, state.settings).catch(reportPersistError);
+    if (!attachedUid || !adapter) return Promise.resolve(false);
+    return trackWrite(adapter.setSettings(attachedUid, state.settings));
   }
 
   /**
@@ -168,13 +219,13 @@ const Store = (function () {
     const currentIds = {};
     state.trades.forEach(function (trade) {
       currentIds[trade.id] = true;
-      adapter.setTrade(attachedUid, trade).catch(reportPersistError);
+      trackWrite(adapter.setTrade(attachedUid, trade));
     });
     (previousIds || []).forEach(function (id) {
-      if (!currentIds[id]) adapter.deleteTrade(attachedUid, id).catch(reportPersistError);
+      if (!currentIds[id]) trackWrite(adapter.deleteTrade(attachedUid, id));
     });
-    adapter.setBalances(attachedUid, state.balances).catch(reportPersistError);
-    adapter.setSettings(attachedUid, state.settings).catch(reportPersistError);
+    trackWrite(adapter.setBalances(attachedUid, state.balances));
+    trackWrite(adapter.setSettings(attachedUid, state.settings));
   }
 
   /* ------------------------------------------------------------------ */
@@ -274,6 +325,12 @@ const Store = (function () {
     }
     unsubscribeSnapshots = null;
     attachedUid = null;
+    syncEpoch += 1;
+    pendingWrites = 0;
+    syncError = '';
+    syncConfirmed = false;
+    lastWritePromise = Promise.resolve(false);
+    notifySync();
     state = emptyState();
     notifySubscribers();
   }
@@ -1549,8 +1606,8 @@ const Store = (function () {
     if (blocked) {
       contracts = 0;
     } else if (smallAccount) {
-      /* Small-account filter: force exactly one contract (never more). */
-      contracts = 1;
+      /* Small accounts may use at most one contract, never an unaffordable one. */
+      contracts = pm > 0 && effectiveBudget >= pm ? 1 : 0;
     } else if (pm > 0 && effectiveBudget > 0) {
       contracts = Math.floor(effectiveBudget / pm);
     }
@@ -2263,6 +2320,10 @@ const Store = (function () {
     input.trades.forEach(function (trade) {
       if (trade.account !== input.account) return;
       if (trade.entryDate && trade.entryDate < refDay) base += computeTrade(trade).net;
+    });
+    getAdjustments(input.account).forEach(function (movement) {
+      if (!movement.date || movement.date >= refDay) return;
+      base += (movement.type === 'deposit' ? 1 : -1) * numOr(movement.amount, 0);
     });
     return roundMoney(base);
   }
@@ -3855,6 +3916,9 @@ const Store = (function () {
     attach: attach,
     detach: detach,
     subscribe: subscribe,
+    subscribeSync: subscribeSync,
+    getSyncStatus: getSyncStatus,
+    getLastWritePromise: getLastWritePromise,
 
     getTrades: getTrades,
     getBalances: getBalances,
