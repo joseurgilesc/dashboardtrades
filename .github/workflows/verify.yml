@@ -20,12 +20,20 @@ jobs:
           for file in js/*.js; do node --check "$file"; done
       - name: Probar lógica y UI aislada
         run: |
-          set -e
+          failures=0
           for file in test/*.test.js; do
             if [ "$file" = "test/rules.test.js" ]; then continue; fi
-            echo "Ejecutando $file"
-            node "$file"
+            echo "::group::$file"
+            if node "$file"; then
+              echo "PASS $file"
+            else
+              echo "::error file=$file::Regresión detectada"
+              failures=$((failures + 1))
+            fi
+            echo "::endgroup::"
           done
+          echo "Pruebas fallidas: $failures"
+          test "$failures" -eq 0
   firestore-rules:
     runs-on: ubuntu-latest
     steps:

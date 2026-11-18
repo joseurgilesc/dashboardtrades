@@ -215,6 +215,7 @@ const rowCtx = vm.createContext({
   signClass: signClassMock,
   signedNumber: signedNumberMock,
   signedMoney: signedMoneyMock,
+  moneyVisible: function () { return true; },
   formatNumber: formatNumberMock,
   state: { editingId: null }
 });

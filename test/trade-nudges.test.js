@@ -130,6 +130,7 @@ const uiContext = vm.createContext({
   console: console,
   Store: Store,
   state: { editingId: null, globalDate: '' },
+  currentUid: 'test-uid',
   $: $,
   ACCOUNTS: ['Sim', 'Real', 'Fondeo'],
   showToast: showToast
@@ -286,7 +287,8 @@ seedToday(1);
 const existing = Store.addTrade(makeTrade(DATE));
 uiContext.state.editingId = existing.id;
 uiContext.handleSubmit({ preventDefault: function () {} });
-eq('edit path fires no warn nudges', warnCount(), 0);
+eq('edit path fires no process-goal nudge', hasWarn('Define tu meta de proceso antes de operar'), false);
+eq('edit path communicates pending synchronization', hasWarn('Actualización local; sincronizando…'), true);
 eq('edit path does not add a new trade', Store.getTrades().length, 2);
 
 /* ------------------------------------------------------------------ */
