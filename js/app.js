@@ -3935,6 +3935,20 @@
     const label = trade ? (trade.instrument + ' del ' + trade.entryDate) : '';
     if (!window.confirm('¿Eliminar el trade ' + (label || '') + '? Esta acción no se puede deshacer.')) return;
     Store.deleteTrade(id);
+    const deletedUid = currentUid;
+    Store.getLastWritePromise().then(function (confirmed) {
+      if (currentUid !== deletedUid) return;
+      if (!confirmed) {
+        showToast('No se confirmó la eliminación; revisa la sincronización.', 'error');
+        return;
+      }
+      if (trade && trade.imageUrl && FirebaseService.deleteTradeImage) {
+        FirebaseService.deleteTradeImage(deletedUid, trade.imageUrl).catch(function () {
+          showToast('Trade eliminado, pero no se pudo limpiar su captura.', 'warn');
+        });
+      }
+      showToast('Trade eliminado y sincronizado', 'ok');
+    });
     if (state.editingId === id) {
       /* The deleted trade was being edited: leave edit mode and reset. */
       resetForm();
@@ -3943,7 +3957,7 @@
        * editing a different trade, whose number must not be clobbered. */
       refreshNextTradeNumber();
     }
-    showToast('Trade eliminado', 'ok');
+    showToast('Eliminación local; sincronizando…', 'warn');
     renderAll();
   }
 
