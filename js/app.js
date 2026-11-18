@@ -11,7 +11,7 @@
   /* ------------------------------------------------------------------ */
 
   const state = {
-    activeTab: 'registro',
+    activeTab: 'hoy',
     activeTrade: 0,
     editingId: null,
     sortKey: 'entryDate',
@@ -1515,6 +1515,7 @@
     renderDailyGoal();
     renderSessionReview();
     renderPreflight();
+    renderToday();
     const filtered = getFilteredTrades();
     const dashboardTrades = getDashboardTrades();
     renderTable(filtered);
@@ -1575,18 +1576,109 @@
     }
   }
 
-  /** Loads today's pre-flight checklist (news/schedules + multi-timeframe
-   *  chart analysis) into the two checkboxes. */
+  /** Existing checklist in Registro: the same per-day data as the Today cockpit. */
   function renderPreflight() {
     const date = state.globalDate || todayISO();
-    const preflight = (typeof Store.getPreflight === 'function') ? Store.getPreflight(date) : null;
-    const newsEl = $('preflightNews');
-    const timeframesEl = $('preflightTimeframes');
-    if (newsEl) newsEl.checked = !!(preflight && preflight.news);
-    if (timeframesEl) timeframesEl.checked = !!(preflight && preflight.timeframes);
-    const done = !!(preflight && preflight.news && preflight.timeframes);
-    const summaryEl = $('preflightSummary');
-    if (summaryEl) summaryEl.textContent = done ? 'Completa' : 'Pendiente';
+    const checks = Store.getPreflight ? Store.getPreflight(date) : null;
+    const news = $('preflightNews');
+    const frames = $('preflightTimeframes');
+    if (news) news.checked = !!(checks && checks.news);
+    if (frames) frames.checked = !!(checks && checks.timeframes);
+    const label = $('preflightSummary');
+    if (label) label.textContent = checks && checks.news && checks.timeframes ? 'Completa' : 'Pendiente';
+  }
+
+  function renderToday() {
+    if (typeof Store.getSessionSnapshot !== 'function') return;
+    const day = todayISO();
+    const data = Store.getSessionSnapshot(activeAccount(), day);
+    const showMoney = moneyVisible();
+    const cash = function (value) { return showMoney ? formatMoney(value) : '••••'; };
+    const set = function (id, value) { const el = $(id); if (el) el.textContent = value; };
+    const dateLabel = new Intl.DateTimeFormat('es-EC', {
+      timeZone: GUAYAQUIL_TZ, day: 'numeric', month: 'long', year: 'numeric', weekday: 'long'
+    }).format(new Date());
+
+    set('todayDate', dateLabel);
+    set('todayAccount', data.account);
+    set('todayBalance', cash(data.currentBalance));
+    set('todayNet', showMoney ? signedMoney(data.net) : '••••');
+    const netEl = $('todayNet');
+    if (netEl) netEl.className = signClass(data.net);
+    set('todayAvailable', data.usage.valid ? cash(Math.max(0, data.usage.available)) : '—');
+    set('todayCount', data.tradeCount + ' / ' + data.limit);
+    set('todayRemaining', data.limitReached ? 'Límite diario alcanzado' :
+      data.remainingTrades + (data.remainingTrades === 1 ? ' operación disponible' : ' operaciones disponibles'));
+
+    const status = $('todayStatus');
+    if (status) {
+      status.setAttribute('data-state', data.status);
+      status.textContent = data.status === 'stop'
+        ? (data.limitReached ? 'Límite de operaciones alcanzado' : 'Riesgo diario alcanzado')
+        : data.status === 'ready' ? 'Preparación completada' : 'Preparación pendiente';
+    }
+    const pct = data.usage.valid && data.usage.dailyBudget > 0
+      ? Math.max(0, Math.round((data.usage.used / data.usage.dailyBudget) * 100)) : 0;
+    const meter = $('todayRiskMeter');
+    if (meter) meter.setAttribute('aria-valuenow', String(Math.min(100, pct)));
+    const fill = $('todayRiskFill');
+    if (fill) fill.style.width = Math.min(100, pct) + '%';
+    if (meter) meter.setAttribute('data-state', data.status === 'stop' ? 'stop' : pct >= 90 ? 'warn' : 'ok');
+    set('todayRiskPct', 'Presupuesto diario ' + Number(data.usage.valid ? data.usage.dailyBudget * 100 / (data.capital || 1) : 0).toFixed(1) + ' %');
+    set('todayUsed', data.usage.valid ? cash(data.usage.used) : '—');
+    set('todayBudget', 'Límite inicial: ' + (data.usage.valid ? cash(data.usage.dailyBudget) : '—'));
+    set('todayRiskGuard', data.guard.blocked ? 'Regla de pérdidas/racha activada' :
+      data.usage.exhausted ? 'Presupuesto agotado' : 'Sin bloqueo por riesgo');
+    set('todayRiskNote', pct >= 100 ? 'El presupuesto inicial ya fue consumido por pérdidas realizadas.' :
+      (data.usage.todayGains > 0 ? 'Las ganancias del día pueden reponer parte del cupo según el factor configurado.' :
+      'Esta barra muestra pérdidas brutas realizadas, no el drawdown máximo de la cuenta.'));
+
+    const checklist = data.preflight;
+    const news = $('todayNews'), frames = $('todayTimeframes');
+    if (news) news.checked = !!checklist.news;
+    if (frames) frames.checked = !!checklist.timeframes;
+    const completed = Number(!!checklist.news) + Number(!!checklist.timeframes);
+    set('todayPreflightSummary', completed + ' de 2');
+    const goal = data.goal;
+    set('todayGoalText', goal && goal.goal ? goal.goal : 'Define una conducta que quieras respetar hoy.');
+    const goalLabels = { cumplida: 'Cumplida', parcial: 'Parcial', no: 'No cumplida' };
+    set('todayGoalStatus', goal && goal.goal ? (goalLabels[goal.status] || 'Pendiente') : 'Sin definir');
+    const previous = Store.getPreviousSessionAction(day);
+    const previousEl = $('todayPreviousAction');
+    if (previousEl) {
+      previousEl.hidden = !previous;
+      previousEl.textContent = previous ? 'Próxima acción acordada: ' + previous : '';
+    }
+    const hasReview = data.review && (data.review.q1 || data.review.q2 || data.review.q3);
+    set('todayReviewStatus', hasReview ? 'Completado' : 'Pendiente');
+    set('todayReviewText', hasReview ? (data.review.q3 || 'Revisión registrada. Puedes editarla.') :
+      'Al terminar, registra qué repetir y qué corregir.');
+
+    set('todayHistoryCount', data.tradeCount + (data.tradeCount === 1 ? ' trade hoy' : ' trades hoy'));
+    const list = $('todayTrades');
+    if (list) {
+      list.textContent = '';
+      const recent = data.trades.slice(-3).reverse();
+      if (!recent.length) {
+        const empty = document.createElement('p');
+        empty.className = 'today-note';
+        empty.textContent = 'Todavía no hay operaciones registradas hoy.';
+        list.appendChild(empty);
+      }
+      recent.forEach(function (trade) {
+        const row = document.createElement('div');
+        row.className = 'today-trade-row';
+        const label = document.createElement('span');
+        label.className = 'today-trade-label';
+        label.textContent = trade.instrument + ' · ' + trade.direction + ' · ' + (trade.entryTime || '—');
+        const value = document.createElement('strong');
+        value.className = signClass(trade.net);
+        value.textContent = showMoney ? signedMoney(trade.net) : '••••';
+        row.appendChild(label);
+        row.appendChild(value);
+        list.appendChild(row);
+      });
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -3438,9 +3530,9 @@
     if (form.respectedStop === undefined) errors.push('Indica si respetaste el stop.');
     if (form.respectedSize === undefined) errors.push('Indica si respetaste el tamaño.');
 
-    /* Pre-flight checklist: news/schedules + multi-timeframe chart analysis. */
+    /* Before registering a trade, preserve the existing mandatory checklist. */
     const preflightDate = state.globalDate || todayISO();
-    const preflight = (typeof Store.getPreflight === 'function') ? Store.getPreflight(preflightDate) : null;
+    const preflight = Store.getPreflight ? Store.getPreflight(preflightDate) : null;
     if (!preflight || !preflight.news || !preflight.timeframes) {
       errors.push('Completa la checklist previa (noticias/horarios y análisis técnico).');
     }
@@ -4060,7 +4152,7 @@
       btn.setAttribute('aria-selected', active ? 'true' : 'false');
     });
 
-    ['registro', 'dashboard', 'ajustes'].forEach(function (name) {
+    ['hoy', 'registro', 'dashboard', 'ajustes'].forEach(function (name) {
       const section = $('tab-' + name);
       if (section) section.hidden = name !== tab;
     });
@@ -4070,6 +4162,9 @@
     if (tab === 'registro') switchRegistroSub('formulario');
 
     applyFiltersVisibility();
+    const searchbar = $('globalSearchBar');
+    if (searchbar) searchbar.hidden = tab !== 'registro';
+    if (tab === 'hoy') renderToday();
 
     if (tab === 'dashboard') {
       renderGamification();
@@ -4763,21 +4858,42 @@
       });
     }
 
-    /* Pre-flight checklist: persist each check immediately on toggle. */
-    ['preflightNews', 'preflightTimeframes'].forEach(function (id) {
+    /* Shared pre-flight checklist: Registro and Hoy edit the same daily record. */
+    ['preflightNews', 'preflightTimeframes', 'todayNews', 'todayTimeframes'].forEach(function (id) {
       const el = $(id);
-      if (el) {
-        el.addEventListener('change', function () {
-          const date = state.globalDate || todayISO();
-          if (typeof Store.setPreflight === 'function') {
-            Store.setPreflight(date, {
-              news: $('preflightNews') ? $('preflightNews').checked : false,
-              timeframes: $('preflightTimeframes') ? $('preflightTimeframes').checked : false
-            });
-          }
-          renderPreflight();
-        });
+      if (!el) return;
+      el.addEventListener('change', function () {
+        const day = (id.indexOf('today') === 0) ? todayISO() : (state.globalDate || todayISO());
+        const isToday = id.indexOf('today') === 0;
+        const news = $(isToday ? 'todayNews' : 'preflightNews');
+        const frames = $(isToday ? 'todayTimeframes' : 'preflightTimeframes');
+        Store.setPreflight(day, { news: !!(news && news.checked), timeframes: !!(frames && frames.checked) });
+        renderToday();
+        renderPreflight();
+      });
+    });
+
+    function openRegisterTarget(target) {
+      switchTab('registro');
+      if (target === 'calculator') switchRegistroSub('calculadora');
+      const destination = target === 'goal' ? $('dailyGoalCard') :
+        target === 'review' ? $('reviewCard') :
+        target === 'history' ? $('tradesBody') : target === 'calculator' ? $('calculatorCard') : $('tradeCard');
+      if (destination) {
+        if (target === 'goal' || target === 'review') destination.open = true;
+        const scrollTarget = target === 'history' && destination.closest ? destination.closest('.card') : destination;
+        if (scrollTarget && scrollTarget.scrollIntoView) scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
+    }
+    [
+      ['todayPlan', 'calculator'],
+      ['todayRegister', 'trade'],
+      ['todayEditGoal', 'goal'],
+      ['todayReviewButton', 'review'],
+      ['todayHistory', 'history']
+    ].forEach(function (pair) {
+      const btn = $(pair[0]);
+      if (btn) btn.addEventListener('click', function () { openRegisterTarget(pair[1]); });
     });
 
     /* Dashboard Proceso/Resultados segmented toggle. */
@@ -5580,7 +5696,7 @@
       const userBox = $('userBox');
       if (userBox) userBox.hidden = false;
       setAppVisible(true);
-      switchTab('registro');
+      switchTab('hoy');
       renderAll();
       renderLeaderboard();
     }).catch(function () {

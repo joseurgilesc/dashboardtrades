@@ -99,7 +99,8 @@
   </section>
 
   <nav class="tabs" role="tablist" aria-label="Secciones">
-    <button type="button" class="tab-button active" role="tab" data-tab="registro" data-accent="accent" aria-selected="true" aria-controls="tab-registro">Registro</button>
+    <button type="button" class="tab-button active" id="nav-hoy" role="tab" data-tab="hoy" data-accent="accent" aria-selected="true" aria-controls="tab-hoy">Hoy</button>
+    <button type="button" class="tab-button" id="nav-registro" role="tab" data-tab="registro" data-accent="accent" aria-selected="false" aria-controls="tab-registro">Registro</button>
     <button type="button" class="tab-button" role="tab" data-tab="dashboard" data-accent="cyan" aria-selected="false" aria-controls="tab-dashboard">Dashboard</button>
     <button type="button" class="tab-button" role="tab" data-tab="ajustes" data-accent="purple" aria-selected="false" aria-controls="tab-ajustes">Ajustes</button>
   </nav>
@@ -149,8 +150,91 @@
   </div>
 
   <main class="app-main">
+    <!-- Operational cockpit: the same Store data, scoped to the active account. -->
+    <section id="tab-hoy" class="today-dashboard" role="tabpanel" aria-labelledby="nav-hoy" data-accent="accent">
+      <div class="today-header">
+        <div>
+          <p class="today-eyebrow">JORNADA DE TRADING</p>
+          <h2>Tu sesión de hoy</h2>
+          <p class="today-date" id="todayDate">—</p>
+        </div>
+        <div class="today-state" id="todayStatus" role="status" aria-live="polite">Preparación pendiente</div>
+      </div>
+
+      <div class="today-metrics" aria-label="Indicadores de la cuenta activa">
+        <div class="today-metric"><span class="today-metric-label">Saldo actual · <span id="todayAccount">—</span></span><strong id="todayBalance">—</strong><small>Incluye depósitos y retiros</small></div>
+        <div class="today-metric"><span class="today-metric-label">Resultado del día</span><strong id="todayNet">—</strong><small>Resultado neto con comisiones</small></div>
+        <div class="today-metric"><span class="today-metric-label">Presupuesto disponible</span><strong id="todayAvailable">—</strong><small>Según tus reglas de riesgo</small></div>
+        <div class="today-metric"><span class="today-metric-label">Operaciones del día</span><strong id="todayCount">—</strong><small id="todayRemaining">—</small></div>
+      </div>
+
+      <div class="today-actions">
+        <button type="button" class="btn btn-primary" id="todayPlan">Calcular y planificar</button>
+        <button type="button" class="btn" id="todayRegister">Registrar una operación</button>
+      </div>
+
+      <div class="today-columns">
+        <div class="today-column">
+          <article class="card today-card today-risk-card" aria-labelledby="todayRiskTitle">
+            <div class="card-header card-header-row">
+              <h3 id="todayRiskTitle">Presupuesto de riesgo</h3>
+              <span class="today-supporting" id="todayRiskPct">—</span>
+            </div>
+            <div class="today-risk-head">
+              <span>Pérdidas realizadas hoy</span><strong id="todayUsed">—</strong>
+            </div>
+            <div class="today-meter" role="progressbar" aria-label="Pérdidas del día sobre presupuesto original" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="todayRiskMeter">
+              <span id="todayRiskFill"></span>
+            </div>
+            <p class="today-note" id="todayRiskNote">—</p>
+            <div class="today-risk-bottom"><span id="todayBudget">—</span><span id="todayRiskGuard">—</span></div>
+          </article>
+
+          <article class="card today-card" aria-labelledby="todayPreflightTitle">
+            <div class="card-header card-header-row">
+              <h3 id="todayPreflightTitle">Antes de operar</h3>
+              <span class="today-supporting" id="todayPreflightSummary">0 de 2</span>
+            </div>
+            <p class="today-note">Checklist del día, compartida entre tus cuentas.</p>
+            <label class="today-check"><input id="todayNews" type="checkbox"> Revisé noticias y horarios económicos</label>
+            <label class="today-check"><input id="todayTimeframes" type="checkbox"> Preparé mis temporalidades de 240, 60, 15 y 3 minutos</label>
+          </article>
+
+          <article class="card today-card" aria-labelledby="todayGoalTitle">
+            <div class="card-header card-header-row">
+              <h3 id="todayGoalTitle">Meta de proceso</h3>
+              <span class="today-supporting" id="todayGoalStatus">Sin definir</span>
+            </div>
+            <p class="today-goal" id="todayGoalText">Define una conducta que quieras respetar hoy.</p>
+            <p class="today-note" id="todayPreviousAction" hidden></p>
+            <button type="button" class="btn btn-ghost" id="todayEditGoal">Definir o revisar meta</button>
+          </article>
+        </div>
+
+        <div class="today-column">
+          <article class="card today-card" aria-labelledby="todayReviewTitle">
+            <div class="card-header card-header-row">
+              <h3 id="todayReviewTitle">Cierre de sesión</h3>
+              <span class="today-supporting" id="todayReviewStatus">Pendiente</span>
+            </div>
+            <p class="today-note" id="todayReviewText">Al terminar, registra qué repetir y qué corregir.</p>
+            <button type="button" class="btn btn-ghost" id="todayReviewButton">Completar revisión</button>
+          </article>
+          <article class="card today-card" aria-labelledby="todayHistoryTitle">
+            <div class="card-header card-header-row">
+              <h3 id="todayHistoryTitle">Últimas operaciones</h3>
+              <span class="today-supporting" id="todayHistoryCount">0 hoy</span>
+            </div>
+            <div class="today-trades" id="todayTrades"><p class="today-note">Aún no tienes operaciones registradas hoy.</p></div>
+            <button type="button" class="btn btn-ghost" id="todayHistory">Ver historial</button>
+          </article>
+        </div>
+      </div>
+      <p class="today-footnote">El estado de riesgo es una guía de disciplina, no una orden de compra o venta. Puedes registrar operaciones pasadas aunque se haya alcanzado el límite.</p>
+    </section>
+
     <!-- ============================ REGISTRO ============================ -->
-    <section id="tab-registro" role="tabpanel" data-accent="accent" aria-labelledby="tab-registro">
+    <section id="tab-registro" role="tabpanel" data-accent="accent" aria-labelledby="nav-registro" hidden>
       <!-- Sub-toggle: the trade form and the risk calculator share the same
            space inside Registro. -->
       <div class="segmented" id="registroSubTab" role="group" aria-label="Modo de registro">

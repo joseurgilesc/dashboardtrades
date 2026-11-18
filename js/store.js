@@ -2328,6 +2328,44 @@ const Store = (function () {
     return roundMoney(base);
   }
 
+  /** Consistent snapshot for the session cockpit. Figures are all scoped to
+   * one account and an explicit date. Process goals/checklist remain per-day,
+   * matching the existing app's data model (shared between accounts). */
+  function getSessionSnapshot(account, date) {
+    const day = strOr(date, '') || todayISO();
+    const key = strOr(account, '');
+    const settings = getRiskSettings()[key] || {};
+    const capital = startOfDayBalance(key, null, day);
+    const balances = getAccountBalances();
+    const trades = state.trades.filter(function (trade) {
+      return trade.account === key && trade.entryDate === day;
+    });
+    const computed = sortChronologically(trades).map(computeTrade);
+    const net = roundMoney(computed.reduce(function (sum, trade) { return sum + trade.net; }, 0));
+    const limit = Number.isFinite(settings.dailyTradeLimit) ? settings.dailyTradeLimit : DAILY_LIMIT_DEFAULT;
+    const usage = dailyRiskUsage({
+      account: key, today: day, balance: capital, riskPct: settings.riskPct,
+      gainFactor: settings.gainFactor
+    });
+    const guard = riskGuard({ account: key, today: day, capital: capital });
+    const goal = getDailyGoal(day);
+    const review = getSessionReview(day);
+    const preflight = getPreflight(day) || { news: false, timeframes: false };
+    const prepared = !!(goal && String(goal.goal || '').trim() && preflight.news && preflight.timeframes);
+    const limitReached = computed.length >= limit;
+    const riskStopped = !usage.valid || usage.exhausted || guard.blocked;
+    const status = (limitReached || riskStopped) ? 'stop' : (prepared ? 'ready' : 'prepare');
+    return {
+      account: key, day: day, currentBalance: numOr(balances[key], 0),
+      capital: capital, net: net, trades: computed,
+      tradeCount: computed.length, limit: limit,
+      remainingTrades: Math.max(0, limit - computed.length),
+      limitReached: limitReached, riskStopped: riskStopped,
+      prepared: prepared, status: status,
+      usage: usage, guard: guard, goal: goal, review: review, preflight: preflight
+    };
+  }
+
   /* ------------------------------------------------------------------ */
   /* Risk discipline (pure)                                              */
   /* ------------------------------------------------------------------ */
@@ -3938,6 +3976,7 @@ const Store = (function () {
     setSessionReview: setSessionReview,
     getPreflight: getPreflight,
     setPreflight: setPreflight,
+    getSessionSnapshot: getSessionSnapshot,
     getPreviousSessionAction: getPreviousSessionAction,
     nextTradeNumber: nextTradeNumber,
     addTrade: addTrade,

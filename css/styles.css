@@ -3834,3 +3834,76 @@ input[type="number"] { -moz-appearance: textfield; }
 .sync-status-ok { color: var(--pos); }
 .dashboard-account-context { font-size: var(--text-sm); color: var(--text-muted); margin: 0 0 var(--space-3); }
 .dashboard-account-context strong { color: var(--text); }
+
+/* -------------------------------------------------------------------
+   Phase 2: compact, account-scoped "Hoy" trading cockpit.
+   Every monetary value is provided by the Store; CSS carries no data.
+   ------------------------------------------------------------------- */
+.today-dashboard { display: flex; flex-direction: column; gap: var(--space-4); }
+.today-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.today-eyebrow { color: var(--accent); letter-spacing: .11em; font-size: 11px; font-weight: 700; margin: 0 0 4px; }
+.today-header h2 { color: var(--text); font-size: clamp(20px, 2.5vw, 28px); line-height: 1.2; }
+.today-date { color: var(--text-muted); font-size: 13px; text-transform: capitalize; margin: 5px 0 0; }
+.today-state { max-width: 230px; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--amber);
+  padding: 8px 12px; font-size: 12px; line-height: 1.4; text-align: center; background: var(--panel); }
+.today-state[data-state="ready"] { color: var(--pos); border-color: rgba(34,197,94,.35); }
+.today-state[data-state="stop"] { color: var(--neg); border-color: rgba(239,68,68,.45); }
+.today-metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: var(--space-3); }
+.today-metric { display: flex; flex-direction: column; justify-content: space-between; gap: 8px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); min-width: 0; }
+.today-metric-label { color: var(--text-muted); font-size: 12px; line-height: 1.4; }
+.today-metric strong { color: var(--text); font-family: var(--font-data); font-size: clamp(19px, 2.6vw, 28px);
+  line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.today-metric strong.pos, .today-trade-row strong.pos { color: var(--pos); }
+.today-metric strong.neg, .today-trade-row strong.neg { color: var(--neg); }
+.today-metric small { color: var(--text-faint); font-size: 11px; line-height: 1.4; }
+.today-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.today-actions .btn { min-height: 42px; padding: 10px 18px; }
+.today-columns { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(290px,.8fr); gap: var(--space-3); align-items: start; }
+.today-column { display: grid; grid-template-columns: 1fr; gap: var(--space-3); min-width: 0; }
+.today-card { padding: var(--space-4); }
+.today-card .card-header { margin-bottom: var(--space-3); }
+.today-card h3 { color: var(--text); font-size: 16px; font-weight: 600; }
+.today-card .card-header-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.today-supporting { color: var(--text-muted); font-size: 12px; text-align: right; }
+.today-risk-head, .today-risk-bottom { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
+.today-risk-head { color: var(--text-muted); font-size: 13px; margin: 0 0 var(--space-2); }
+.today-risk-head strong { color: var(--text); font-size: 16px; font-family: var(--font-data); }
+.today-risk-bottom { color: var(--text-muted); font-size: 12px; flex-wrap: wrap; margin-top: var(--space-3); }
+.today-meter { background: var(--bg-input); border: 1px solid var(--border); border-radius: 999px; height: 12px; overflow: hidden; }
+.today-meter span { display: block; height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width 150ms ease; }
+.today-meter[data-state="warn"] span { background: var(--amber); }
+.today-meter[data-state="stop"] span { background: var(--neg); }
+.today-note { font-size: 12px; line-height: 1.6; color: var(--text-muted); margin: var(--space-2) 0; }
+.today-check { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 10px 0; border-top: 1px solid var(--border);
+  color: var(--text); cursor: pointer; font-size: 13px; }
+.today-check input { margin: 2px 0 0; accent-color: var(--accent); width: 18px; height: 18px; flex: 0 0 18px; }
+.today-goal { font-size: 14px; line-height: 1.6; color: var(--text); overflow-wrap: anywhere; }
+.today-card .btn-ghost { min-height: 40px; margin-top: var(--space-2); }
+.today-trades { display: grid; gap: var(--space-1); }
+.today-trade-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 0;
+  gap: var(--space-2); border-bottom: 1px solid var(--border); font-size: 12px; }
+.today-trade-label { color: var(--text-muted); }
+.today-trade-row strong { font-family: var(--font-data); font-size: 13px; white-space: nowrap; }
+.today-footnote { color: var(--text-faint); font-size: 11px; line-height: 1.6; margin: var(--space-1) 0 var(--space-3); }
+@media (max-width: 1080px) {
+  .today-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 760px) {
+  .today-columns { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .today-header { flex-direction: column; gap: var(--space-2); }
+  .today-state { max-width: 100%; align-self: flex-start; }
+  .today-metrics { gap: var(--space-2); }
+  .today-metric { padding: var(--space-3); }
+  .today-metric strong { font-size: 18px; }
+  .today-actions { display: grid; grid-template-columns: 1fr; }
+  .today-actions .btn { width: 100%; min-height: 44px; }
+  .today-card { padding: var(--space-3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .today-meter span { transition: none; }
+}
+/* Keep hidden state authoritative even for flex/grid widgets. */
+[hidden] { display: none !important; }
