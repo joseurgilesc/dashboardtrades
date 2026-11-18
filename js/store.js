@@ -696,6 +696,28 @@ const Store = (function () {
     return getSessionReview(date);
   }
 
+  /* Pre-flight checklist: two checks (news/schedules + multi-timeframe chart
+   * analysis) that must be marked before operating each day. */
+  function preflightMap() {
+    return (state.settings && typeof state.settings.preflight === 'object')
+      ? state.settings.preflight : {};
+  }
+
+  function getPreflight(date) {
+    const raw = preflightMap()[date];
+    return raw ? {
+      news: !!raw.news,
+      timeframes: !!raw.timeframes
+    } : null;
+  }
+
+  function setPreflight(date, patch) {
+    const map = preflightMap();
+    map[date] = Object.assign({}, map[date] || {}, patch || {});
+    setSettings({ preflight: map });
+    return getPreflight(date);
+  }
+
   /** The "next action" from the most recent review strictly BEFORE `date`. */
   function getPreviousSessionAction(date) {
     const reviews = sessionReviewsMap();
@@ -3914,6 +3936,8 @@ const Store = (function () {
     setDailyGoal: setDailyGoal,
     getSessionReview: getSessionReview,
     setSessionReview: setSessionReview,
+    getPreflight: getPreflight,
+    setPreflight: setPreflight,
     getPreviousSessionAction: getPreviousSessionAction,
     nextTradeNumber: nextTradeNumber,
     addTrade: addTrade,
