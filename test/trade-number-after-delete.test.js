@@ -131,6 +131,7 @@ const uiContext = vm.createContext({
   Store: Store,
   window: { confirm: function () { return true; } },
   state: { editingId: null },
+  currentUid: 'test-uid',
   $: $,
   ACCOUNTS: ['Sim', 'Real', 'Fondeo'],
   DEFAULT_DAILY_TRADE_LIMIT: 3,
