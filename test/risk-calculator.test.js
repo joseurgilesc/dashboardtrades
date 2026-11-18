@@ -302,7 +302,7 @@ eq('boosted available + 3-loss streak -> 0 contracts', boostedStreak.contracts, 
 
 /* A small account stays at 1 contract regardless of a boosted available. */
 const boostedSmall = Store.computeRisk({
-  balance: 1000, capital: 1000, riskPct: 2, instrument: 'MES', stopTicks: 8,
+  balance: 1000, capital: 1000, riskPct: 2, instrument: 'MES', stopTicks: 1,
   available: 10000
 });
 eq('boosted available + small account -> still 1 contract', boostedSmall.contracts, 1);
