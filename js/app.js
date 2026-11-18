@@ -1510,6 +1510,7 @@
     updateDuplicateButton();
     renderDailyGoal();
     renderSessionReview();
+    renderPreflight();
     const filtered = getFilteredTrades();
     const dashboardTrades = getDashboardTrades();
     renderTable(filtered);
@@ -1568,6 +1569,20 @@
     if (summaryEl) {
       summaryEl.textContent = review ? 'Revisada' : 'Pendiente';
     }
+  }
+
+  /** Loads today's pre-flight checklist (news/schedules + multi-timeframe
+   *  chart analysis) into the two checkboxes. */
+  function renderPreflight() {
+    const date = state.globalDate || todayISO();
+    const preflight = (typeof Store.getPreflight === 'function') ? Store.getPreflight(date) : null;
+    const newsEl = $('preflightNews');
+    const timeframesEl = $('preflightTimeframes');
+    if (newsEl) newsEl.checked = !!(preflight && preflight.news);
+    if (timeframesEl) timeframesEl.checked = !!(preflight && preflight.timeframes);
+    const done = !!(preflight && preflight.news && preflight.timeframes);
+    const summaryEl = $('preflightSummary');
+    if (summaryEl) summaryEl.textContent = done ? 'Completa' : 'Pendiente';
   }
 
   /* ------------------------------------------------------------------ */
@@ -3419,6 +3434,13 @@
     if (form.respectedStop === undefined) errors.push('Indica si respetaste el stop.');
     if (form.respectedSize === undefined) errors.push('Indica si respetaste el tamaño.');
 
+    /* Pre-flight checklist: news/schedules + multi-timeframe chart analysis. */
+    const preflightDate = state.globalDate || todayISO();
+    const preflight = (typeof Store.getPreflight === 'function') ? Store.getPreflight(preflightDate) : null;
+    if (!preflight || !preflight.news || !preflight.timeframes) {
+      errors.push('Completa la checklist previa (noticias/horarios y análisis técnico).');
+    }
+
     /* Process goal: no trade can be saved without today's process goal. */
     const goalDate = state.globalDate || todayISO();
     const dayGoal = (typeof Store.getDailyGoal === 'function') ? Store.getDailyGoal(goalDate) : null;
@@ -4712,6 +4734,23 @@
         showToast('Revisión guardada', 'ok');
       });
     }
+
+    /* Pre-flight checklist: persist each check immediately on toggle. */
+    ['preflightNews', 'preflightTimeframes'].forEach(function (id) {
+      const el = $(id);
+      if (el) {
+        el.addEventListener('change', function () {
+          const date = state.globalDate || todayISO();
+          if (typeof Store.setPreflight === 'function') {
+            Store.setPreflight(date, {
+              news: $('preflightNews') ? $('preflightNews').checked : false,
+              timeframes: $('preflightTimeframes') ? $('preflightTimeframes').checked : false
+            });
+          }
+          renderPreflight();
+        });
+      }
+    });
 
     /* Dashboard Proceso/Resultados segmented toggle. */
     const viewToggle = $('dashboardViewToggle');
